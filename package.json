@@ -1,7 +1,6 @@
 {
   "name": "@srl-labs/containerlab-gui",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.0.1",
   "description": "Standalone frontend/webview package for containerlab UI",
   "license": "Apache-2.0",
   "repository": {
@@ -24,7 +23,8 @@
     "build:watch": "node esbuild.config.js --dev",
     "build:dev": "node esbuild.config.js --dev",
     "typecheck": "tsc --noEmit",
-    "pack:preview": "npm pack --dry-run"
+    "pack:preview": "npm pack --dry-run",
+    "prepack": "npm run build"
   },
   "devDependencies": {
     "@emotion/react": "^11.14.0",
@@ -61,5 +61,9 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "yaml": "^2.8.2"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
   }
 }

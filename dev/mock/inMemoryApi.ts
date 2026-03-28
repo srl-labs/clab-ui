@@ -1,11 +1,11 @@
-import { TopologyHostCore } from "@shared/host/TopologyHostCore";
-import type { FileSystemAdapter } from "@shared/io/types";
+import { MemoryTopologyHostTransport } from "@srl-labs/clab-adapter-memory";
+import type { FileSystemAdapter } from "@srl-labs/clab-ui-core/io/types";
 import type {
   TopologyHostCommand,
   TopologyHostResponseMessage,
   TopologySnapshot
-} from "@shared/types/messages";
-import type { DeploymentState } from "@shared/types/topology";
+} from "@srl-labs/clab-ui-core/types/messages";
+import type { DeploymentState } from "@srl-labs/clab-ui-core/types/topology";
 
 import datacenterYaml from "../topologies-original/datacenter.clab.yml?raw";
 import datacenterAnnotations from "../topologies-original/datacenter.clab.yml.annotations.json?raw";
@@ -379,7 +379,7 @@ class InMemoryFsAdapter implements FileSystemAdapter {
 class InMemoryTopologyHostService {
   private readonly store = new InMemoryLabStore();
   private readonly fsAdapter = new InMemoryFsAdapter(this.store);
-  private readonly hosts = new Map<string, TopologyHostCore>();
+  private readonly hosts = new Map<string, MemoryTopologyHostTransport>();
 
   public listTopologyFiles(): Array<{ filename: string; path: string; hasAnnotations: boolean }> {
     return this.store.listTopologyFiles();
@@ -387,29 +387,25 @@ class InMemoryTopologyHostService {
 
   public reset(): void {
     this.store.reset();
-    for (const host of this.hosts.values()) {
-      host.dispose();
-    }
+    for (const host of this.hosts.values()) host.dispose();
     this.hosts.clear();
   }
 
   public dispose(): void {
-    for (const host of this.hosts.values()) {
-      host.dispose();
-    }
+    for (const host of this.hosts.values()) host.dispose();
     this.hosts.clear();
   }
 
-  private getHost(
+  private getTransport(
     filePath: string,
     mode: "edit" | "view",
     deploymentState: DeploymentState
-  ): TopologyHostCore {
+  ): MemoryTopologyHostTransport {
     const normalizedPath = yamlPathFromAny(filePath);
-    let host = this.hosts.get(normalizedPath);
+    let transport = this.hosts.get(normalizedPath);
 
-    if (!host) {
-      host = new TopologyHostCore({
+    if (!transport) {
+      transport = new MemoryTopologyHostTransport({
         fs: this.fsAdapter,
         yamlFilePath: normalizedPath,
         mode,
@@ -421,31 +417,31 @@ class InMemoryTopologyHostService {
           error: () => {}
         }
       });
-      this.hosts.set(normalizedPath, host);
-      return host;
+      this.hosts.set(normalizedPath, transport);
+      return transport;
     }
 
-    host.updateContext({ mode, deploymentState });
-    return host;
+    transport.updateContext({ mode, deploymentState });
+    return transport;
   }
 
   public async snapshot(request: SnapshotRequest): Promise<TopologySnapshot> {
     const mode = request.mode ?? "edit";
     const deploymentState = request.deploymentState ?? "undeployed";
-    const host = this.getHost(request.path, mode, deploymentState);
+    const transport = this.getTransport(request.path, mode, deploymentState);
 
     if (request.externalChange) {
-      return host.onExternalChange();
+      return transport.onExternalChange();
     }
 
-    return host.getSnapshot();
+    return transport.requestSnapshot();
   }
 
   public async command(request: CommandRequest): Promise<TopologyHostResponseMessage> {
     const mode = request.mode ?? "edit";
     const deploymentState = request.deploymentState ?? "undeployed";
-    const host = this.getHost(request.path, mode, deploymentState);
-    return host.applyCommand(request.command, request.baseRevision);
+    const transport = this.getTransport(request.path, mode, deploymentState);
+    return transport.dispatch(request.command, request.baseRevision);
   }
 }
 

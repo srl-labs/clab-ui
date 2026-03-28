@@ -4,8 +4,8 @@ import { createRoot, type Root as ReactRoot } from "react-dom/client";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { App } from "@webview/App";
-import type { CustomNodeTemplate } from "@shared/types/editors";
-import type { CustomIconInfo } from "@shared/types/icons";
+import type { CustomNodeTemplate } from "@srl-labs/clab-ui-core/types/editors";
+import type { CustomIconInfo } from "@srl-labs/clab-ui-core/types/icons";
 import "@webview/styles/global.css";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
@@ -15,27 +15,27 @@ import { refreshTopologySnapshot } from "@webview/services/topologyHostCommands"
 import { useGraphStore, useTopoViewerStore } from "@webview/stores";
 import { applyDevVars } from "@webview/theme/devTheme";
 import { vscodeTheme } from "@webview/theme/vscodeTheme";
-import { EXPORT_COMMANDS } from "@shared/messages/extension";
-import { MSG_SVG_EXPORT_RESULT } from "@shared/messages/webview";
+import { EXPORT_COMMANDS } from "@srl-labs/clab-ui-core/messages/extension";
+import { MSG_SVG_EXPORT_RESULT } from "@srl-labs/clab-ui-core/messages/webview";
 
 import { DevStateManager } from "./mock/DevState";
 import { DevSettingsOverlay } from "./components/DevSettingsOverlay";
 import { sampleCustomNodes, sampleCustomIcons } from "./mockData";
 
 import clabSchema from "../schema/clab.schema.json";
-import { parseSchemaData } from "@shared/schema";
-import type { SchemaData } from "@shared/schema";
+import { parseSchemaData } from "@srl-labs/clab-ui-core/schema";
+import type { SchemaData } from "@srl-labs/clab-ui-core/schema";
 import {
   buildExplorerSnapshot,
   type ExplorerActionInvocation,
   type ExplorerSnapshotOptions,
   type ExplorerSnapshotProviders
-} from "@webviews/explorer/explorerSnapshotAdapter";
+} from "@srl-labs/clab-ui-explorer";
 import type {
   ExplorerIncomingMessage,
   ExplorerOutgoingMessage,
   ExplorerUiState
-} from "@webviews/shared/explorer/types";
+} from "@srl-labs/clab-ui-explorer";
 import { installInMemoryApi } from "./mock/inMemoryApi";
 import { loadDevSession, saveDevSession } from "./mock/devSession";
 

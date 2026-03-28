@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@srl-labs/clab-adapter-memory": ["./packages/adapter-memory/src/index.ts"],
+      "@srl-labs/clab-adapter-memory/*": ["./packages/adapter-memory/src/*"],
+      "@srl-labs/clab-ui": ["./packages/ui/src/index.ts"],
+      "@srl-labs/clab-ui/*": ["./packages/ui/src/*"]
+    }
+  },
+  "include": ["./src/**/*.ts", "./src/**/*.tsx"]
+}

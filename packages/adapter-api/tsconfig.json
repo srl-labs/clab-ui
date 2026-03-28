@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@srl-labs/clab-host-contract": ["./packages/host-contract/src/index.ts"],
+      "@srl-labs/clab-host-contract/*": ["./packages/host-contract/src/*"]
+    }
+  },
+  "include": ["./src/**/*.ts", "./src/**/*.tsx"]
+}

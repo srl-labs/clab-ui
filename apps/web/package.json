@@ -1,0 +1,12 @@
+{
+  "name": "@srl-labs/clab-app-web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@srl-labs/clab-adapter-api": "0.0.1",
+    "@srl-labs/clab-ui": "0.0.1",
+    "@srl-labs/clab-ui-explorer": "0.0.1",
+    "@srl-labs/clab-ui-inspect": "0.0.1"
+  }
+}

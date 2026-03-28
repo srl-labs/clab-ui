@@ -1,27 +1,13 @@
 {
-  "compilerOptions": {
-    "target": "ES2024",
-    "lib": ["ES2024", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "strict": true,
-    "skipLibCheck": true,
-    "types": ["node"],
-    "paths": {
-      "@webview/*": ["./src/reactTopoViewer/webview/*"],
-      "@shared/*": ["./src/reactTopoViewer/shared/*"],
-      "@webviews/*": ["./src/webviews/*"]
-    }
-  },
+  "extends": "./tsconfig.base.json",
   "include": [
     "./src/**/*.ts",
     "./src/**/*.tsx",
     "./dev/**/*.ts",
-    "./dev/**/*.tsx"
+    "./dev/**/*.tsx",
+    "./packages/**/*.ts",
+    "./packages/**/*.tsx",
+    "./apps/**/*.ts",
+    "./apps/**/*.tsx"
   ]
 }

@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@srl-labs/clab-adapter-api": ["./packages/adapter-api/src/index.ts"],
+      "@srl-labs/clab-adapter-api/*": ["./packages/adapter-api/src/*"],
+      "@srl-labs/clab-ui": ["./packages/ui/src/index.ts"],
+      "@srl-labs/clab-ui/*": ["./packages/ui/src/*"],
+      "@srl-labs/clab-ui-explorer": ["./packages/explorer/src/index.ts"],
+      "@srl-labs/clab-ui-explorer/*": ["./packages/explorer/src/*"],
+      "@srl-labs/clab-ui-inspect": ["./packages/inspect/src/index.ts"],
+      "@srl-labs/clab-ui-inspect/*": ["./packages/inspect/src/*"]
+    }
+  },
+  "include": ["./src/**/*.ts", "./src/**/*.tsx"]
+}

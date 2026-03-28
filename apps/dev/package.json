@@ -1,0 +1,10 @@
+{
+  "name": "@srl-labs/clab-app-dev",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@srl-labs/clab-adapter-memory": "0.0.1",
+    "@srl-labs/clab-ui": "0.0.1"
+  }
+}

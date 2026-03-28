@@ -1,21 +1,15 @@
 {
-  "name": "@srl-labs/containerlab-gui",
+  "name": "containerlab-gui-workspace",
   "version": "0.0.1",
-  "description": "Standalone frontend/webview package for containerlab UI",
+  "private": true,
+  "description": "Workspace for shared containerlab UI packages and apps",
   "license": "Apache-2.0",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/srl-labs/containerlab-gui"
-  },
   "engines": {
     "node": ">=24.0.0"
   },
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE"
+  "workspaces": [
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "dev": "vite --config dev/vite.config.ts",
@@ -23,7 +17,8 @@
     "build:watch": "node esbuild.config.js --dev",
     "build:dev": "node esbuild.config.js --dev",
     "typecheck": "tsc --noEmit",
-    "pack:preview": "npm pack --dry-run",
+    "pack:preview": "npm pack --dry-run --workspace=@srl-labs/clab-ui",
+    "publish:ui": "npm publish --workspace=@srl-labs/clab-ui",
     "prepack": "npm run build"
   },
   "devDependencies": {
@@ -61,9 +56,5 @@
     "typescript": "^5.9.3",
     "vite": "^7.3.1",
     "yaml": "^2.8.2"
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
-    "access": "restricted"
   }
 }

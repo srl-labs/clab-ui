@@ -1,4 +1,4 @@
-import type { CustomNodeTemplate } from "@shared/types/editors";
+import type { CustomNodeTemplate } from "@srl-labs/clab-ui-core/types/editors";
 
 const DEV_SESSION_STORAGE_KEY = "containerlab-gui.dev.session.v1";
 

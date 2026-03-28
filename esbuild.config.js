@@ -36,7 +36,7 @@ async function copyFonts() {
 
   const wiresharkSrc = path.join(
     __dirname,
-    "src/reactTopoViewer/webview/assets/images/wireshark_bold.svg"
+    "packages/ui/src/assets/images/wireshark_bold.svg"
   );
   if (fs.existsSync(wiresharkSrc)) {
     await fs.promises.copyFile(wiresharkSrc, path.join(fontDir, "wireshark_bold.svg"));
@@ -68,7 +68,7 @@ async function copyMapLibreWorker() {
 
 async function buildCss() {
   execSync(
-    "npx postcss src/reactTopoViewer/webview/styles/global.css -o dist/reactTopoViewerStyles.css",
+    "npx postcss packages/ui/src/styles/global.css -o dist/reactTopoViewerStyles.css",
     { stdio: "inherit" }
   );
 
@@ -117,11 +117,11 @@ async function build() {
 
   const webviewBuilds = [
     {
-      entryPoints: ["src/reactTopoViewer/webview/index.tsx"],
+      entryPoints: ["packages/ui/src/entry.tsx"],
       outfile: "dist/reactTopoViewerWebview.js"
     },
     {
-      entryPoints: ["src/webviews/explorer/containerlabExplorerView.webview.tsx"],
+      entryPoints: ["packages/explorer/src/entry.tsx"],
       outfile: "dist/containerlabExplorerView.js"
     },
     {
@@ -129,7 +129,7 @@ async function build() {
       outfile: "dist/welcomePageWebview.js"
     },
     {
-      entryPoints: ["src/webviews/inspect/inspect.webview.tsx"],
+      entryPoints: ["packages/inspect/src/entry.tsx"],
       outfile: "dist/inspectWebview.js"
     },
     {

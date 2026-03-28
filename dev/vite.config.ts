@@ -14,9 +14,16 @@ export default defineConfig({
     alias: {
       react: path.resolve(nodeModules, "react"),
       "react-dom": path.resolve(nodeModules, "react-dom"),
-      "@webview": path.resolve(__dirname, "../src/reactTopoViewer/webview"),
-      "@shared": path.resolve(__dirname, "../src/reactTopoViewer/shared"),
-      "@webviews": path.resolve(__dirname, "../src/webviews")
+      "@webview": path.resolve(__dirname, "../packages/ui/src"),
+      "@webviews": path.resolve(__dirname, "../src/webviews"),
+      "@shared": path.resolve(__dirname, "../packages/core/src"),
+      "@srl-labs/clab-ui-core": path.resolve(__dirname, "../packages/core/src"),
+      "@srl-labs/clab-ui": path.resolve(__dirname, "../packages/ui/src"),
+      "@srl-labs/clab-ui-explorer": path.resolve(__dirname, "../packages/explorer/src"),
+      "@srl-labs/clab-ui-inspect": path.resolve(__dirname, "../packages/inspect/src"),
+      "@srl-labs/clab-host-contract": path.resolve(__dirname, "../packages/host-contract/src"),
+      "@srl-labs/clab-adapter-memory": path.resolve(__dirname, "../packages/adapter-memory/src"),
+      "@srl-labs/clab-adapter-vscode": path.resolve(__dirname, "../packages/adapter-vscode/src")
     },
     dedupe: ["react", "react-dom"]
   },

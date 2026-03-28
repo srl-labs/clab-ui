@@ -2,9 +2,9 @@
  * Utility functions for bulk link creation
  * Uses React Flow nodes/edges arrays for graph queries.
  */
-import { FilterUtils } from "../../../../../../src/helpers/filterUtils";
-import { isSpecialEndpointId } from "@srl-labs/clab-ui/core/utilities/LinkTypes";
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import { FilterUtils } from "../../../utils/filterUtils";
+import { isSpecialEndpointId } from "../../../core/utilities/LinkTypes";
+import type { TopoNode, TopoEdge } from "../../../core/types/graph";
 import { hasEdgeBetween as hasEdgeBetweenUtil } from "../../../utils/graphQueryUtils";
 import { allocateEndpoint, type EndpointAllocator } from "../../../utils/endpointAllocator";
 

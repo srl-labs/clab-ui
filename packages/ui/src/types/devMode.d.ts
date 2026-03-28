@@ -6,11 +6,11 @@
 
 import type { ReactFlowInstance } from "@xyflow/react";
 
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
-import type { NetworkType } from "@srl-labs/clab-ui/core/types/editors";
-import type { TopoNode } from "@srl-labs/clab-ui/core/types/graph";
-import type { CustomIconInfo } from "@srl-labs/clab-ui/core/types/icons";
-import type { CustomNodeTemplate, SchemaData } from "@srl-labs/clab-ui/core/schema";
+import type { GroupStyleAnnotation } from "../core/types/topology";
+import type { NetworkType } from "../core/types/editors";
+import type { TopoNode } from "../core/types/graph";
+import type { CustomIconInfo } from "../core/types/icons";
+import type { CustomNodeTemplate, SchemaData } from "../core/schema/index";
 
 /** Layout option type */
 type LayoutOption = "preset" | "force" | "geo";

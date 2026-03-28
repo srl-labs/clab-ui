@@ -9,7 +9,7 @@ import { shallow } from "zustand/shallow";
 import { applyNodeChanges, applyEdgeChanges } from "@xyflow/react";
 import type { Node, Edge, NodeChange, EdgeChange } from "@xyflow/react";
 
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode, TopoEdge } from "../core/types/graph";
 
 // ============================================================================
 // Types

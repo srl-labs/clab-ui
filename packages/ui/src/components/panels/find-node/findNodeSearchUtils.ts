@@ -1,4 +1,4 @@
-import type { TopoNode } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode } from "../../../core/types/graph";
 import { searchNodes as searchNodesUtil } from "../../../utils/graphQueryUtils";
 
 function wildcardToRegex(pattern: string): RegExp {

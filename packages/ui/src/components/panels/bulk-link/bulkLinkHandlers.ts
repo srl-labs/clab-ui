@@ -2,7 +2,7 @@
  * Handler functions for bulk link operations
  * Uses React Flow nodes/edges arrays for graph queries.
  */
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode, TopoEdge } from "../../../core/types/graph";
 import { executeTopologyCommand } from "../../../services";
 import { toLinkSaveData } from "../../../services/linkSaveData";
 

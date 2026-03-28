@@ -6,7 +6,7 @@ import type React from "react";
 import { useCallback, useRef, useState } from "react";
 
 import { saveViewerSettings } from "../../services/annotationSaveHelpers";
-import type { TopologyAnnotations } from "@srl-labs/clab-ui/core/types/topology";
+import type { TopologyAnnotations } from "../../core/types/topology";
 import { useTopoViewerStore } from "../../stores/topoViewerStore";
 
 /**

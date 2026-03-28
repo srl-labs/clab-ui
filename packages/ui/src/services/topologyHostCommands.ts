@@ -8,7 +8,7 @@ import type {
   TopologyHostCommand,
   TopologyHostResponseMessage,
   TopologySnapshot
-} from "@srl-labs/clab-ui/core/types/messages";
+} from "../core/types/messages";
 import { useTopoViewerStore } from "../stores/topoViewerStore";
 
 import { dispatchTopologyCommand, requestSnapshot, setHostRevision } from "./topologyHostClient";

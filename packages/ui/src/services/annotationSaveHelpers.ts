@@ -10,7 +10,7 @@ import type {
   GroupStyleAnnotation,
   EdgeAnnotation,
   TopologyAnnotations
-} from "@srl-labs/clab-ui/core/types/topology";
+} from "../core/types/topology";
 import { useGraphStore } from "../stores/graphStore";
 import { nodesToAnnotations } from "../annotations/annotationNodeConverters";
 

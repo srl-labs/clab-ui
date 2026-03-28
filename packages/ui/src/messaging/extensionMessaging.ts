@@ -3,9 +3,9 @@
  * Use for VS Code/CLI operations and settings updates. Topology persistence goes
  * through the host command pipeline, not these messages.
  */
-import type { ExtensionCommandType } from "@srl-labs/clab-ui/core/messages/extension";
-import { MSG_CANCEL_LAB_LIFECYCLE } from "@srl-labs/clab-ui/core/messages/extension";
-import type { SaveCustomNodeData } from "@srl-labs/clab-ui/core/utilities/customNodeConversions";
+import type { ExtensionCommandType } from "../core/messages/extension";
+import { MSG_CANCEL_LAB_LIFECYCLE } from "../core/messages/extension";
+import type { SaveCustomNodeData } from "../core/utilities/customNodeConversions";
 import { log } from "../utils/logger";
 
 declare global {

@@ -1,9 +1,9 @@
 /**
  * Conversions for link editor data.
  */
-import type { LinkEditorData } from "@srl-labs/clab-ui/core/types/editors";
-import type { LinkSaveData } from "@srl-labs/clab-ui/core/io/LinkPersistenceIO";
-import { isSpecialEndpointId } from "@srl-labs/clab-ui/core/utilities/LinkTypes";
+import type { LinkEditorData } from "../core/types/editors";
+import type { LinkSaveData } from "../core/io/LinkPersistenceIO";
+import { isSpecialEndpointId } from "../core/utilities/LinkTypes";
 
 type LinkExtraData = NonNullable<LinkSaveData["extraData"]>;
 

@@ -3,8 +3,8 @@
  */
 import React from "react";
 
-import type { TopoEdge, TopoNode } from "@srl-labs/clab-ui/core/types/graph";
-import { convertToEditorData, convertToNetworkEditorData } from "@srl-labs/clab-ui/core/utilities";
+import type { TopoEdge, TopoNode } from "../../core/types/graph";
+import { convertToEditorData, convertToNetworkEditorData } from "../../core/utilities/index";
 import type { AnnotationHandlers } from "../../components/canvas/types";
 import {
   findEdgeAnnotationInLookup,

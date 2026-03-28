@@ -1,5 +1,5 @@
 import { postCommand } from "../../../messaging/extensionMessaging";
-import type { NetemState } from "@srl-labs/clab-ui/core/parsing";
+import type { NetemState } from "../../../core/parsing/index";
 import { normalizeNetemPercentage } from "../../../utils/netemNormalization";
 
 import type { LinkImpairmentData } from "./types";

@@ -2,7 +2,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 
-import type { FreeShapeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { FreeShapeAnnotation } from "../../../core/types/topology";
 import {
   DEFAULT_SHAPE_WIDTH,
   DEFAULT_SHAPE_HEIGHT,

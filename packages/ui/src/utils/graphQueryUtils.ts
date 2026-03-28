@@ -2,7 +2,7 @@
  * Graph Query Utilities
  * Helper functions to query nodes and edges in React Flow graphs.
  */
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode, TopoEdge } from "../core/types/graph";
 
 /**
  * Get a node by its ID

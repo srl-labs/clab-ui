@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef } from "react";
 
-import { extractUsedCustomIcons } from "@srl-labs/clab-ui/core/types/icons";
+import { extractUsedCustomIcons } from "../../core/types/icons";
 import { sendIconReconcile } from "../../messaging/extensionMessaging";
 import { useGraphStore } from "../../stores/graphStore";
 

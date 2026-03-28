@@ -1,7 +1,7 @@
 /**
  * Group types for group editor panel and hooks
  */
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { GroupStyleAnnotation } from "../../core/types/topology";
 
 /** Style properties for groups */
 export interface GroupStyle {

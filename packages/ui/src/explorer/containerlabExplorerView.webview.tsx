@@ -62,11 +62,11 @@ import {
   useState
 } from "react";
 
-import { MuiThemeProvider } from "@srl-labs/clab-ui/theme";
+import { MuiThemeProvider } from "../theme/index";
 import {
   ContextMenu,
   type ContextMenuItem
-} from "@srl-labs/clab-ui/components/context-menu/ContextMenu";
+} from "../components/context-menu/ContextMenu";
 import { useMessageListener, usePostMessage, useReadySignal } from "./shared/hooks";
 import {
   EXPLORER_SECTION_ORDER,

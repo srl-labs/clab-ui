@@ -9,7 +9,7 @@ import type {
   LinkEditorTabId as _LinkEditorTabId,
   LinkEndpoint as _LinkEndpoint,
   LinkEditorData as _LinkEditorData
-} from "@srl-labs/clab-ui/core/types/editors";
+} from "../../../core/types/editors";
 
 // Re-export types (import then export pattern for non-index files)
 export type LinkEditorTabId = _LinkEditorTabId;

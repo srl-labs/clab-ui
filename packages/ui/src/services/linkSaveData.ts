@@ -1,8 +1,8 @@
 /**
  * Helpers for converting graph edges into host persistence payloads.
  */
-import type { LinkSaveData } from "@srl-labs/clab-ui/core/io/LinkPersistenceIO";
-import type { TopoEdge, TopologyEdgeData } from "@srl-labs/clab-ui/core/types/graph";
+import type { LinkSaveData } from "../core/io/LinkPersistenceIO";
+import type { TopoEdge, TopologyEdgeData } from "../core/types/graph";
 
 export function toLinkSaveData(edge: TopoEdge): LinkSaveData {
   const data = edge.data as TopologyEdgeData | undefined;

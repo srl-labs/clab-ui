@@ -5,7 +5,7 @@ import type { ConnectionLineComponentProps, Edge, Node } from "@xyflow/react";
 import { useEdges } from "../../stores/graphStore";
 import { allocateEndpointsForLink } from "../../utils/endpointAllocator";
 import { buildEdgeId } from "../../utils/edgeId";
-import type { TopoEdge, TopoNode } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoEdge, TopoNode } from "../../core/types/graph";
 
 import { calculateControlPoint, getEdgePoints, getLabelPosition } from "./edgeGeometry";
 

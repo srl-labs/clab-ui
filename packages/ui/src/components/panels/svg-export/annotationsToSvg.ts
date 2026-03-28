@@ -3,7 +3,7 @@ import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
   GroupStyleAnnotation
-} from "@srl-labs/clab-ui/core/types/topology";
+} from "../../../core/types/topology";
 import {
   DEFAULT_FILL_COLOR,
   DEFAULT_FILL_OPACITY,

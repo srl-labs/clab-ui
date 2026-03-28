@@ -11,9 +11,9 @@ import type {
   EdgeCreatedData,
   EdgeCreatedHandler,
   NodeCreatedHandler
-} from "@srl-labs/clab-ui/core/types/graph";
-import type { NodeSaveData } from "@srl-labs/clab-ui/core/io/NodePersistenceIO";
-import type { TopologyHostCommand } from "@srl-labs/clab-ui/core/types/messages";
+} from "../../core/types/graph";
+import type { NodeSaveData } from "../../core/io/NodePersistenceIO";
+import type { TopologyHostCommand } from "../../core/types/messages";
 import {
   createLink,
   createNode,

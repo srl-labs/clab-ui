@@ -15,7 +15,7 @@ import {
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode, TopoEdge } from "../../core/types/graph";
 import { useGraphActions, useGraphStore } from "../../stores/graphStore";
 
 import { CopyableCode } from "./bulk-link/CopyableCode";

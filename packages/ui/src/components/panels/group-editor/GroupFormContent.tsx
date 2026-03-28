@@ -2,7 +2,7 @@
 import React from "react";
 import Box from "@mui/material/Box";
 
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { GroupStyleAnnotation } from "../../../core/types/topology";
 import type { GroupEditorData } from "../../../hooks/canvas";
 import { GROUP_LABEL_POSITIONS } from "../../../hooks/canvas";
 import { InputField, SelectField, ColorField, PanelSection } from "../../ui/form";

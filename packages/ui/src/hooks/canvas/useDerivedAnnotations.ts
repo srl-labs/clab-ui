@@ -16,8 +16,8 @@ import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
   GroupStyleAnnotation
-} from "@srl-labs/clab-ui/core/types/topology";
-import type { TopoNode } from "@srl-labs/clab-ui/core/types/graph";
+} from "../../core/types/topology";
+import type { TopoNode } from "../../core/types/graph";
 import type {
   FreeTextNodeData,
   FreeShapeNodeData,

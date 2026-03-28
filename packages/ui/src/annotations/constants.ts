@@ -1,7 +1,7 @@
 /**
  * Free shape annotation constants (used across panels and SVG helpers).
  */
-import type { FreeShapeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { FreeShapeAnnotation } from "../core/types/topology";
 
 export const DEFAULT_SHAPE_WIDTH = 50;
 export const DEFAULT_SHAPE_HEIGHT = 50;

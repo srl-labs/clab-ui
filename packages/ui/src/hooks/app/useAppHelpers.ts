@@ -8,18 +8,18 @@ import type {
   CustomNodeTemplate,
   CustomTemplateEditorData,
   NetworkType
-} from "@srl-labs/clab-ui/core/types/editors";
-import type { EdgeCreatedHandler, NodeCreatedHandler } from "@srl-labs/clab-ui/core/types/graph";
+} from "../../core/types/editors";
+import type { EdgeCreatedHandler, NodeCreatedHandler } from "../../core/types/graph";
 import {
   createNewTemplateEditorData,
   convertTemplateToEditorData
-} from "@srl-labs/clab-ui/core/utilities/customNodeConversions";
+} from "../../core/utilities/customNodeConversions";
 import {
   sendDeleteCustomNode,
   sendSetDefaultCustomNode,
   sendCommandToExtension
 } from "../../messaging/extensionMessaging";
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { GroupStyleAnnotation } from "../../core/types/topology";
 import { useTopoViewerStore } from "../../stores/topoViewerStore";
 
 /**

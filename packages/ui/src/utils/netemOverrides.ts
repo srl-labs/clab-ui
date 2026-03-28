@@ -1,4 +1,4 @@
-import type { NetemState } from "@srl-labs/clab-ui/core/parsing";
+import type { NetemState } from "../core/parsing/index";
 
 import { normalizeNetemPercentage, normalizeNetemValue } from "./netemNormalization";
 

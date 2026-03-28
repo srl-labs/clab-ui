@@ -6,7 +6,7 @@ import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import type { Node, Edge, ReactFlowInstance } from "@xyflow/react";
 
 import { applyLayout, type LayoutName } from "../../components/canvas/layout";
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode, TopoEdge } from "../../core/types/graph";
 import { useGraphStore } from "../../stores/graphStore";
 import { log } from "../../utils/logger";
 import { allocateEndpointsForLink } from "../../utils/endpointAllocator";

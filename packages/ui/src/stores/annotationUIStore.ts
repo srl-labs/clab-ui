@@ -7,7 +7,7 @@
 import { createWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/shallow";
 
-import type { FreeTextAnnotation, FreeShapeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { FreeTextAnnotation, FreeShapeAnnotation } from "../core/types/topology";
 import type { GroupEditorData } from "../hooks/canvas/groupTypes";
 
 // ============================================================================

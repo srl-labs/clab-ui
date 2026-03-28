@@ -3,12 +3,12 @@
  */
 import { useMemo } from "react";
 
-import type { CustomTemplateEditorData, NodeEditorData } from "@srl-labs/clab-ui/core/types/editors";
+import type { CustomTemplateEditorData, NodeEditorData } from "../../core/types/editors";
 import {
   convertCustomTemplateToEditorData,
   convertEditorDataToSaveData,
   convertEditorDataToTemplateData
-} from "@srl-labs/clab-ui/core/utilities/customNodeConversions";
+} from "../../core/utilities/customNodeConversions";
 import { sendSaveCustomNode } from "../../messaging/extensionMessaging";
 
 export interface CustomTemplateEditorHandlers {

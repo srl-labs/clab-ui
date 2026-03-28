@@ -8,10 +8,10 @@ import { useCallback, useEffect, useRef } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 
 import { log } from "../../utils/logger";
-import type { TopoNode, TopologyNodeData } from "@srl-labs/clab-ui/core/types/graph";
-import type { CustomNodeTemplate } from "@srl-labs/clab-ui/core/types/editors";
-import { getUniqueId } from "@srl-labs/clab-ui/core/utilities/idUtils";
-import { convertEditorDataToYaml } from "@srl-labs/clab-ui/core/utilities/nodeEditorConversions";
+import type { TopoNode, TopologyNodeData } from "../../core/types/graph";
+import type { CustomNodeTemplate } from "../../core/types/editors";
+import { getUniqueId } from "../../core/utilities/idUtils";
+import { convertEditorDataToYaml } from "../../core/utilities/nodeEditorConversions";
 
 interface NodeCreationOptions {
   customNodes: CustomNodeTemplate[];

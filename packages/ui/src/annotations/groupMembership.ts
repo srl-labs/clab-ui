@@ -3,8 +3,8 @@
  */
 import type { Node } from "@xyflow/react";
 
-import type { TopoNode } from "@srl-labs/clab-ui/core/types/graph";
-import type { GroupStyleAnnotation, NodeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { TopoNode } from "../core/types/graph";
+import type { GroupStyleAnnotation, NodeAnnotation } from "../core/types/topology";
 
 import { isAnnotationNodeType } from "./annotationNodeConverters";
 

@@ -21,7 +21,7 @@ import {
 import React from "react";
 import { createRoot } from "react-dom/client";
 
-import { MuiThemeProvider } from "@srl-labs/clab-ui/theme";
+import { MuiThemeProvider } from "../theme/index";
 import { usePostMessage } from "./shared/hooks";
 
 import type { ContainerPort, InspectContainerData, InspectWebviewInitialData } from "./types";

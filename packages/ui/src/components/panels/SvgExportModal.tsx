@@ -33,9 +33,9 @@ import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
   GroupStyleAnnotation,
-} from "@srl-labs/clab-ui/core/types/topology";
-import { EXPORT_COMMANDS } from "@srl-labs/clab-ui/core/messages/extension";
-import { MSG_SVG_EXPORT_RESULT } from "@srl-labs/clab-ui/core/messages/webview";
+} from "../../core/types/topology";
+import { EXPORT_COMMANDS } from "../../core/messages/extension";
+import { MSG_SVG_EXPORT_RESULT } from "../../core/messages/webview";
 import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,

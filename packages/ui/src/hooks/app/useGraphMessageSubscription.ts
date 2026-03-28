@@ -8,8 +8,8 @@
 import { useEffect } from "react";
 import type { Edge, Node } from "@xyflow/react";
 
-import type { NetemState } from "@srl-labs/clab-ui/core/parsing";
-import type { TopologySnapshot } from "@srl-labs/clab-ui/core/types/messages";
+import type { NetemState } from "../../core/parsing/index";
+import type { TopologySnapshot } from "../../core/types/messages";
 import {
   subscribeToWebviewMessages,
   type TypedMessageEvent

@@ -4,13 +4,13 @@
 import React from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 
-import type { LinkEditorData } from "@srl-labs/clab-ui/core/types/editors";
+import type { LinkEditorData } from "../../core/types/editors";
 import type {
   TopoEdge,
   TopoNode,
   EdgeCreatedHandler,
   NodeCreatedHandler
-} from "@srl-labs/clab-ui/core/types/graph";
+} from "../../core/types/graph";
 import type { GraphActions } from "../../stores/graphStore";
 import { convertEditorDataToLinkSaveData } from "../../utils/linkEditorConversions";
 import { useGraphHandlersWithContext } from "../state";

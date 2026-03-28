@@ -4,7 +4,7 @@
 import type {
   LabSettings as SharedLabSettings,
   MgmtSettings as SharedMgmtSettings
-} from "@srl-labs/clab-ui/core/types/labSettings";
+} from "../../../core/types/labSettings";
 
 export type LabSettings = SharedLabSettings;
 export type MgmtSettings = SharedMgmtSettings;

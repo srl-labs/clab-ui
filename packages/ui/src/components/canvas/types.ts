@@ -17,8 +17,8 @@ import type {
   FreeTextRFNode,
   FreeShapeRFNode,
   GroupRFNode
-} from "@srl-labs/clab-ui/core/types/graph";
-import { DEFAULT_ICON_COLOR, ROLE_SVG_MAP } from "@srl-labs/clab-ui/core/types/graph";
+} from "../../core/types/graph";
+import { DEFAULT_ICON_COLOR, ROLE_SVG_MAP } from "../../core/types/graph";
 import { vscodePalette } from "../../theme/vscodeTheme";
 export type GridStyle = "dotted" | "quadratic";
 

@@ -1,7 +1,7 @@
 /**
  * useAppEditorBindings - editor handler wiring for AppContent.
  */
-import type { LinkEditorData } from "@srl-labs/clab-ui/core/types/editors";
+import type { LinkEditorData } from "../../core/types/editors";
 import type { TopoViewerActions, TopoViewerState } from "../../stores/topoViewerStore";
 import {
   useNodeEditorHandlers,

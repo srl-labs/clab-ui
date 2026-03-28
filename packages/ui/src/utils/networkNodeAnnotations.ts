@@ -1,6 +1,6 @@
 import type { Node } from "@xyflow/react";
 
-import type { NetworkNodeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { NetworkNodeAnnotation } from "../core/types/topology";
 
 import { SPECIAL_NETWORK_TYPES, getNetworkType } from "./networkNodeTypes";
 

@@ -2,7 +2,7 @@
 import React, { useCallback } from "react";
 import Box from "@mui/material/Box";
 
-import type { FreeTextAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { FreeTextAnnotation } from "../../../../core/types/topology";
 import { useGenericFormState, useEditorHandlersWithFooterRef } from "../../../../hooks/editor";
 import { FIELDSET_RESET_STYLE } from "../ContextPanelScrollArea";
 import { FreeTextFormContent } from "../../free-text-editor/FreeTextFormContent";

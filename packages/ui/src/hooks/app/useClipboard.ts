@@ -9,14 +9,14 @@ import type { ReactFlowInstance, Node, Edge } from "@xyflow/react";
 
 import { useGraphActions, useGraphStore } from "../../stores/graphStore";
 import { log } from "../../utils/logger";
-import { getUniqueId } from "@srl-labs/clab-ui/core/utilities/idUtils";
-import { isSpecialEndpointId } from "@srl-labs/clab-ui/core/utilities/LinkTypes";
+import { getUniqueId } from "../../core/utilities/idUtils";
+import { isSpecialEndpointId } from "../../core/utilities/LinkTypes";
 import type {
   TopoNode,
   TopoEdge,
   TopologyNodeData,
   TopologyEdgeData
-} from "@srl-labs/clab-ui/core/types/graph";
+} from "../../core/types/graph";
 import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,

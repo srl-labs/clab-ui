@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef } from "react";
 
-import type { FreeTextAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { FreeTextAnnotation } from "../../core/types/topology";
 import type { AnnotationUIActions, AnnotationUIState } from "../../stores/annotationUIStore";
 import { saveAnnotationNodesFromGraph } from "../../services";
 import { log } from "../../utils/logger";

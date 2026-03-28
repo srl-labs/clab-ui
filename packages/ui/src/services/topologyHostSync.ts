@@ -4,7 +4,7 @@
 
 import type { Node, Edge } from "@xyflow/react";
 
-import type { TopologySnapshot } from "@srl-labs/clab-ui/core/types/messages";
+import type { TopologySnapshot } from "../core/types/messages";
 import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
@@ -12,8 +12,8 @@ import type {
   NodeAnnotation,
   NetworkNodeAnnotation,
   TopologyAnnotations
-} from "@srl-labs/clab-ui/core/types/topology";
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+} from "../core/types/topology";
+import type { TopoNode, TopoEdge } from "../core/types/graph";
 import {
   annotationsToNodes,
   applyGroupMembershipToNodes,

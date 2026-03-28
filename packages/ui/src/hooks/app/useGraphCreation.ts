@@ -11,8 +11,8 @@ import type { ReactFlowInstance } from "@xyflow/react";
 
 import { useNodeCreation, useNetworkCreation, type NetworkType } from "../canvas";
 import { useNodeCreationHandlers, type NodeCreationState } from "../editor";
-import type { CustomNodeTemplate } from "@srl-labs/clab-ui/core/types/editors";
-import type { TopoNode } from "@srl-labs/clab-ui/core/types/graph";
+import type { CustomNodeTemplate } from "../../core/types/editors";
+import type { TopoNode } from "../../core/types/graph";
 import { getViewportCenter } from "../../utils/viewportUtils";
 
 /** Edge data structure for edge creation callback */

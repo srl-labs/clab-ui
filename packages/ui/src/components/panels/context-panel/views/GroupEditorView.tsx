@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useRef } from "react";
 import Box from "@mui/material/Box";
 
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { GroupStyleAnnotation } from "../../../../core/types/topology";
 import type { GroupEditorData } from "../../../../hooks/canvas";
 import { useGenericFormState, useEditorHandlersWithFooterRef } from "../../../../hooks/editor";
 import { FIELDSET_RESET_STYLE } from "../ContextPanelScrollArea";

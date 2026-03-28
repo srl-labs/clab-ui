@@ -10,7 +10,7 @@ import ClearIcon from "@mui/icons-material/Clear";
 
 import { useGraphStore } from "../../../stores/graphStore";
 import { getNodesBoundingBox } from "../../../utils/graphQueryUtils";
-import type { TopoNode } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode } from "../../../core/types/graph";
 
 import { formatMatchCountText, getCombinedMatches } from "./findNodeSearchUtils";
 

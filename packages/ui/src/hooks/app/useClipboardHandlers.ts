@@ -7,7 +7,7 @@
 import React from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode, TopoEdge } from "../../core/types/graph";
 
 import { useClipboard, type UseClipboardOptions } from "./useClipboard";
 /**

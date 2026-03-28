@@ -1,7 +1,7 @@
 /**
  * Color normalization helpers for form inputs and annotation persistence.
  */
-import type { FreeShapeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { FreeShapeAnnotation } from "../core/types/topology";
 
 function clampByte(value: number): number {
   if (Number.isNaN(value)) return 0;

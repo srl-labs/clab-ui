@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import type { Node, ReactFlowInstance } from "@xyflow/react";
 
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { GroupStyleAnnotation } from "../../core/types/topology";
 import type { GroupNodeData } from "../../components/canvas/types";
 import type { AnnotationUIActions } from "../../stores/annotationUIStore";
 import { saveAnnotationNodesFromGraph, saveAnnotationNodesWithMemberships } from "../../services";

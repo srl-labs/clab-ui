@@ -1,7 +1,7 @@
 /**
  * Group utility functions - minimal implementations
  */
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { GroupStyleAnnotation } from "../../core/types/topology";
 
 /** Check if a position is inside a group's bounding box */
 export function isPositionInsideGroup(

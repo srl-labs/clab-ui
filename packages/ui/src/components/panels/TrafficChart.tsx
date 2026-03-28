@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { LineChart } from "@mui/x-charts/LineChart";
 
-import type { InterfaceStatsPayload, EndpointStatsHistory } from "@srl-labs/clab-ui/core/types/topology";
+import type { InterfaceStatsPayload, EndpointStatsHistory } from "../../core/types/topology";
 
 const MAX_GRAPH_POINTS = 60;
 

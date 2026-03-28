@@ -6,7 +6,7 @@ import { useAnnotationUIActions, useAnnotationUIState } from "../../stores/annot
 import { useGraphStore } from "../../stores/graphStore";
 import { useIsLocked } from "../../stores/topoViewerStore";
 import { collectNodeGroupMemberships } from "../../annotations/groupMembership";
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { GroupStyleAnnotation } from "../../core/types/topology";
 
 import type { AnnotationContextValue } from "./annotationTypes";
 import { handleAnnotationNodeDrop, handleTopologyNodeDrop } from "./annotationHelpers";

@@ -20,7 +20,7 @@ import {
   Typography
 } from "@mui/material";
 
-import type { FreeTextAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { FreeTextAnnotation } from "../../../core/types/topology";
 import { ColorField, PanelSection } from "../../ui/form";
 
 // Helper functions to avoid duplicate calculations

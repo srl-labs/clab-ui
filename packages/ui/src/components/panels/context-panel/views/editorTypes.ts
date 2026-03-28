@@ -2,7 +2,7 @@ import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
   GroupStyleAnnotation
-} from "@srl-labs/clab-ui/core/types/topology";
+} from "../../../../core/types/topology";
 import type { GroupEditorData } from "../../../../hooks/canvas";
 import type { LinkImpairmentData } from "../../link-impairment/types";
 import type { LinkEditorData } from "../../link-editor/types";

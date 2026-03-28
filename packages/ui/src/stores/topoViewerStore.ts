@@ -2,10 +2,10 @@
 import { createWithEqualityFn } from "zustand/traditional";
 import { shallow } from "zustand/shallow";
 
-import type { CustomNodeTemplate, CustomTemplateEditorData } from "@srl-labs/clab-ui/core/types/editors";
-import type { EdgeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
-import type { CustomIconInfo } from "@srl-labs/clab-ui/core/types/icons";
-import type { LabSettings } from "@srl-labs/clab-ui/core/types/labSettings";
+import type { CustomNodeTemplate, CustomTemplateEditorData } from "../core/types/editors";
+import type { EdgeAnnotation } from "../core/types/topology";
+import type { CustomIconInfo } from "../core/types/icons";
+import type { LabSettings } from "../core/types/labSettings";
 import { upsertEdgeAnnotation } from "../annotations/edgeAnnotations";
 import {
   DEFAULT_ENDPOINT_LABEL_OFFSET,

@@ -1,9 +1,9 @@
 /**
  * Endpoint allocation helpers for link creation.
  */
-import { isSpecialEndpointId } from "@srl-labs/clab-ui/core/utilities/LinkTypes";
-import { DEFAULT_INTERFACE_PATTERNS } from "@srl-labs/clab-ui/core/constants/interfacePatterns";
-import type { TopoNode, TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import { isSpecialEndpointId } from "../core/utilities/LinkTypes";
+import { DEFAULT_INTERFACE_PATTERNS } from "../core/constants/interfacePatterns";
+import type { TopoNode, TopoEdge } from "../core/types/graph";
 
 import { getNodeById, getConnectedEdges } from "./graphQueryUtils";
 

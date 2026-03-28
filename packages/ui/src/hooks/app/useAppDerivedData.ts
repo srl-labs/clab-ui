@@ -3,7 +3,7 @@
  */
 import React from "react";
 
-import type { TopoEdge, TopoNode } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoEdge, TopoNode } from "../../core/types/graph";
 import type { TopoViewerState } from "../../stores/topoViewerStore";
 import { buildEdgeAnnotationLookup } from "../../annotations/edgeAnnotations";
 

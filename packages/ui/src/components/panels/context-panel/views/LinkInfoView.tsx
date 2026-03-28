@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import Box from "@mui/material/Box";
 
 import type { LinkData } from "../../../../hooks/ui";
-import type { InterfaceStatsPayload } from "@srl-labs/clab-ui/core/types/topology";
+import type { InterfaceStatsPayload } from "../../../../core/types/topology";
 import { TrafficChart } from "../../TrafficChart";
 import type { TabDefinition } from "../../../ui/editor";
 import { TabNavigation } from "../../../ui/editor/TabNavigation";

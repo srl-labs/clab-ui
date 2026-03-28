@@ -34,8 +34,8 @@ import {
   Typography
 } from "@mui/material";
 
-import type { CustomNodeTemplate } from "@srl-labs/clab-ui/core/types/editors";
-import { ROLE_SVG_MAP, DEFAULT_ICON_COLOR } from "@srl-labs/clab-ui/core/types/graph";
+import type { CustomNodeTemplate } from "../../../core/types/editors";
+import { ROLE_SVG_MAP, DEFAULT_ICON_COLOR } from "../../../core/types/graph";
 import { generateEncodedSVG, type NodeType } from "../../../icons/SvgGenerator";
 import { useCustomIcons, useCustomNodes, useTopoViewerStore } from "../../../stores/topoViewerStore";
 import { buildCustomIconMap } from "../../../utils/iconUtils";

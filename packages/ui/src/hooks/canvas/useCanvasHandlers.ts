@@ -19,7 +19,7 @@ import {
   type XYPosition
 } from "@xyflow/react";
 
-import type { TopoNode, TopoEdge, FreeShapeNodeData } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode, TopoEdge, FreeShapeNodeData } from "../../core/types/graph";
 import { log } from "../../utils/logger";
 import { isLineHandleActive } from "../../components/canvas/nodes/AnnotationHandles";
 import {

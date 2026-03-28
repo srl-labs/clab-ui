@@ -10,9 +10,9 @@ import type {
   TopologyHostCommand,
   TopologyHostResponseMessage,
   TopologySnapshot
-} from "@srl-labs/clab-ui/core/types/messages";
-import { TOPOLOGY_HOST_PROTOCOL_VERSION } from "@srl-labs/clab-ui/core/types/messages";
-import type { DeploymentState } from "@srl-labs/clab-ui/core/types/topology";
+} from "../core/types/messages";
+import { TOPOLOGY_HOST_PROTOCOL_VERSION } from "../core/types/messages";
+import type { DeploymentState } from "../core/types/topology";
 import { subscribeToWebviewMessages } from "../messaging/webviewMessageBus";
 
 declare global {

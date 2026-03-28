@@ -1,4 +1,4 @@
-import type { CustomIconInfo } from "@srl-labs/clab-ui/core/types/icons";
+import type { CustomIconInfo } from "../core/types/icons";
 
 const customIconMapCache = new WeakMap<CustomIconInfo[], Map<string, string>>();
 

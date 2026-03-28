@@ -9,13 +9,13 @@ import type {
   LinkEditorData,
   NetworkEditorData,
   NodeEditorData
-} from "@srl-labs/clab-ui/core/types/editors";
-import type { EdgeAnnotation, NodeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+} from "../../core/types/editors";
+import type { EdgeAnnotation, NodeAnnotation } from "../../core/types/topology";
 import {
   convertEditorDataToYaml,
   convertEditorDataToNodeSaveData,
   convertNetworkEditorDataToYaml
-} from "@srl-labs/clab-ui/core/utilities";
+} from "../../core/utilities/index";
 import {
   executeTopologyCommand,
   saveEdgeAnnotations,

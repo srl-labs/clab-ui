@@ -12,8 +12,8 @@ import type {
   SrosXiom as _SrosXiom,
   SrosComponent as _SrosComponent,
   NodeEditorData as _NodeEditorData
-} from "@srl-labs/clab-ui/core/types/editors";
-import { INTEGRATED_SROS_TYPES as _INTEGRATED_SROS_TYPES } from "@srl-labs/clab-ui/core/types/editors";
+} from "../../../core/types/editors";
+import { INTEGRATED_SROS_TYPES as _INTEGRATED_SROS_TYPES } from "../../../core/types/editors";
 
 // Re-export types
 export type NodeEditorTabId = _NodeEditorTabId;

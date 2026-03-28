@@ -5,7 +5,7 @@ import type { ReactFlowInstance } from "@xyflow/react";
 
 import type { TopoViewerActions, TopoViewerState } from "../../stores/topoViewerStore";
 import type { useLayoutControls } from "../ui";
-import type { GroupStyleAnnotation } from "@srl-labs/clab-ui/core/types/topology";
+import type { GroupStyleAnnotation } from "../../core/types/topology";
 
 import type { GraphCreationReturn } from "./useGraphCreation";
 import type { UndoRedoControls } from "./useUndoRedoControls";

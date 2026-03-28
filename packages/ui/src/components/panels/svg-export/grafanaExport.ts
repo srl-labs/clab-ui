@@ -1,7 +1,7 @@
 // Grafana Flow-panel export helpers.
 import type { Edge, Node } from "@xyflow/react";
 
-import type { TopologyEdgeData } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopologyEdgeData } from "../../../core/types/graph";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SVG_MIME_TYPE = "image/svg+xml";

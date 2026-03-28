@@ -8,7 +8,7 @@ import {
   formatMessage,
   getCallerFileLine,
   createLogger
-} from "@srl-labs/clab-ui/core/utilities/loggerUtils";
+} from "../core/utilities/loggerUtils";
 
 declare global {
   interface Window {

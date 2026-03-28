@@ -13,8 +13,8 @@
  */
 import { useEffect } from "react";
 
-import type { CustomNodeTemplate } from "@srl-labs/clab-ui/core/types/editors";
-import type { CustomIconInfo } from "@srl-labs/clab-ui/core/types/icons";
+import type { CustomNodeTemplate } from "../../core/types/editors";
+import type { CustomIconInfo } from "../../core/types/icons";
 import {
   subscribeToWebviewMessages,
   type TypedMessageEvent

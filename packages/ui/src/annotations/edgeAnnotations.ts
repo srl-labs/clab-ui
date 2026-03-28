@@ -1,5 +1,5 @@
-import type { EdgeAnnotation } from "@srl-labs/clab-ui/core/types/topology";
-import type { TopoEdge } from "@srl-labs/clab-ui/core/types/graph";
+import type { EdgeAnnotation } from "../core/types/topology";
+import type { TopoEdge } from "../core/types/graph";
 
 import { DEFAULT_ENDPOINT_LABEL_OFFSET, parseEndpointLabelOffset } from "./endpointLabelOffset";
 

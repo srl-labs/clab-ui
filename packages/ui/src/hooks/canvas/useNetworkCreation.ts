@@ -7,7 +7,7 @@
 import { useCallback, useRef } from "react";
 
 import { log } from "../../utils/logger";
-import type { TopoNode, NetworkNodeData } from "@srl-labs/clab-ui/core/types/graph";
+import type { TopoNode, NetworkNodeData } from "../../core/types/graph";
 
 /** Network type definitions */
 export type NetworkType =

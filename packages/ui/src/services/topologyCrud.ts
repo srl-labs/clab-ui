@@ -6,8 +6,8 @@
 
 import type { Node } from "@xyflow/react";
 
-import type { NodeSaveData } from "@srl-labs/clab-ui/core/io/NodePersistenceIO";
-import type { LinkSaveData } from "@srl-labs/clab-ui/core/io/LinkPersistenceIO";
+import type { NodeSaveData } from "../core/io/NodePersistenceIO";
+import type { LinkSaveData } from "../core/io/LinkPersistenceIO";
 import { nodesToAnnotations } from "../annotations/annotationNodeConverters";
 import { collectNodeGroupMemberships } from "../annotations/groupMembership";
 import { useGraphStore } from "../stores/graphStore";

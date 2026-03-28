@@ -4,9 +4,9 @@ import React from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 import Box from "@mui/material/Box";
 
-import { ContainerlabExplorerView } from "@srl-labs/clab-ui/explorer";
-import type { NetemState } from "@srl-labs/clab-ui/core/parsing";
-import type { TopoEdge, TopoNode, TopologyEdgeData, TopologyHostCommand } from "@srl-labs/clab-ui/core/types";
+import { ContainerlabExplorerView } from "./explorer/index";
+import type { NetemState } from "./core/parsing/index";
+import type { TopoEdge, TopoNode, TopologyEdgeData, TopologyHostCommand } from "./core/types/index";
 
 import { MuiThemeProvider } from "./theme";
 import {

@@ -10,8 +10,8 @@
     "./*": "./src/*"
   },
   "dependencies": {
-    "@srl-labs/clab-ui": "0.0.1",
-    "@srl-labs/clab-ui-explorer": "0.0.1",
-    "@srl-labs/clab-ui-inspect": "0.0.1"
+    "@srl-labs/clab-ui": "file:../ui",
+    "@srl-labs/clab-ui-explorer": "file:../explorer",
+    "@srl-labs/clab-ui-inspect": "file:../inspect"
   }
 }

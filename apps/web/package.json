@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@srl-labs/clab-adapter-api": "0.0.1",
-    "@srl-labs/clab-ui": "0.0.1",
-    "@srl-labs/clab-ui-explorer": "0.0.1",
-    "@srl-labs/clab-ui-inspect": "0.0.1"
+    "@srl-labs/clab-adapter-api": "file:../../packages/adapter-api",
+    "@srl-labs/clab-ui": "file:../../packages/ui",
+    "@srl-labs/clab-ui-explorer": "file:../../packages/explorer",
+    "@srl-labs/clab-ui-inspect": "file:../../packages/inspect"
   }
 }

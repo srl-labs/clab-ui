@@ -10,7 +10,7 @@
     "./*": "./src/*"
   },
   "dependencies": {
-    "@srl-labs/clab-host-contract": "0.0.1",
-    "@srl-labs/clab-ui-core": "0.0.1"
+    "@srl-labs/clab-host-contract": "file:../host-contract",
+    "@srl-labs/clab-ui-core": "file:../core"
   }
 }

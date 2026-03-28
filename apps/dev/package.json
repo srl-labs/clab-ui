@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@srl-labs/clab-adapter-memory": "0.0.1",
-    "@srl-labs/clab-ui": "0.0.1"
+    "@srl-labs/clab-adapter-memory": "file:../../packages/adapter-memory",
+    "@srl-labs/clab-ui": "file:../../packages/ui"
   }
 }

@@ -44,7 +44,7 @@ import { TabNavigation } from "../../ui/editor/TabNavigation";
 import { IconPreview } from "../../ui/form";
 import { MonacoCodeEditor } from "../../monaco/MonacoCodeEditor";
 import { executeTopologyCommand } from "../../../services/topologyHostCommands";
-import clabSchema from "../../../../../../schema/clab.schema.json";
+import clabSchema from "../../../schema/clab.schema.json";
 
 interface PaletteSectionProps {
   mode?: "edit" | "view";

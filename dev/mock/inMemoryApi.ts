@@ -385,6 +385,22 @@ class InMemoryTopologyHostService {
     return this.store.listTopologyFiles();
   }
 
+  public readFile(filePath: string): string {
+    return this.store.readFile(filePath);
+  }
+
+  public writeFile(filePath: string, content: string): void {
+    this.store.writeFile(filePath, content);
+  }
+
+  public unlink(filePath: string): void {
+    this.store.unlink(filePath);
+  }
+
+  public exists(filePath: string): boolean {
+    return this.store.exists(filePath);
+  }
+
   public reset(): void {
     this.store.reset();
     for (const host of this.hosts.values()) host.dispose();
@@ -455,6 +471,36 @@ function parseBody(init?: RequestInit): unknown {
   return {};
 }
 
+async function parseTextBody(input: RequestInfo | URL, init?: RequestInit): Promise<string> {
+  if (typeof init?.body === "string") {
+    return init.body;
+  }
+  if (input instanceof Request) {
+    return await input.clone().text();
+  }
+  return "";
+}
+
+function textResponse(body: string, status = 200): Response {
+  return new Response(body, {
+    status,
+    headers: {
+      "content-type": "text/plain; charset=utf-8"
+    }
+  });
+}
+
+function decodeFilePath(pathname: string): string | null {
+  if (!pathname.startsWith("/file/")) {
+    return null;
+  }
+  const encodedPath = pathname.slice("/file/".length);
+  if (!encodedPath) {
+    return null;
+  }
+  return decodeURIComponent(encodedPath);
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -503,6 +549,41 @@ export function installInMemoryApi(handlers: InMemoryApiHandlers = {}): () => vo
         const message = error instanceof Error ? error.message : String(error);
         return jsonResponse({ type: "topology-host:error", error: message }, 500);
       }
+    }
+
+    if (parsed.pathname.startsWith("/file/")) {
+      const filePath = decodeFilePath(parsed.pathname);
+      if (!filePath) {
+        return jsonResponse({ error: "Invalid file path" }, 400);
+      }
+
+      if (method === "HEAD") {
+        return new Response(null, { status: hostService.exists(filePath) ? 200 : 404 });
+      }
+
+      if (method === "GET") {
+        try {
+          const content = hostService.readFile(filePath);
+          return textResponse(content);
+        } catch {
+          return textResponse("Not found", 404);
+        }
+      }
+
+      if (method === "PUT") {
+        const content = await parseTextBody(input, init);
+        hostService.writeFile(filePath, content);
+        handlers.onFileMutated?.();
+        return jsonResponse({ success: true });
+      }
+
+      if (method === "DELETE") {
+        hostService.unlink(filePath);
+        handlers.onFileMutated?.();
+        return jsonResponse({ success: true });
+      }
+
+      return jsonResponse({ error: "Method not allowed" }, 405);
     }
 
     return nativeFetch(input, init);

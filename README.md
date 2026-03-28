@@ -7,6 +7,14 @@ Workspace for shared containerlab UI packages.
 - `npm run dev`: run the standalone browser harness from `dev/`
 - `npm run build`: build publishable webview artifacts into `dist/`
 - `npm run typecheck`: run TypeScript checks for `src/`, `dev/`, and `packages/`
+- `npm run test:e2e`: run Playwright e2e suite
+- `npm run test:e2e:ui`: open Playwright UI mode
+
+Before first e2e run, install the browser once:
+
+```bash
+npx playwright install chromium
+```
 
 The active dev harness is `dev/`.
 

@@ -5,3 +5,4 @@ dist-dev/
 test-results/
 playwright-report/
 dev/topologies/
+dist-standalone/

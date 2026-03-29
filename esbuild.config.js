@@ -3,6 +3,16 @@ const path = require("path");
 const fs = require("fs");
 const { execSync } = require("child_process");
 
+function resolvePackageFile(specifier) {
+  try {
+    return require.resolve(specifier, {
+      paths: [__dirname, path.join(__dirname, "packages/ui")]
+    });
+  } catch {
+    return null;
+  }
+}
+
 const WEBVIEW_ASSET_MANIFEST = {
   reactTopoViewerWebview: "reactTopoViewerWebview.js",
   reactTopoViewerStyles: "reactTopoViewerStyles.css",
@@ -60,7 +70,8 @@ async function copyFonts() {
 }
 
 async function copyMapLibreWorker() {
-  const srcPath = path.join(__dirname, "node_modules/maplibre-gl/dist/maplibre-gl-csp-worker.js");
+  const srcPath = resolvePackageFile("maplibre-gl/dist/maplibre-gl-csp-worker.js");
+  if (!srcPath) return;
   const destPath = path.join(__dirname, "dist/maplibre-gl-csp-worker.js");
   if (!fs.existsSync(srcPath)) return;
   await fs.promises.copyFile(srcPath, destPath);
@@ -125,7 +136,7 @@ async function build() {
       outfile: "dist/containerlabExplorerView.js"
     },
     {
-      entryPoints: ["src/webviews/welcome/welcomePage.webview.tsx"],
+      entryPoints: ["packages/ui/src/webviews/welcome/welcomePage.webview.tsx"],
       outfile: "dist/welcomePageWebview.js"
     },
     {
@@ -133,11 +144,11 @@ async function build() {
       outfile: "dist/inspectWebview.js"
     },
     {
-      entryPoints: ["src/webviews/nodeImpairments/nodeImpairments.webview.tsx"],
+      entryPoints: ["packages/ui/src/webviews/nodeImpairments/nodeImpairments.webview.tsx"],
       outfile: "dist/nodeImpairmentsWebview.js"
     },
     {
-      entryPoints: ["src/webviews/wiresharkVnc/wiresharkVnc.webview.tsx"],
+      entryPoints: ["packages/ui/src/webviews/wiresharkVnc/wiresharkVnc.webview.tsx"],
       outfile: "dist/wiresharkVncWebview.js"
     }
   ].map((build) =>

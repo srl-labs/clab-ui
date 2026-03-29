@@ -5,7 +5,7 @@ import {
   type TopologyHostErrorMessage,
   type TopologyHostRejectMessage,
   type TopologyHostSnapshotMessage
-} from "@srl-labs/clab-ui-core";
+} from "@srl-labs/clab-ui/core";
 import type {
   SnapshotRequestOptions,
   TopologyCommand,

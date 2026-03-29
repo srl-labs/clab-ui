@@ -2,6 +2,15 @@
 
 Workspace for shared containerlab UI packages.
 
+## Setup
+
+Run dependency installation from the workspace root:
+
+```bash
+cd /home/flschwar/projects/clab/containerlab-gui
+npm install
+```
+
 ## Active development flow
 
 - `npm run dev`: run the standalone browser harness from `dev/`
@@ -24,14 +33,13 @@ The main published package is:
 
 - `@srl-labs/clab-ui`
 
-Compatibility wrapper packages in this repo:
+Import API surfaces directly from subpaths:
 
-- `@srl-labs/clab-ui-core`
-- `@srl-labs/clab-ui-explorer`
-- `@srl-labs/clab-ui-inspect`
-- `@srl-labs/containerlab-gui`
-
-These wrappers are for internal/workspace compatibility and re-export canonical implementations from `@srl-labs/clab-ui`.
+- `@srl-labs/clab-ui/core`
+- `@srl-labs/clab-ui/explorer`
+- `@srl-labs/clab-ui/inspect`
+- `@srl-labs/clab-ui/theme`
+- `@srl-labs/clab-ui/services`
 
 Host adapter packages:
 

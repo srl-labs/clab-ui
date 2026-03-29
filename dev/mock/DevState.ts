@@ -10,7 +10,7 @@
  * Clipboard is handled locally by useUnifiedClipboard (React refs).
  */
 
-import type { CustomNodeTemplate } from "@srl-labs/clab-ui-core";
+import type { CustomNodeTemplate } from "@srl-labs/clab-ui/core";
 
 // ============================================================================
 // Types

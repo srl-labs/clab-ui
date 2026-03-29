@@ -5,7 +5,7 @@ import type {
   TopologyHostCommand,
   TopologyHostResponseMessage,
   TopologySnapshot
-} from "@srl-labs/clab-ui-core";
+} from "@srl-labs/clab-ui/core";
 
 import datacenterYaml from "../topologies-original/datacenter.clab.yml?raw";
 import datacenterAnnotations from "../topologies-original/datacenter.clab.yml.annotations.json?raw";

@@ -4,9 +4,7 @@
     "baseUrl": "../..",
     "paths": {
       "@srl-labs/clab-host-contract": ["./packages/host-contract/src/index.ts"],
-      "@srl-labs/clab-host-contract/*": ["./packages/host-contract/src/*"],
-      "@srl-labs/clab-ui-core": ["./packages/core/src/index.ts"],
-      "@srl-labs/clab-ui-core/*": ["./packages/core/src/*"]
+      "@srl-labs/clab-host-contract/*": ["./packages/host-contract/src/*"]
     }
   },
   "include": ["./src/**/*.ts", "./src/**/*.tsx"]

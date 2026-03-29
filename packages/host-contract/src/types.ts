@@ -5,7 +5,7 @@ import type {
   TopologyHostResponseMessage,
   TopologyHostSnapshotMessage,
   TopologySnapshot
-} from "@srl-labs/clab-ui-core";
+} from "@srl-labs/clab-ui/core";
 
 export type TopologyCommand = TopologyHostCommand;
 export type TopologyHostResponse = TopologyHostResponseMessage;

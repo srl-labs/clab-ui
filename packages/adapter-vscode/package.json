@@ -11,6 +11,6 @@
   },
   "dependencies": {
     "@srl-labs/clab-host-contract": "file:../host-contract",
-    "@srl-labs/clab-ui-core": "file:../core"
+    "@srl-labs/clab-ui": "file:../ui"
   }
 }

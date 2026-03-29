@@ -1,11 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": "../..",
-    "paths": {
-      "@srl-labs/clab-ui-core": ["./packages/core/src/index.ts"],
-      "@srl-labs/clab-ui-core/*": ["./packages/core/src/*"]
-    }
+    "baseUrl": "../.."
   },
   "include": ["./src/**/*.ts", "./src/**/*.tsx"]
 }

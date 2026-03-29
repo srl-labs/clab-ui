@@ -4,7 +4,7 @@ import { createRoot, type Root as ReactRoot } from "react-dom/client";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { App } from "@webview/App";
-import type { CustomNodeTemplate, CustomIconInfo, SchemaData } from "@srl-labs/clab-ui-core";
+import type { CustomNodeTemplate, CustomIconInfo, SchemaData } from "@srl-labs/clab-ui/core";
 import "@webview/styles/global.css";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
@@ -18,7 +18,7 @@ import {
   EXPORT_COMMANDS,
   MSG_SVG_EXPORT_RESULT,
   parseSchemaData
-} from "@srl-labs/clab-ui-core";
+} from "@srl-labs/clab-ui/core";
 
 import { DevStateManager } from "./mock/DevState";
 import { DevSettingsOverlay } from "./components/DevSettingsOverlay";
@@ -30,12 +30,12 @@ import {
   type ExplorerActionInvocation,
   type ExplorerSnapshotOptions,
   type ExplorerSnapshotProviders
-} from "@srl-labs/clab-ui-explorer";
+} from "@srl-labs/clab-ui/explorer";
 import type {
   ExplorerIncomingMessage,
   ExplorerOutgoingMessage,
   ExplorerUiState
-} from "@srl-labs/clab-ui-explorer";
+} from "@srl-labs/clab-ui/explorer";
 import { installInMemoryApi } from "./mock/inMemoryApi";
 import { loadDevSession, saveDevSession } from "./mock/devSession";
 

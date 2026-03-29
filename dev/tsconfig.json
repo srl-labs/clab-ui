@@ -10,8 +10,6 @@
     "./**/*.tsx",
     "../src/reactTopoViewer/**/*.ts",
     "../src/reactTopoViewer/**/*.tsx",
-    "../src/webviews/**/*.ts",
-    "../src/webviews/**/*.tsx",
     "../packages/**/*.ts",
     "../packages/**/*.tsx"
   ]

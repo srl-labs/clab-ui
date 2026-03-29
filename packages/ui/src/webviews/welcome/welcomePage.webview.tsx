@@ -23,7 +23,7 @@ import { createRoot } from "react-dom/client";
 
 import { MuiThemeProvider } from "@srl-labs/clab-ui/theme";
 import { useMessageListener, usePostMessage } from "../shared/hooks";
-import containerlabLogo from "../../../resources/containerlab.svg";
+import containerlabLogo from "../../../../../resources/containerlab.svg";
 
 interface PopularRepo {
   name: string;

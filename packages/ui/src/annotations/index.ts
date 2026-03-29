@@ -1,6 +1,7 @@
 export {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
+  TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE,
   annotationsToNodes,
   nodesToAnnotations
@@ -8,4 +9,9 @@ export {
 export { applyGroupMembershipToNodes, collectNodeGroupMemberships } from "./groupMembership";
 export { findEdgeAnnotationInLookup, pruneEdgeAnnotations } from "./edgeAnnotations";
 export { parseEndpointLabelOffset } from "./endpointLabelOffset";
-export { isNonEmptyString, parseLegacyGroupIdentity, toFiniteNumber, toPosition } from "./valueParsers";
+export {
+  isNonEmptyString,
+  parseLegacyGroupIdentity,
+  toFiniteNumber,
+  toPosition
+} from "./valueParsers";

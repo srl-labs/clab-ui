@@ -131,9 +131,9 @@ test.describe("Link Editor Panel", () => {
     const edgeIds = await topoViewerPage.getEdgeIds();
     await openLinkEditor(page, edgeIds[0]);
 
-    // In GUI runtime the footer Apply button is always present for editable panels.
+    // Apply is hidden until there are unsaved changes.
     const applyBtn = page.locator(SEL_PANEL_APPLY_BTN);
-    await expect(applyBtn).toBeVisible();
+    await expect(applyBtn).toHaveCount(0);
 
     const sourceInterface = page.locator("#link-source-interface");
     await sourceInterface.fill("e1-2");

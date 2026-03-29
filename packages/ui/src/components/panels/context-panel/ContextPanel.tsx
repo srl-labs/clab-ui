@@ -4,7 +4,6 @@ import type { ReactFlowInstance } from "@xyflow/react";
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
-  EditOutlined as EditOutlinedIcon,
   ErrorOutline as ErrorOutlineIcon,
   Lock as LockIcon,
   SwapHoriz as SwapHorizIcon
@@ -15,7 +14,11 @@ import { useIsLocked } from "../../../stores/topoViewerStore";
 import type { NodeData, LinkData } from "../../../hooks/ui";
 import { useContextPanelContent } from "../../../hooks/ui/useContextPanelContent";
 
-import type { ContextPanelEditorState, EditorFooterRef, EditorBannerRef } from "./views/editorTypes";
+import type {
+  ContextPanelEditorState,
+  EditorFooterRef,
+  EditorBannerRef
+} from "./views/editorTypes";
 import { PaletteView } from "./views";
 
 const MIN_WIDTH = 500;
@@ -160,7 +163,11 @@ const ToggleHandle: React.FC<{
       }}
     >
       <Tooltip title={toggleTitle} placement={sideConfig.tooltipPlacement}>
-        <Box onClick={handleToggle} data-testid="panel-toggle-btn" sx={{ ...handleStyle, height: 48 }}>
+        <Box
+          onClick={handleToggle}
+          data-testid="panel-toggle-btn"
+          sx={{ ...handleStyle, height: 48 }}
+        >
           <ActiveIcon sx={{ fontSize: 16, color: TEXT_SECONDARY }} />
         </Box>
       </Tooltip>
@@ -288,7 +295,7 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
   );
 
   const footer = footerRef.current;
-  const showFooter = panelView.hasFooter && footer;
+  const showFooter = panelView.hasFooter && footer?.hasChanges === true;
 
   return (
     <>
@@ -365,27 +372,6 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
             </React.Fragment>
           ))}
 
-        {panelView.hasFooter && footer?.hasChanges && !isReadOnly && (
-          <>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                px: 2,
-                py: 0.5,
-                bgcolor: ACTION_HOVER
-              }}
-            >
-              <EditOutlinedIcon sx={{ fontSize: 14, color: TEXT_SECONDARY }} />
-              <Typography variant="caption" color="text.secondary">
-                Unsaved changes — click Apply to save
-              </Typography>
-            </Box>
-            <Divider />
-          </>
-        )}
-
         <Box
           sx={{
             flexGrow: 1,
@@ -395,15 +381,11 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
           {content}
         </Box>
 
-        {showFooter && !isReadOnly && (
+        {showFooter === true && !isReadOnly && (
           <>
             <Divider />
             <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, p: 1.5 }}>
-              <Button
-                size="small"
-                onClick={footer.handleApply}
-                data-testid="panel-apply-btn"
-              >
+              <Button size="small" onClick={footer.handleApply} data-testid="panel-apply-btn">
                 Apply
               </Button>
             </Box>

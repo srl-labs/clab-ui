@@ -26,6 +26,29 @@ interface UseGroupAnnotationsParams {
   uiActions: Pick<AnnotationUIActions, "setEditingGroup" | "removeFromGroupSelection">;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isGroupNodeData(value: unknown): value is GroupNodeData {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.name === "string" &&
+    typeof value.level === "string" &&
+    typeof value.width === "number" &&
+    typeof value.height === "number"
+  );
+}
+
+function isGroupNode(node: Node): node is Node<GroupNodeData> {
+  return node.type === GROUP_NODE_TYPE && isGroupNodeData(node.data);
+}
+
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
 export interface GroupAnnotationActions {
   editGroup: (id: string) => void;
   saveGroup: (data: GroupEditorData) => void;
@@ -42,9 +65,7 @@ function buildGroupsSnapshot(
 ): GroupStyleAnnotation[] {
   if (derived.groups.length > 0) return derived.groups;
 
-  return graphNodes
-    .filter((node) => node.type === GROUP_NODE_TYPE)
-    .map((node) => nodeToGroup(node as Node<GroupNodeData>));
+  return graphNodes.filter(isGroupNode).map((node) => nodeToGroup(node));
 }
 
 function getGroupDeletionContext(
@@ -57,6 +78,7 @@ function getGroupDeletionContext(
   childGroups: GroupStyleAnnotation[];
   textIds: Set<string>;
   shapeIds: Set<string>;
+  trafficRateIds: Set<string>;
 } {
   const group = groupsSnapshot.find((g) => g.id === id);
   const parentId = group ? (resolveGroupParentId(group.parentId, group.groupId) ?? null) : null;
@@ -66,13 +88,15 @@ function getGroupDeletionContext(
   );
   const textIds = new Set(derived.textAnnotations.map((t) => t.id));
   const shapeIds = new Set(derived.shapeAnnotations.map((s) => s.id));
+  const trafficRateIds = new Set(derived.trafficRateAnnotations.map((entry) => entry.id));
 
   return {
     parentId,
     memberIds,
     childGroups,
     textIds,
-    shapeIds
+    shapeIds,
+    trafficRateIds
   };
 }
 
@@ -94,7 +118,8 @@ function reassignGroupMembers(
   memberIds: string[],
   parentId: string | null,
   textIds: Set<string>,
-  shapeIds: Set<string>
+  shapeIds: Set<string>,
+  trafficRateIds: Set<string>
 ): void {
   for (const memberId of memberIds) {
     if (textIds.has(memberId)) {
@@ -105,8 +130,12 @@ function reassignGroupMembers(
       derived.updateShapeAnnotation(memberId, { groupId: parentId ?? undefined });
       continue;
     }
+    if (trafficRateIds.has(memberId)) {
+      derived.updateTrafficRateAnnotation(memberId, { groupId: parentId ?? undefined });
+      continue;
+    }
 
-    if (parentId) {
+    if (parentId !== null && parentId.length > 0) {
       derived.addNodeToGroup(memberId, parentId);
     } else {
       derived.removeNodeFromGroup(memberId);
@@ -136,7 +165,7 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
       uiActions.setEditingGroup({
         id: group.id,
         name: group.name,
-        level: group.level ?? "1",
+        level: group.level,
         style: {
           backgroundColor: group.backgroundColor,
           backgroundOpacity: group.backgroundOpacity,
@@ -148,8 +177,8 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
           labelPosition: group.labelPosition
         },
         position: group.position,
-        width: group.width ?? 200,
-        height: group.height ?? 150
+        width: group.width,
+        height: group.height
       });
     },
     [derived.groups, uiActions]
@@ -184,18 +213,15 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
     (id: string) => {
       const graphNodes = useGraphStore.getState().nodes;
       const groupsSnapshot = buildGroupsSnapshot(derived, graphNodes);
-      const { parentId, memberIds, childGroups, textIds, shapeIds } = getGroupDeletionContext(
-        derived,
-        groupsSnapshot,
-        id
-      );
+      const { parentId, memberIds, childGroups, textIds, shapeIds, trafficRateIds } =
+        getGroupDeletionContext(derived, groupsSnapshot, id);
 
       derived.deleteGroup(id);
       uiActions.removeFromGroupSelection(id);
 
       // Promote child groups to parent (or clear parent if none)
       updateChildGroupParents(derived, childGroups, parentId);
-      reassignGroupMembers(derived, memberIds, parentId, textIds, shapeIds);
+      reassignGroupMembers(derived, memberIds, parentId, textIds, shapeIds, trafficRateIds);
 
       const memberships = collectNodeGroupMemberships(useGraphStore.getState().nodes);
       void saveAnnotationNodesWithMemberships(memberships);
@@ -214,7 +240,7 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
     const padding = 40;
 
     const rfNodes = rfInstance?.getNodes() ?? [];
-    const selectedNodes = rfNodes.filter((n) => n.selected && n.type !== "group");
+    const selectedNodes = rfNodes.filter((n) => n.selected === true && n.type !== "group");
 
     const { position, width, height, members } =
       selectedNodes.length > 0
@@ -264,7 +290,7 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
       const padding = 40;
 
       const rfNodes = rfInstance?.getNodes() ?? [];
-      const selectedNodes = rfNodes.filter((n) => n.selected && n.type !== "group");
+      const selectedNodes = rfNodes.filter((n) => n.selected === true && n.type !== "group");
 
       const bounds =
         selectedNodes.length > 0
@@ -312,7 +338,7 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
 
   const addGroup = useCallback(
     (group: GroupStyleAnnotation) => {
-      const memberIds = Array.isArray(group.members) ? (group.members as string[]) : [];
+      const memberIds = toStringArray(group.members);
       derived.addGroup(group);
       if (memberIds.length > 0) {
         for (const memberId of memberIds) {

@@ -61,7 +61,3 @@ export {
   getRecord,
   applyInterfacePatternMigrations
 } from "./helpers";
-
-// Logging helpers
-export { formatMessage, getCallerFileLine, createLogger } from "./loggerUtils";
-export type { LogLevel } from "./loggerUtils";

@@ -1,4 +1,4 @@
-import type { NetemState } from "../core/parsing/index";
+import type { NetemState } from "../core/parsing";
 
 import { normalizeNetemPercentage, normalizeNetemValue } from "./netemNormalization";
 

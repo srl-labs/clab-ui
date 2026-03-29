@@ -1,4 +1,4 @@
-import type { NetemState as _NetemState } from "../../../core/parsing/index";
+import type { NetemState as _NetemState } from "../../../core/parsing";
 import type { LinkData } from "../../../hooks/ui";
 
 export type NetemState = _NetemState;

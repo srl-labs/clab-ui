@@ -85,6 +85,13 @@ export const PaletteView: React.FC<PaletteViewProps> = ({
         editor.shapeAnnotationHandlers.onClose();
       };
     }
+    if (editor.editingTrafficRateAnnotation) {
+      const id = editor.editingTrafficRateAnnotation.id;
+      return () => {
+        editor.trafficRateAnnotationHandlers.onDelete(id);
+        editor.trafficRateAnnotationHandlers.onClose();
+      };
+    }
     if (editor.editingGroup) {
       const id = editor.editingGroup.id;
       return () => {
@@ -111,6 +118,9 @@ export const PaletteView: React.FC<PaletteViewProps> = ({
     <EditorTabContent
       editingNodeData={editor.editingNodeData}
       editingNodeInheritedProps={editor.editingNodeInheritedProps}
+      selectedNodeVisualData={editor.selectedNodeVisualData}
+      selectedNodeVisualInheritedProps={editor.selectedNodeVisualInheritedProps}
+      enableSelectedNodeVisualEditor={editor.enableSelectedNodeVisualEditor}
       nodeEditorHandlers={editor.nodeEditorHandlers}
       editingLinkData={editor.editingLinkData}
       linkEditorHandlers={editor.linkEditorHandlers}
@@ -122,6 +132,8 @@ export const PaletteView: React.FC<PaletteViewProps> = ({
       textAnnotationHandlers={editor.textAnnotationHandlers}
       editingShapeAnnotation={editor.editingShapeAnnotation}
       shapeAnnotationHandlers={editor.shapeAnnotationHandlers}
+      editingTrafficRateAnnotation={editor.editingTrafficRateAnnotation}
+      trafficRateAnnotationHandlers={editor.trafficRateAnnotationHandlers}
       editingGroup={editor.editingGroup}
       groupHandlers={editor.groupHandlers}
       onFooterRef={wrappedOnFooterRef}

@@ -1,6 +1,7 @@
 import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
+  TrafficRateAnnotation,
   GroupStyleAnnotation
 } from "../../../../core/types/topology";
 import type { GroupEditorData } from "../../../../hooks/canvas";
@@ -23,6 +24,9 @@ export interface EditorBannerRef {
 export interface ContextPanelEditorState {
   editingNodeData: NodeEditorData | null;
   editingNodeInheritedProps: string[];
+  selectedNodeVisualData: NodeEditorData | null;
+  selectedNodeVisualInheritedProps: string[];
+  enableSelectedNodeVisualEditor: boolean;
   nodeEditorHandlers: {
     handleClose: () => void;
     handleSave: (data: NodeEditorData) => void;
@@ -55,12 +59,23 @@ export interface ContextPanelEditorState {
   editingTextAnnotation: FreeTextAnnotation | null;
   textAnnotationHandlers: {
     onSave: (annotation: FreeTextAnnotation) => void;
+    onPreview?: (annotation: FreeTextAnnotation) => boolean;
+    onPreviewDelete?: (id: string) => void;
     onClose: () => void;
     onDelete: (id: string) => void;
   };
   editingShapeAnnotation: FreeShapeAnnotation | null;
   shapeAnnotationHandlers: {
     onSave: (annotation: FreeShapeAnnotation) => void;
+    onPreview?: (annotation: FreeShapeAnnotation) => boolean;
+    onPreviewDelete?: (id: string) => void;
+    onClose: () => void;
+    onDelete: (id: string) => void;
+  };
+  editingTrafficRateAnnotation: TrafficRateAnnotation | null;
+  trafficRateAnnotationHandlers: {
+    onSave: (annotation: TrafficRateAnnotation) => void;
+    onPreview?: (annotation: TrafficRateAnnotation) => void;
     onClose: () => void;
     onDelete: (id: string) => void;
   };

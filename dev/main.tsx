@@ -9,7 +9,7 @@ import "@webview/styles/global.css";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
-import { setHostContext, setHostTransport } from "@webview/services/topologyHostClient";
+import { setHostContext } from "@webview/services/topologyHostClient";
 import { refreshTopologySnapshot } from "@webview/services/topologyHostCommands";
 import { useGraphStore, useTopoViewerStore } from "@webview/stores";
 import { applyDevVars } from "@webview/theme/devTheme";
@@ -31,7 +31,6 @@ import {
   type ExplorerSnapshotOptions,
   type ExplorerSnapshotProviders
 } from "@srl-labs/clab-ui-explorer";
-import { ApiTopologyHostTransport } from "@srl-labs/clab-adapter-api";
 import type {
   ExplorerIncomingMessage,
   ExplorerOutgoingMessage,
@@ -62,7 +61,6 @@ installInMemoryApi({
     window.dispatchEvent(new Event("dev-files-mutated"));
   }
 });
-setHostTransport(new ApiTopologyHostTransport());
 
 // Session Management
 

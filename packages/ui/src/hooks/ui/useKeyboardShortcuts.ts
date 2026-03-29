@@ -5,6 +5,12 @@ import { useEffect, useCallback } from "react";
 
 import { log } from "../../utils/logger";
 import { useGraphStore } from "../../stores/graphStore";
+import {
+  FREE_TEXT_NODE_TYPE,
+  FREE_SHAPE_NODE_TYPE,
+  TRAFFIC_RATE_NODE_TYPE,
+  GROUP_NODE_TYPE
+} from "../../annotations/annotationNodeConverters";
 
 interface KeyboardShortcutsOptions {
   mode: "edit" | "view";
@@ -49,29 +55,55 @@ interface KeyboardShortcutsOptions {
   onCreateGroup?: () => void;
 }
 
-/**
- * Check if target is an input field
- */
-function isInputElement(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return true;
-  if (target instanceof HTMLElement && target.isContentEditable) return true;
+const EDITABLE_SELECTOR = [
+  "input",
+  "textarea",
+  "[contenteditable='']",
+  "[contenteditable='true']",
+  "[contenteditable='plaintext-only']",
+  "[role='textbox']",
+  ".monaco-editor",
+  ".monaco-inputbox",
+  ".monaco-findInput"
+].join(",");
 
-  return Boolean(
-    target.closest(
-      [
-        "input",
-        "textarea",
-        "[contenteditable='']",
-        "[contenteditable='true']",
-        "[contenteditable='plaintext-only']",
-        "[role='textbox']",
-        ".monaco-editor",
-        ".monaco-inputbox",
-        ".monaco-findInput"
-      ].join(",")
-    )
-  );
+function isEditableElement(element: Element | null): boolean {
+  if (element == null) return false;
+  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return true;
+  if (element instanceof HTMLElement && element.isContentEditable) return true;
+  return element.matches(EDITABLE_SELECTOR) || Boolean(element.closest(EDITABLE_SELECTOR));
+}
+
+function hasMonacoFocus(): boolean {
+  const activeElement = document.activeElement;
+  if (!(activeElement instanceof Element)) return false;
+  if (activeElement.classList.contains("inputarea")) return true;
+  if (isEditableElement(activeElement)) return true;
+  return Boolean(activeElement.closest(".monaco-editor, .monaco-inputbox, .monaco-findInput"));
+}
+
+/**
+ * Check if keyboard focus is currently in an editable/input context.
+ */
+function isInputElement(event: KeyboardEvent): boolean {
+  if (hasMonacoFocus()) return true;
+
+  if (event.target instanceof Element && isEditableElement(event.target)) {
+    return true;
+  }
+
+  const path = event.composedPath();
+  for (const entry of path) {
+    if (entry instanceof Element && isEditableElement(entry)) {
+      return true;
+    }
+  }
+
+  if (document.activeElement instanceof Element && isEditableElement(document.activeElement)) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -263,12 +295,11 @@ function handleCreateGroup(
 function handleSelectAll(event: KeyboardEvent): boolean {
   if (!(event.ctrlKey || event.metaKey) || event.key !== "a") return false;
 
-  const target = event.target as HTMLElement | null;
-  if (
-    target &&
-    (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
-  ) {
-    return false;
+  const target = event.target;
+  if (target instanceof HTMLElement) {
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) {
+      return false;
+    }
   }
 
   const { nodes, edges, setNodes, setEdges } = useGraphStore.getState();
@@ -278,6 +309,10 @@ function handleSelectAll(event: KeyboardEvent): boolean {
   log.info("[Keyboard] Select all nodes and edges");
   event.preventDefault();
   return true;
+}
+
+function hasSelectedId(value: string | null): value is string {
+  return value !== null && value.length > 0;
 }
 
 /**
@@ -307,10 +342,10 @@ function deleteSelectedElements(
 ): boolean {
   let handled = false;
 
-  if (!selectedNode && !selectedEdge) {
+  if (!hasSelectedId(selectedNode) && !hasSelectedId(selectedEdge)) {
     const { nodes, edges } = useGraphStore.getState();
-    const selectedNodes = nodes.filter((n) => n.selected);
-    const selectedEdges = edges.filter((e) => e.selected);
+    const selectedNodes = nodes.filter((n) => n.selected === true);
+    const selectedEdges = edges.filter((e) => e.selected === true);
 
     if (selectedNodes.length > 0) {
       log.info(`[Keyboard] Deleting ${selectedNodes.length} selected nodes`);
@@ -325,19 +360,95 @@ function deleteSelectedElements(
     }
   }
 
-  if (selectedNode) {
+  if (hasSelectedId(selectedNode)) {
     log.info(`[Keyboard] Deleting node: ${selectedNode}`);
     onDeleteNode(selectedNode);
     handled = true;
   }
 
-  if (selectedEdge) {
+  if (hasSelectedId(selectedEdge)) {
     log.info(`[Keyboard] Deleting edge: ${selectedEdge}`);
     onDeleteEdge(selectedEdge);
     handled = true;
   }
 
   return handled;
+}
+
+function isAnnotationType(type: string | undefined): boolean {
+  return (
+    type === FREE_TEXT_NODE_TYPE ||
+    type === FREE_SHAPE_NODE_TYPE ||
+    type === GROUP_NODE_TYPE ||
+    type === TRAFFIC_RATE_NODE_TYPE
+  );
+}
+
+function handleDeleteInViewMode(
+  event: KeyboardEvent,
+  selectedNode: string | null,
+  selectedEdge: string | null,
+  onDeleteSelection: (() => void) | undefined,
+  selectedAnnotationIds: Set<string> | undefined,
+  onDeleteAnnotations: (() => void) | undefined
+): boolean {
+  const { nodes, edges } = useGraphStore.getState();
+  const selectedNodes = nodes.filter((node) => node.selected === true);
+  const hasSelectedEdges =
+    edges.some((edge) => edge.selected === true) || hasSelectedId(selectedEdge);
+  const hasSelectedAnnotationNodes = selectedNodes.some((node) => isAnnotationType(node.type));
+  const hasSelectedNonAnnotationNode = selectedNodes.some((node) => !isAnnotationType(node.type));
+
+  // If canvas selection includes only annotation nodes, use batched delete path
+  // so deletion works even when annotation UI selection is out of sync.
+  if (
+    onDeleteSelection &&
+    hasSelectedAnnotationNodes &&
+    !hasSelectedEdges &&
+    !hasSelectedNonAnnotationNode &&
+    !hasSelectedId(selectedNode)
+  ) {
+    log.info("[Keyboard] Deleting selected annotation nodes (view mode)");
+    onDeleteSelection();
+    event.preventDefault();
+    return true;
+  }
+
+  const handled = deleteSelectedAnnotations(selectedAnnotationIds, onDeleteAnnotations);
+  if (handled) event.preventDefault();
+  return handled;
+}
+
+function handleBatchedDeleteInEditMode(
+  event: KeyboardEvent,
+  selectedNode: string | null,
+  selectedEdge: string | null,
+  onDeleteSelection: (() => void) | undefined,
+  selectedAnnotationIds: Set<string> | undefined
+): boolean {
+  if (!onDeleteSelection) return false;
+
+  const { nodes, edges } = useGraphStore.getState();
+  const selectedNodeIds = nodes.filter((node) => node.selected === true).map((node) => node.id);
+  const selectedEdgeIds = edges.filter((edge) => edge.selected === true).map((edge) => edge.id);
+  let totalSelected =
+    selectedNodeIds.length + selectedEdgeIds.length + (selectedAnnotationIds?.size ?? 0);
+
+  if (hasSelectedId(selectedNode) && !selectedNodeIds.includes(selectedNode)) {
+    totalSelected += 1;
+  }
+  if (hasSelectedId(selectedEdge) && !selectedEdgeIds.includes(selectedEdge)) {
+    totalSelected += 1;
+  }
+
+  if (totalSelected === 0) {
+    return false;
+  }
+
+  log.info(`[Keyboard] Deleting ${totalSelected} selected items (batched)`);
+  onDeleteSelection();
+  event.preventDefault();
+  return true;
 }
 
 /**
@@ -356,28 +467,30 @@ function handleDelete(
   onDeleteAnnotations?: () => void
 ): boolean {
   if (event.key !== "Delete" && event.key !== "Backspace") return false;
-  if (mode !== "edit" || isLocked) return false;
+  if (isLocked) return false;
 
-  if (onDeleteSelection) {
-    const { nodes, edges } = useGraphStore.getState();
-    const selectedNodeIds = nodes.filter((n) => n.selected).map((n) => n.id);
-    const selectedEdgeIds = edges.filter((e) => e.selected).map((e) => e.id);
-    let totalSelected =
-      selectedNodeIds.length + selectedEdgeIds.length + (selectedAnnotationIds?.size ?? 0);
+  // In view mode (running/deployed labs), allow deleting annotations only when unlocked.
+  if (mode !== "edit") {
+    return handleDeleteInViewMode(
+      event,
+      selectedNode,
+      selectedEdge,
+      onDeleteSelection,
+      selectedAnnotationIds,
+      onDeleteAnnotations
+    );
+  }
 
-    if (selectedNode && !selectedNodeIds.includes(selectedNode)) {
-      totalSelected += 1;
-    }
-    if (selectedEdge && !selectedEdgeIds.includes(selectedEdge)) {
-      totalSelected += 1;
-    }
-
-    if (totalSelected > 0) {
-      log.info(`[Keyboard] Deleting ${totalSelected} selected items (batched)`);
-      onDeleteSelection();
-      event.preventDefault();
-      return true;
-    }
+  if (
+    handleBatchedDeleteInEditMode(
+      event,
+      selectedNode,
+      selectedEdge,
+      onDeleteSelection,
+      selectedAnnotationIds
+    )
+  ) {
+    return true;
   }
 
   let handled = deleteSelectedAnnotations(selectedAnnotationIds, onDeleteAnnotations);
@@ -414,7 +527,7 @@ function handleEscape(
 
   // NOTE: Element deselection is handled via onDeselectAll callback
   // ReactFlow manages selection state internally
-  if (selectedNode || selectedEdge) {
+  if (hasSelectedId(selectedNode) || hasSelectedId(selectedEdge)) {
     log.debug("[Keyboard] Deselecting all");
     onDeselectAll();
     event.preventDefault();
@@ -460,7 +573,8 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
-      if (isInputElement(event.target)) return;
+      if (event.defaultPrevented) return;
+      if (isInputElement(event)) return;
 
       // Undo/Redo must be checked before other shortcuts
       if (handleUndo(event, mode, canUndo, onUndo)) return;

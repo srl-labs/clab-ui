@@ -23,6 +23,8 @@ export interface NodeEditorViewProps {
   onApply: (data: NodeEditorData) => void;
   onPreview?: (data: NodeEditorData) => void;
   inheritedProps?: string[];
+  /** Show only visual node controls (Icon + Label & Direction). */
+  visualOnly?: boolean;
   /** Disable editing, but keep scrolling and tab navigation available */
   readOnly?: boolean;
   /** Exposed for ContextPanel footer */
@@ -57,12 +59,27 @@ function getTabsForNode(kind: string | undefined): Array<TabConfig<NodeEditorTab
   return BASE_TABS;
 }
 
+function isNodeEditorTabId(value: string): value is NodeEditorTabId {
+  switch (value) {
+    case "basic":
+    case "components":
+    case "config":
+    case "runtime":
+    case "network":
+    case "advanced":
+      return true;
+    default:
+      return false;
+  }
+}
+
 export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
   nodeData,
   onSave,
   onApply,
   onPreview,
   inheritedProps = [],
+  visualOnly = false,
   readOnly = false,
   onFooterRef
 }) => {
@@ -77,7 +94,12 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
     originalData
   } = useNodeEditorForm(nodeData, readOnly);
 
-  const tabs = useMemo(() => getTabsForNode(formData?.kind), [formData?.kind]);
+  const tabs = useMemo(() => {
+    if (visualOnly) {
+      return [BASE_TABS[0]];
+    }
+    return getTabsForNode(formData?.kind);
+  }, [formData?.kind, visualOnly]);
 
   const effectiveInheritedProps = useMemo(() => {
     if (!formData || !originalData) return inheritedProps;
@@ -96,6 +118,12 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
     onPreview(formData);
   }, [formData, readOnly, onPreview]);
 
+  useEffect(() => {
+    if (visualOnly && activeTab !== "basic") {
+      setActiveTab("basic");
+    }
+  }, [activeTab, setActiveTab, visualOnly]);
+
   useFooterControlsRef(
     onFooterRef,
     Boolean(formData),
@@ -110,14 +138,19 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
   const tabProps = {
     data: formData,
     onChange: handleChange,
-    inheritedProps: effectiveInheritedProps
+    inheritedProps: effectiveInheritedProps,
+    visualOnly
   };
 
   return (
     <EditorPanel
       tabs={tabs}
       activeTab={activeTab}
-      onTabChange={(id) => setActiveTab(id as NodeEditorTabId)}
+      onTabChange={(id) => {
+        if (isNodeEditorTabId(id)) {
+          setActiveTab(id);
+        }
+      }}
       tabProps={tabProps}
       readOnly={readOnly}
     />

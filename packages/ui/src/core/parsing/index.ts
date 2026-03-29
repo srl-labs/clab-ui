@@ -81,7 +81,6 @@ export { computeFullPrefix, getLabName, getTopologyNodeIds, isPresetLayout } fro
 
 // Edge stats (used by EdgeStatsBuilder)
 export { extractEdgeInterfaceStats, computeEdgeClassFromStates } from "./EdgeElementBuilder";
-export { mapSrosInterfaceName } from "./DistributedSrosMapper";
 
 // Interface patterns
 export { DEFAULT_INTERFACE_PATTERNS } from "../constants/interfacePatterns";

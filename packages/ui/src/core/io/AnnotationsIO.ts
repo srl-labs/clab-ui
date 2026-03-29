@@ -11,6 +11,13 @@ import { createEmptyAnnotations } from "../annotations/types";
 import type { FileSystemAdapter, IOLogger } from "./types";
 import { noopLogger } from "./types";
 
+function toTopologyAnnotations(value: unknown): TopologyAnnotations {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return createEmptyAnnotations();
+  }
+  return { ...createEmptyAnnotations(), ...value };
+}
+
 /**
  * Options for creating an AnnotationsIO instance
  */
@@ -66,7 +73,7 @@ export class AnnotationsIO {
     const annotationsPath = this.getAnnotationsFilePath(yamlFilePath);
 
     // Acquire modification lock for this file
-    const currentLock = this.modificationLocks.get(annotationsPath) || Promise.resolve();
+    const currentLock = this.modificationLocks.get(annotationsPath) ?? Promise.resolve();
     let releaseLock: () => void;
     const newLock = new Promise<void>((resolve) => {
       releaseLock = resolve;
@@ -120,7 +127,7 @@ export class AnnotationsIO {
       const exists = await this.fs.exists(annotationsPath);
       if (exists) {
         const content = await this.fs.readFile(annotationsPath);
-        let annotations = JSON.parse(content) as TopologyAnnotations;
+        const annotations = toTopologyAnnotations(JSON.parse(content) as unknown);
         this.logger.info(`Loaded annotations from ${annotationsPath}`);
 
         this.cache.set(annotationsPath, { data: annotations, timestamp: Date.now() });
@@ -142,7 +149,7 @@ export class AnnotationsIO {
     const annotationsPath = this.getAnnotationsFilePath(yamlFilePath);
 
     // Queue saves per file to prevent concurrent writes
-    const currentQueue = this.saveQueues.get(annotationsPath) || Promise.resolve();
+    const currentQueue = this.saveQueues.get(annotationsPath) ?? Promise.resolve();
     const newQueue = currentQueue
       .then(async () => {
         this.cache.delete(annotationsPath);
@@ -208,6 +215,7 @@ export class AnnotationsIO {
   private shouldSaveAnnotations(annotations: TopologyAnnotations): boolean {
     if (this.hasContent(annotations.freeTextAnnotations)) return true;
     if (this.hasContent(annotations.freeShapeAnnotations)) return true;
+    if (this.hasContent(annotations.trafficRateAnnotations)) return true;
     if (this.hasContent(annotations.groupStyleAnnotations)) return true;
     if (this.hasContent(annotations.networkNodeAnnotations)) return true;
     if (this.hasContent(annotations.nodeAnnotations)) return true;

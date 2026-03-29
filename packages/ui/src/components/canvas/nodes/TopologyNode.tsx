@@ -17,8 +17,13 @@ import {
   useNodeRenderConfig,
   useEasterEggGlow
 } from "../../../stores/canvasStore";
-import { useCustomIcons, useDeploymentState } from "../../../stores/topoViewerStore";
+import {
+  useCustomIcons,
+  useDeploymentState,
+  useTopoViewerStore
+} from "../../../stores/topoViewerStore";
 import { getCustomIconMap } from "../../../utils/iconUtils";
+import { clampTelemetryNodeSizePx } from "../../../utils/telemetryInterfaceLabels";
 
 import {
   buildNodeLabelStyle,
@@ -31,14 +36,44 @@ import {
 /**
  * Map role to SVG node type (for built-in icons only)
  */
-function getRoleSvgType(role: string): NodeType {
-  const mapped = ROLE_SVG_MAP[role];
-  if (mapped) return mapped as NodeType;
-  return "pe"; // Default to PE router icon
+const NODE_TYPE_SET: ReadonlySet<string> = new Set([
+  "pe",
+  "dcgw",
+  "leaf",
+  "switch",
+  "spine",
+  "super-spine",
+  "server",
+  "pon",
+  "controller",
+  "rgw",
+  "ue",
+  "cloud",
+  "client",
+  "bridge"
+]);
+
+function isNodeType(value: string): value is NodeType {
+  return NODE_TYPE_SET.has(value);
 }
 
-// Icon style constants
-const ICON_SIZE = 40;
+const FALLBACK_NODE_DATA: TopologyNodeData = {
+  label: "",
+  role: "default"
+};
+
+function isTopologyNodeData(value: unknown): value is TopologyNodeData {
+  if (typeof value !== "object" || value === null) return false;
+  const label: unknown = Reflect.get(value, "label");
+  const role: unknown = Reflect.get(value, "role");
+  return typeof label === "string" && typeof role === "string";
+}
+
+function getRoleSvgType(role: string): NodeType {
+  const mapped = ROLE_SVG_MAP[role];
+  if (isNodeType(mapped)) return mapped;
+  return "pe"; // Default to PE router icon
+}
 
 // Constant styles extracted outside component to avoid recreation on every render
 const CONTAINER_STYLE_BASE: React.CSSProperties = {
@@ -46,8 +81,6 @@ const CONTAINER_STYLE_BASE: React.CSSProperties = {
   flexDirection: "column",
   alignItems: "center",
   position: "relative",
-  width: ICON_SIZE,
-  height: ICON_SIZE,
   overflow: "visible"
 };
 
@@ -57,8 +90,6 @@ const CONTAINER_STYLE_LINK_TARGET: React.CSSProperties = {
 };
 
 const ICON_STYLE_BASE: React.CSSProperties = {
-  width: ICON_SIZE,
-  height: ICON_SIZE,
   flexShrink: 0,
   backgroundSize: "cover",
   backgroundPosition: "center",
@@ -118,7 +149,7 @@ const SELECTED_OUTLINE = `2px solid ${SELECTION_COLOR}`;
  * TopologyNode component renders network device nodes with SVG icons
  */
 const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
-  const nodeData = data as TopologyNodeData;
+  const nodeData = isTopologyNodeData(data) ? data : FALLBACK_NODE_DATA;
   const {
     label,
     role,
@@ -134,7 +165,12 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const easterEggGlow = useEasterEggGlow();
   const customIcons = useCustomIcons();
   const deploymentState = useDeploymentState();
+  const telemetryNodeSizePx = useTopoViewerStore((state) => state.telemetryNodeSizePx);
   const directionRotation = useMemo(() => getNodeDirectionRotation(direction), [direction]);
+  const iconSize = useMemo(
+    () => clampTelemetryNodeSizePx(telemetryNodeSizePx),
+    [telemetryNodeSizePx]
+  );
 
   // Check if this node is a valid link target (in link creation mode)
   const isLinkTarget = linkSourceNode !== null;
@@ -146,12 +182,12 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const iconUrl = useMemo(() => {
     // Check if role matches a custom icon
     const customDataUri = customIconMap.get(role);
-    if (customDataUri) {
+    if (customDataUri !== undefined && customDataUri.length > 0) {
       return customDataUri;
     }
     // Fall back to built-in SVG icons
     const svgType = getRoleSvgType(role);
-    const color = iconColor || DEFAULT_ICON_COLOR;
+    const color = iconColor ?? DEFAULT_ICON_COLOR;
     return generateEncodedSVG(svgType, color);
   }, [role, iconColor, customIconMap]);
 
@@ -159,8 +195,10 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const iconStyle = useMemo((): React.CSSProperties => {
     const style: React.CSSProperties = {
       ...ICON_STYLE_BASE,
+      width: iconSize,
+      height: iconSize,
       backgroundImage: `url(${iconUrl})`,
-      borderRadius: iconCornerRadius ? `${iconCornerRadius}px` : 4,
+      borderRadius: typeof iconCornerRadius === "number" ? `${iconCornerRadius}px` : 4,
       transform: directionRotation !== 0 ? `rotate(${directionRotation}deg)` : undefined,
       // Use outline for selection - doesn't affect layout
       outline: selected ? SELECTED_OUTLINE : "none",
@@ -176,10 +214,17 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
     }
 
     return style;
-  }, [iconUrl, iconCornerRadius, directionRotation, selected, easterEggGlow]);
+  }, [iconUrl, iconCornerRadius, directionRotation, selected, easterEggGlow, iconSize]);
 
   // Container style based on link target mode
-  const containerStyle = isLinkTarget ? CONTAINER_STYLE_LINK_TARGET : CONTAINER_STYLE_BASE;
+  const containerStyle = useMemo(
+    (): React.CSSProperties => ({
+      ...(isLinkTarget ? CONTAINER_STYLE_LINK_TARGET : CONTAINER_STYLE_BASE),
+      width: iconSize,
+      height: iconSize
+    }),
+    [isLinkTarget, iconSize]
+  );
 
   // Build class names for CSS-based hover effects
   const iconClassName = isLinkTarget ? "topology-node-icon link-target" : "topology-node-icon";
@@ -210,11 +255,11 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
         position: labelPosition,
         direction,
         backgroundColor: labelBackgroundColor,
-        iconSize: ICON_SIZE,
+        iconSize,
         fontSize: "0.7rem",
         maxWidth: 110
       }),
-    [labelPosition, direction, labelBackgroundColor]
+    [labelPosition, direction, labelBackgroundColor, iconSize]
   );
 
   return (

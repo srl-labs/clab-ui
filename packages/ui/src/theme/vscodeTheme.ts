@@ -41,8 +41,14 @@ export const vscodePalette = {
     disabled: "var(--vscode-disabledForeground)"
   },
   primary: buildPaletteColor(BUTTON_BACKGROUND, "var(--vscode-button-foreground)"),
-  secondary: buildPaletteColor(BUTTON_SECONDARY_BACKGROUND, "var(--vscode-button-secondaryForeground)"),
-  error: buildPaletteColor(EDITOR_ERROR_FOREGROUND, "var(--vscode-inputValidation-errorForeground)"),
+  secondary: buildPaletteColor(
+    BUTTON_SECONDARY_BACKGROUND,
+    "var(--vscode-button-secondaryForeground)"
+  ),
+  error: buildPaletteColor(
+    EDITOR_ERROR_FOREGROUND,
+    "var(--vscode-inputValidation-errorForeground)"
+  ),
   warning: buildPaletteColor(
     EDITOR_WARNING_FOREGROUND,
     "var(--vscode-inputValidation-warningForeground)"
@@ -95,16 +101,16 @@ export const structuralOverrides: NonNullable<ThemeOptions["components"]> = {
       },
       [explorerScopedSelector(" .explorer-node-label")]: {
         fontSize: EXPLORER_FONT_SIZE,
-        fontWeight: 400,
-        lineHeight: 1.2
+        fontWeight: 500,
+        lineHeight: 1.15
       },
       [explorerScopedSelector(" .explorer-node-inline-icon")]: {
-        fontSize: "13px",
+        fontSize: "15px",
         flex: "0 0 auto"
       },
       [explorerScopedSelector(" .explorer-node-inline-icon-button")]: {
-        width: 16,
-        height: 16,
+        width: 20,
+        height: 20,
         padding: 0,
         color: "inherit"
       },

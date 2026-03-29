@@ -14,9 +14,7 @@ import type { GridStyle } from "../../hooks/ui";
 import { ColorField } from "../ui/form/ColorField";
 import { invertHexColor, resolveComputedColor } from "../../utils/color";
 
-interface GridSettingsPopoverProps {
-  anchorPosition: { top: number; left: number } | null;
-  onClose: () => void;
+export interface GridSettingsControlsProps {
   gridLineWidth: number;
   onGridLineWidthChange: (width: number) => void;
   gridStyle: GridStyle;
@@ -25,7 +23,12 @@ interface GridSettingsPopoverProps {
   onGridColorChange: (color: string | null) => void;
   gridBgColor: string | null;
   onGridBgColorChange: (color: string | null) => void;
-  onResetColors: () => void;
+  onResetGridColors: () => void;
+}
+
+interface GridSettingsPopoverProps extends GridSettingsControlsProps {
+  anchorPosition: { top: number; left: number } | null;
+  onClose: () => void;
 }
 
 export const GridSettingsPopover: React.FC<GridSettingsPopoverProps> = ({
@@ -39,7 +42,7 @@ export const GridSettingsPopover: React.FC<GridSettingsPopoverProps> = ({
   onGridColorChange,
   gridBgColor,
   onGridBgColorChange,
-  onResetColors
+  onResetGridColors
 }) => {
   const open = Boolean(anchorPosition);
   const isGridStyle = (value: unknown): value is GridStyle =>
@@ -89,7 +92,7 @@ export const GridSettingsPopover: React.FC<GridSettingsPopoverProps> = ({
           <Slider
             size="small"
             value={gridLineWidth}
-            onChange={(_e, value) => onGridLineWidthChange(value as number)}
+            onChange={(_e, value) => onGridLineWidthChange(value)}
             min={0.00001}
             max={2}
             step={0.1}
@@ -123,10 +126,7 @@ export const GridSettingsPopover: React.FC<GridSettingsPopoverProps> = ({
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Grid Color
           </Typography>
-          <ColorField
-            value={gridColor ?? defaultGridColor}
-            onChange={handleGridColorChange}
-          />
+          <ColorField value={gridColor ?? defaultGridColor} onChange={handleGridColorChange} />
         </Box>
 
         <Divider />
@@ -135,10 +135,7 @@ export const GridSettingsPopover: React.FC<GridSettingsPopoverProps> = ({
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Background Color
           </Typography>
-          <ColorField
-            value={gridBgColor ?? themeBgColor}
-            onChange={handleBgColorChange}
-          />
+          <ColorField value={gridBgColor ?? themeBgColor} onChange={handleBgColorChange} />
         </Box>
 
         {hasCustomColors && (
@@ -149,7 +146,7 @@ export const GridSettingsPopover: React.FC<GridSettingsPopoverProps> = ({
                 size="small"
                 variant="text"
                 startIcon={<RestartAltIcon />}
-                onClick={onResetColors}
+                onClick={onResetGridColors}
                 fullWidth
               >
                 Reset to theme colors

@@ -2,18 +2,19 @@
  * TopologyHost snapshot application helpers.
  */
 
-import type { Node, Edge } from "@xyflow/react";
+import type { Node } from "@xyflow/react";
 
 import type { TopologySnapshot } from "../core/types/messages";
 import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
+  TrafficRateAnnotation,
   GroupStyleAnnotation,
   NodeAnnotation,
   NetworkNodeAnnotation,
   TopologyAnnotations
 } from "../core/types/topology";
-import type { TopoNode, TopoEdge } from "../core/types/graph";
+import type { TopoNode } from "../core/types/graph";
 import {
   annotationsToNodes,
   applyGroupMembershipToNodes,
@@ -26,9 +27,18 @@ import {
 } from "../annotations";
 import { useGraphStore } from "../stores/graphStore";
 import { useTopoViewerStore } from "../stores/topoViewerStore";
+import type {
+  LinkLabelMode,
+  NonTelemetryLinkLabelMode,
+  TopoViewerState
+} from "../stores/topoViewerStore";
 import { useCanvasStore } from "../stores/canvasStore";
 import { applyForceLayout, hasPresetPositions } from "../components/canvas/layout";
 import { snapToGrid } from "../utils/grid";
+import {
+  clampTelemetryInterfaceSizePercent,
+  clampTelemetryNodeSizePx
+} from "../utils/telemetryInterfaceLabels";
 
 import { dispatchTopologyCommand, setHostRevision } from "./topologyHostClient";
 import { enqueueHostCommand } from "./topologyHostQueue";
@@ -47,6 +57,9 @@ const DEFAULT_GROUP_HEIGHT = 200;
 const LEGACY_DEFAULT_MEDIA_TEXT_WIDTH = 120;
 const LEGACY_MEDIA_TEXT_HEIGHT_RATIO = 0.62;
 const LEGACY_MIN_MEDIA_TEXT_HEIGHT = 48;
+type TelemetryStyle = NonNullable<NonNullable<TopologyAnnotations["viewerSettings"]>["style"]>;
+const GRID_LINE_WIDTH_MIN = 0.00001;
+const GRID_LINE_WIDTH_MAX = 2;
 
 function isStandaloneMarkdownImage(value: unknown): boolean {
   if (!isNonEmptyString(value)) return false;
@@ -124,13 +137,11 @@ function normalizeFreeTextAnnotations(annotations: FreeTextAnnotation[]): FreeTe
     const mediaWidth = width ?? LEGACY_DEFAULT_MEDIA_TEXT_WIDTH;
 
     const normalizedWidth = isMedia ? mediaWidth : width;
-    const normalizedHeight = isMedia
-      ? (height ?? inferLegacyMediaTextHeight(mediaWidth))
-      : height;
+    const normalizedHeight = isMedia ? (height ?? inferLegacyMediaTextHeight(mediaWidth)) : height;
 
     const normalizedAnnotation: FreeTextAnnotation = {
       ...annotation,
-      position,
+      position
     };
     if (normalizedWidth !== undefined) {
       normalizedAnnotation.width = normalizedWidth;
@@ -156,6 +167,73 @@ function normalizeFreeShapeAnnotations(annotations: FreeShapeAnnotation[]): Free
       endPosition: normalizedEnd
     };
   });
+}
+
+function normalizeTrafficRateModeValue(value: unknown): TrafficRateAnnotation["mode"] | undefined {
+  if (value === "text") return "text";
+  if (value === "chart" || value === "current") return "chart";
+  return undefined;
+}
+
+function normalizeTrafficRateTextMetricValue(
+  value: unknown
+): TrafficRateAnnotation["textMetric"] | undefined {
+  if (value === "combined" || value === "rx" || value === "tx") return value;
+  return undefined;
+}
+
+function setOptionalTrafficRateField<K extends keyof TrafficRateAnnotation>(
+  normalized: TrafficRateAnnotation,
+  key: K,
+  value: TrafficRateAnnotation[K] | undefined
+): void {
+  if (value === undefined) {
+    delete normalized[key];
+    return;
+  }
+  normalized[key] = value;
+}
+
+function normalizeTrafficRateShowLegend(
+  annotation: TrafficRateAnnotation,
+  normalized: TrafficRateAnnotation
+): void {
+  if (annotation.showLegend === false) {
+    normalized.showLegend = false;
+    return;
+  }
+  delete normalized.showLegend;
+}
+
+function normalizeTrafficRateAnnotation(annotation: TrafficRateAnnotation): TrafficRateAnnotation {
+  const normalized: TrafficRateAnnotation = {
+    ...annotation,
+    position: toPosition(annotation.position) ?? { x: 0, y: 0 }
+  };
+  setOptionalTrafficRateField(normalized, "mode", normalizeTrafficRateModeValue(annotation.mode));
+  setOptionalTrafficRateField(
+    normalized,
+    "textMetric",
+    normalizeTrafficRateTextMetricValue(annotation.textMetric)
+  );
+  setOptionalTrafficRateField(normalized, "width", toFiniteNumber(annotation.width));
+  setOptionalTrafficRateField(normalized, "height", toFiniteNumber(annotation.height));
+  normalizeTrafficRateShowLegend(annotation, normalized);
+  setOptionalTrafficRateField(
+    normalized,
+    "backgroundOpacity",
+    toFiniteNumber(annotation.backgroundOpacity)
+  );
+  setOptionalTrafficRateField(normalized, "borderWidth", toFiniteNumber(annotation.borderWidth));
+  setOptionalTrafficRateField(normalized, "borderRadius", toFiniteNumber(annotation.borderRadius));
+  setOptionalTrafficRateField(normalized, "zIndex", toFiniteNumber(annotation.zIndex));
+  return normalized;
+}
+
+function normalizeTrafficRateAnnotations(
+  annotations: TrafficRateAnnotation[]
+): TrafficRateAnnotation[] {
+  return annotations.map((annotation) => normalizeTrafficRateAnnotation(annotation));
 }
 
 function resolveGroupIdentity(
@@ -313,14 +391,15 @@ function buildMergedNodes(
   networkNodeAnnotations: NetworkNodeAnnotation[] | undefined,
   groupStyleAnnotations: GroupStyleAnnotation[],
   freeTextAnnotations: FreeTextAnnotation[],
-  freeShapeAnnotations: FreeShapeAnnotation[]
+  freeShapeAnnotations: FreeShapeAnnotation[],
+  trafficRateAnnotations: TrafficRateAnnotation[]
 ): Node[] {
-  let topoWithMembership = applyGroupMembershipToNodes(
+  const topoWithMembership = applyGroupMembershipToNodes(
     newNodes,
     nodeAnnotations,
     groupStyleAnnotations
   );
-  topoWithMembership = applyGeoCoordinatesToNodes(
+  const topoWithGeoCoordinates = applyGeoCoordinatesToNodes(
     topoWithMembership,
     nodeAnnotations,
     networkNodeAnnotations
@@ -328,9 +407,10 @@ function buildMergedNodes(
   const annotationNodes = annotationsToNodes(
     freeTextAnnotations,
     freeShapeAnnotations,
-    groupStyleAnnotations
+    groupStyleAnnotations,
+    trafficRateAnnotations
   );
-  const mergedNodes = [...(topoWithMembership as Node[]), ...(annotationNodes as Node[])];
+  const mergedNodes = [...topoWithGeoCoordinates, ...annotationNodes];
   return Array.from(new Map(mergedNodes.map((n) => [n.id, n])).values());
 }
 
@@ -338,6 +418,7 @@ function normalizeAnnotations(annotations?: TopologyAnnotations): Required<Topol
   const {
     freeTextAnnotations = [],
     freeShapeAnnotations = [],
+    trafficRateAnnotations = [],
     groupStyleAnnotations = [],
     nodeAnnotations = [],
     networkNodeAnnotations = [],
@@ -350,6 +431,7 @@ function normalizeAnnotations(annotations?: TopologyAnnotations): Required<Topol
   return {
     freeTextAnnotations: normalizeFreeTextAnnotations(freeTextAnnotations),
     freeShapeAnnotations: normalizeFreeShapeAnnotations(freeShapeAnnotations),
+    trafficRateAnnotations: normalizeTrafficRateAnnotations(trafficRateAnnotations),
     groupStyleAnnotations: normalizeGroupStyleAnnotations(
       groupStyleAnnotations,
       normalizedNodeAnnotations
@@ -366,7 +448,7 @@ function applyGeoCoordinatesToNodes(
   nodes: TopoNode[],
   nodeAnnotations: NodeAnnotation[] | undefined,
   networkNodeAnnotations: NetworkNodeAnnotation[] | undefined
-): TopoNode[] {
+): Node[] {
   if (
     (!nodeAnnotations || nodeAnnotations.length === 0) &&
     (!networkNodeAnnotations || networkNodeAnnotations.length === 0)
@@ -391,11 +473,11 @@ function applyGeoCoordinatesToNodes(
   return nodes.map((node) => {
     const geo = geoMap.get(node.id);
     if (!geo) return node;
-    const data = (node.data ?? {}) as Record<string, unknown>;
+    const data = node.data;
     return {
       ...node,
       data: { ...data, geoCoordinates: geo }
-    } as TopoNode;
+    };
   });
 }
 
@@ -406,45 +488,119 @@ function hasGeoCoordinates(annotations: Required<TopologyAnnotations>): boolean 
   );
 }
 
-export function applySnapshotToStores(
-  snapshot: TopologySnapshot,
-  options: ApplySnapshotOptions = {}
-): void {
-  if (!snapshot) return;
+function parseLinkLabelMode(value: unknown): LinkLabelMode | null {
+  if (
+    value === "show-all" ||
+    value === "on-select" ||
+    value === "hide" ||
+    value === "telemetry-style"
+  ) {
+    return value;
+  }
+  return null;
+}
 
-  setHostRevision(snapshot.revision);
+function parseNonTelemetryLinkLabelMode(value: unknown): NonTelemetryLinkLabelMode | null {
+  if (value === "show-all" || value === "on-select" || value === "hide") {
+    return value;
+  }
+  return null;
+}
 
-  const annotations = normalizeAnnotations(snapshot.annotations);
-  const edges = (snapshot.edges ?? []) as TopoEdge[];
-  const nodes = (snapshot.nodes ?? []) as TopoNode[];
+function parseTelemetryStyle(value: unknown): TelemetryStyle | null {
+  if (value === "default" || value === "telemetry-style") {
+    return value;
+  }
+  return null;
+}
 
-  let mergedNodes = buildMergedNodes(
-    nodes,
-    annotations.nodeAnnotations,
-    annotations.networkNodeAnnotations,
-    annotations.groupStyleAnnotations,
-    annotations.freeTextAnnotations,
-    annotations.freeShapeAnnotations
+function parseGridStyle(value: unknown): "dotted" | "quadratic" | null {
+  if (value === "dotted" || value === "quadratic") {
+    return value;
+  }
+  return null;
+}
+
+function parseGridLineWidth(value: unknown): number | null {
+  const parsed = toFiniteNumber(value);
+  if (parsed === undefined) return null;
+  return Math.min(GRID_LINE_WIDTH_MAX, Math.max(GRID_LINE_WIDTH_MIN, parsed));
+}
+
+function parseTelemetryNodeSizePx(value: unknown): number | null {
+  const parsed = toFiniteNumber(value);
+  if (parsed === undefined) return null;
+  return clampTelemetryNodeSizePx(parsed);
+}
+
+function parseTelemetryInterfaceSizePercent(value: unknown): number | null {
+  const parsed = toFiniteNumber(value);
+  if (parsed === undefined) return null;
+  return clampTelemetryInterfaceSizePercent(parsed);
+}
+
+function resolveLinkLabelModes(viewerSettings: Required<TopologyAnnotations>["viewerSettings"]): {
+  resolvedLinkLabelMode: LinkLabelMode | null;
+  resolvedLastNonTelemetryLinkLabelMode: NonTelemetryLinkLabelMode | null;
+} {
+  const telemetryStyle = parseTelemetryStyle(viewerSettings.style);
+  const parsedLinkLabelMode = parseLinkLabelMode(viewerSettings.linkLabelMode);
+  const parsedLastNonTelemetryLinkLabelMode = parseNonTelemetryLinkLabelMode(
+    viewerSettings.lastNonTelemetryLinkLabelMode
   );
+  const resolvedLastNonTelemetryLinkLabelMode =
+    parsedLastNonTelemetryLinkLabelMode ??
+    (parsedLinkLabelMode !== null && parsedLinkLabelMode !== "telemetry-style"
+      ? parsedLinkLabelMode
+      : null);
 
-  // Apply force layout when no preset positions exist and geo coordinates are not driving layout.
-  // This handles the case when annotation.json doesn't exist or positions were cleared (e.g. undo).
-  if (!hasPresetPositions(mergedNodes) && !hasGeoCoordinates(annotations)) {
-    const layoutNodes = applyForceLayout(mergedNodes, edges as unknown as Edge[]);
-    const { nodes: snappedNodes, positions } = snapLayoutPositions(layoutNodes);
-    mergedNodes = snappedNodes;
-    void persistLayoutPositions(positions);
+  const useTelemetryStyle =
+    telemetryStyle === "telemetry-style" ||
+    (telemetryStyle === null && parsedLinkLabelMode === "telemetry-style");
+  if (useTelemetryStyle) {
+    return {
+      resolvedLinkLabelMode: "telemetry-style",
+      resolvedLastNonTelemetryLinkLabelMode
+    };
   }
 
-  const cleanedEdgeAnnotations = pruneEdgeAnnotations(annotations.edgeAnnotations, edges);
+  if (parsedLinkLabelMode !== null && parsedLinkLabelMode !== "telemetry-style") {
+    return {
+      resolvedLinkLabelMode: parsedLinkLabelMode,
+      resolvedLastNonTelemetryLinkLabelMode
+    };
+  }
 
-  const graphStore = useGraphStore.getState();
-  graphStore.setGraph(mergedNodes, edges as unknown as Edge[]);
+  if (resolvedLastNonTelemetryLinkLabelMode !== null) {
+    return {
+      resolvedLinkLabelMode: resolvedLastNonTelemetryLinkLabelMode,
+      resolvedLastNonTelemetryLinkLabelMode
+    };
+  }
 
-  const offset = parseEndpointLabelOffset(annotations.viewerSettings.endpointLabelOffset);
-  const { gridColor, gridBgColor } = annotations.viewerSettings;
+  return {
+    resolvedLinkLabelMode: null,
+    resolvedLastNonTelemetryLinkLabelMode
+  };
+}
 
-  useTopoViewerStore.getState().setInitialData({
+function buildInitialTopoViewerData(
+  snapshot: TopologySnapshot,
+  edgeAnnotations: TopologyAnnotations["edgeAnnotations"],
+  viewerSettings: Required<TopologyAnnotations>["viewerSettings"]
+): Partial<TopoViewerState> {
+  const offset = parseEndpointLabelOffset(viewerSettings.endpointLabelOffset);
+  const { gridColor, gridBgColor } = viewerSettings;
+  const gridLineWidth = parseGridLineWidth(viewerSettings.gridLineWidth);
+  const gridStyle = parseGridStyle(viewerSettings.gridStyle);
+  const telemetryNodeSizePx = parseTelemetryNodeSizePx(viewerSettings.telemetryNodeSizePx);
+  const telemetryInterfaceSizePercent = parseTelemetryInterfaceSizePercent(
+    viewerSettings.telemetryInterfaceSizePercent
+  );
+  const { resolvedLinkLabelMode, resolvedLastNonTelemetryLinkLabelMode } =
+    resolveLinkLabelModes(viewerSettings);
+
+  return {
     labName: snapshot.labName,
     mode: snapshot.mode,
     deploymentState: snapshot.deploymentState,
@@ -453,15 +609,65 @@ export function applySnapshotToStores(
     annotationsFileName: snapshot.annotationsFileName,
     yamlContent: snapshot.yamlContent,
     annotationsContent: snapshot.annotationsContent,
-    edgeAnnotations: cleanedEdgeAnnotations,
+    edgeAnnotations,
     ...(offset !== null ? { endpointLabelOffset: offset } : {}),
+    ...(gridLineWidth !== null ? { gridLineWidth } : {}),
+    ...(gridStyle !== null ? { gridStyle } : {}),
     gridColor: gridColor ?? null,
     gridBgColor: gridBgColor ?? null,
+    ...(telemetryNodeSizePx !== null ? { telemetryNodeSizePx } : {}),
+    ...(telemetryInterfaceSizePercent !== null ? { telemetryInterfaceSizePercent } : {}),
+    ...(resolvedLinkLabelMode !== null ? { linkLabelMode: resolvedLinkLabelMode } : {}),
+    ...(resolvedLastNonTelemetryLinkLabelMode !== null
+      ? { lastNonTelemetryLinkLabelMode: resolvedLastNonTelemetryLinkLabelMode }
+      : {}),
     canUndo: snapshot.canUndo,
     canRedo: snapshot.canRedo
-  });
+  };
+}
 
-  if (options.isInitialLoad) {
+export function applySnapshotToStores(
+  snapshot: TopologySnapshot,
+  options: ApplySnapshotOptions = {}
+): void {
+  setHostRevision(snapshot.revision);
+
+  const annotations = normalizeAnnotations(snapshot.annotations);
+  const edges = snapshot.edges;
+  const nodes = snapshot.nodes;
+
+  let mergedNodes = buildMergedNodes(
+    nodes,
+    annotations.nodeAnnotations,
+    annotations.networkNodeAnnotations,
+    annotations.groupStyleAnnotations,
+    annotations.freeTextAnnotations,
+    annotations.freeShapeAnnotations,
+    annotations.trafficRateAnnotations
+  );
+
+  // Apply force layout when no preset positions exist and geo coordinates are not driving layout.
+  // This handles the case when annotation.json doesn't exist or positions were cleared (e.g. undo).
+  if (!hasPresetPositions(mergedNodes) && !hasGeoCoordinates(annotations)) {
+    const layoutNodes = applyForceLayout(mergedNodes, edges);
+    const { nodes: snappedNodes, positions } = snapLayoutPositions(layoutNodes);
+    mergedNodes = snappedNodes;
+    void persistLayoutPositions(positions);
+  }
+
+  const cleanedEdgeAnnotations = pruneEdgeAnnotations(annotations.edgeAnnotations, edges);
+
+  const graphStore = useGraphStore.getState();
+  graphStore.setGraph(mergedNodes, edges);
+
+  const initialData = buildInitialTopoViewerData(
+    snapshot,
+    cleanedEdgeAnnotations,
+    annotations.viewerSettings
+  );
+  useTopoViewerStore.getState().setInitialData(initialData);
+
+  if (options.isInitialLoad === true) {
     useCanvasStore.getState().requestFitView();
   }
 }

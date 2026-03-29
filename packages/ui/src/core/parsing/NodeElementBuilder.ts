@@ -54,6 +54,14 @@ interface InterfacePatternResult {
   needsMigration: boolean;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getNodeComponents(node: ClabNode): unknown[] {
+  return Array.isArray(node.components) ? node.components : [];
+}
+
 /**
  * Resolve interface pattern for a node.
  * Priority: annotation > kind-based mapping
@@ -90,7 +98,7 @@ export function getContainerData(
   labName: string,
   resolvedNode: ClabNode
 ): ContainerInfo | undefined {
-  if (!opts.includeContainerData || !opts.containerDataProvider) {
+  if (opts.includeContainerData !== true || opts.containerDataProvider === undefined) {
     return undefined;
   }
 
@@ -109,7 +117,7 @@ export function getContainerData(
     fullPrefix,
     labName,
     provider: opts.containerDataProvider,
-    components: ((resolvedNode as Record<string, unknown>).components as unknown[]) ?? []
+    components: getNodeComponents(resolvedNode)
   });
 }
 
@@ -128,9 +136,9 @@ function buildContainerFields(
     return { mgmtIpv4Address: "", mgmtIpv6Address: "", state: "" };
   }
   return {
-    mgmtIpv4Address: containerData.IPv4Address ?? "",
-    mgmtIpv6Address: containerData.IPv6Address ?? "",
-    state: containerData.state ?? ""
+    mgmtIpv4Address: containerData.IPv4Address,
+    mgmtIpv6Address: containerData.IPv6Address,
+    state: containerData.state
   };
 }
 
@@ -179,7 +187,7 @@ export function createNodeExtraData(params: {
   );
   const containerFields = buildContainerFields(includeContainerData, containerData);
 
-  const extraData = {
+  const extraData: Record<string, unknown> = {
     ...mergedNode,
     inherited: inheritedProps,
     clabServerUsername: "asad",
@@ -203,9 +211,11 @@ export function createNodeExtraData(params: {
     name: nodeName,
     shortname: nodeName,
     state: containerFields.state,
-    weight: "3",
-    ...(interfacePattern && { interfacePattern })
+    weight: "3"
   };
+  if (interfacePattern !== undefined && interfacePattern.length > 0) {
+    extraData.interfacePattern = interfacePattern;
+  }
 
   return {
     extraData,
@@ -229,9 +239,11 @@ function resolveTopoViewerRole(
   nodeAnn: NodeAnnotation | undefined,
   labels: Record<string, unknown> | undefined
 ): string {
+  const labelRole = labels?.["topoViewer-role"];
+  const parsedLabelRole = typeof labelRole === "string" ? labelRole : undefined;
   return (
-    nodeAnn?.icon ||
-    (labels?.["topoViewer-role"] as string) ||
+    nodeAnn?.icon ??
+    parsedLabelRole ??
     (mergedNode.kind === NODE_KIND_BRIDGE || mergedNode.kind === NODE_KIND_OVS_BRIDGE
       ? NODE_KIND_BRIDGE
       : "pe")
@@ -244,7 +256,9 @@ function resolveDisplayName(
   isBridgeNode: boolean
 ): string {
   const annotatedLabel = nodeAnn?.label?.trim();
-  return isBridgeNode && annotatedLabel ? annotatedLabel : nodeName;
+  return isBridgeNode && annotatedLabel !== undefined && annotatedLabel.length > 0
+    ? annotatedLabel
+    : nodeName;
 }
 
 function buildNodeAnnotationLookup(
@@ -272,11 +286,30 @@ function shouldSkipAliasBridgeNode(
   nodeAnn: NodeAnnotation | undefined,
   nodeObj: ClabNode
 ): boolean {
-  return Boolean(
-    nodeAnn?.yamlNodeId &&
-    nodeAnn.yamlNodeId !== nodeName &&
-    (nodeObj?.kind === NODE_KIND_BRIDGE || nodeObj?.kind === NODE_KIND_OVS_BRIDGE)
+  const yamlNodeId = nodeAnn?.yamlNodeId;
+  return (
+    yamlNodeId !== undefined &&
+    yamlNodeId.length > 0 &&
+    yamlNodeId !== nodeName &&
+    (nodeObj.kind === NODE_KIND_BRIDGE || nodeObj.kind === NODE_KIND_OVS_BRIDGE)
   );
+}
+
+function normalizeNodeObject(
+  nodeName: string,
+  nodeObj: unknown,
+  hasDefaults: boolean,
+  logger: ParserLogger | undefined
+): ClabNode | undefined {
+  if (isRecord(nodeObj)) {
+    return nodeObj;
+  }
+  const isShorthandNode = (nodeObj === null || nodeObj === undefined) && hasDefaults;
+  if (isShorthandNode) {
+    return {};
+  }
+  logger?.warn(`Node '${nodeName}' is not an object. Skipping.`);
+  return undefined;
 }
 
 /**
@@ -304,11 +337,11 @@ export function buildNodeElement(params: {
     nodeIndex,
     interfacePatternMapping
   } = params;
-  const mergedNode = resolveNodeConfig(parsed, nodeObj || {});
-  const nodePropKeys = new Set(Object.keys(nodeObj || {}));
+  const mergedNode = resolveNodeConfig(parsed, nodeObj);
+  const nodePropKeys = new Set(Object.keys(nodeObj));
   const inheritedProps = Object.keys(mergedNode).filter((k) => !nodePropKeys.has(k));
   const containerData = getContainerData(opts, fullPrefix, nodeName, labName, mergedNode);
-  const cleanedLabels = sanitizeLabels(mergedNode.labels as Record<string, unknown>);
+  const cleanedLabels = sanitizeLabels(isRecord(mergedNode.labels) ? mergedNode.labels : {});
   const pos = nodeAnn?.position;
   const position = pos ? { x: pos.x, y: pos.y } : { x: 0, y: 0 };
   const { lat, lng } = getNodeLatLng(nodeAnn);
@@ -326,7 +359,7 @@ export function buildNodeElement(params: {
     nodeAnn
   });
 
-  const labels = mergedNode.labels as Record<string, unknown> | undefined;
+  const labels = mergedNode.labels;
   const topoViewerRole = resolveTopoViewerRole(mergedNode, nodeAnn, labels);
 
   const iconVisuals = extractIconVisuals(nodeAnn);
@@ -372,6 +405,7 @@ export function addNodeElements(
   const migrations: InterfacePatternMigration[] = [];
   const topology = parsed.topology;
   if (!topology?.nodes) return migrations;
+  const hasDefaults = isRecord(topology.defaults) && Object.keys(topology.defaults).length > 0;
 
   const nodeAnnotations = opts.annotations?.nodeAnnotations;
   const networkNodeAnnotations = opts.annotations?.networkNodeAnnotations;
@@ -379,19 +413,24 @@ export function addNodeElements(
   const interfacePatternMapping = buildInterfacePatternMapping();
   let nodeIndex = 0;
 
-  for (const [nodeName, nodeObj] of Object.entries(topology.nodes)) {
+  for (const [nodeName, nodeObj] of Object.entries(topology.nodes as Record<string, unknown>)) {
+    const normalizedNodeObj = normalizeNodeObject(nodeName, nodeObj, hasDefaults, opts.logger);
+    if (normalizedNodeObj === undefined) {
+      continue;
+    }
+
     // Check nodeAnnotations first, then fallback to networkNodeAnnotations for bridges
     // (backwards compatibility - bridges were previously saved to networkNodeAnnotations)
     const nodeAnn = nodeAnnotationLookup.get(nodeName);
     // If this bridge node is configured as an alias (yamlNodeId points elsewhere),
     // skip rendering the base YAML node to avoid duplicate visuals.
-    if (shouldSkipAliasBridgeNode(nodeName, nodeAnn, nodeObj)) {
+    if (shouldSkipAliasBridgeNode(nodeName, nodeAnn, normalizedNodeObj)) {
       continue;
     }
     const { element, migrationPattern } = buildNodeElement({
       parsed,
       nodeName,
-      nodeObj,
+      nodeObj: normalizedNodeObj,
       opts,
       fullPrefix,
       labName,
@@ -401,7 +440,7 @@ export function addNodeElements(
     });
     elements.push(element);
     // Track migrations for nodes that need interfacePattern written to annotations
-    if (migrationPattern) {
+    if (migrationPattern !== undefined && migrationPattern.length > 0) {
       migrations.push({ nodeId: nodeName, interfacePattern: migrationPattern });
     }
     nodeIndex++;

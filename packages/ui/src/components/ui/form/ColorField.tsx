@@ -18,6 +18,7 @@ interface ColorFieldProps {
 }
 
 const SWATCH_SIZE = 22;
+const COLOR_INPUT_THROTTLE_MS = 40;
 
 export const ColorField: React.FC<ColorFieldProps> = ({
   id,
@@ -29,6 +30,8 @@ export const ColorField: React.FC<ColorFieldProps> = ({
 }) => {
   const normalizedValue = normalizeHexColor(value);
   const colorInputRef = useRef<HTMLInputElement>(null);
+  const pendingColorRef = useRef<string | null>(null);
+  const colorThrottleRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Local state: hex digits only (no "#").
   const [hexText, setHexText] = useState(normalizedValue.slice(1));
 
@@ -51,12 +54,49 @@ export const ColorField: React.FC<ColorFieldProps> = ({
     return () => clearTimeout(debounceRef.current);
   }, [normalizedValue]);
 
+  const flushPendingColor = useCallback(() => {
+    const pending = pendingColorRef.current;
+    if (pending === null) return;
+    pendingColorRef.current = null;
+    onChange(pending);
+  }, [onChange]);
+
+  useEffect(
+    () => () => {
+      if (colorThrottleRef.current) {
+        clearTimeout(colorThrottleRef.current);
+      }
+    },
+    []
+  );
+
   const handleColorChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      onChange(e.target.value);
+      pendingColorRef.current = e.target.value;
+      if (colorThrottleRef.current) {
+        return;
+      }
+      colorThrottleRef.current = setTimeout(() => {
+        colorThrottleRef.current = undefined;
+        flushPendingColor();
+      }, COLOR_INPUT_THROTTLE_MS);
     },
-    [onChange]
+    [flushPendingColor]
   );
+
+  const handleColorBlur = useCallback(() => {
+    if (colorThrottleRef.current) {
+      clearTimeout(colorThrottleRef.current);
+      colorThrottleRef.current = undefined;
+    }
+    flushPendingColor();
+  }, [flushPendingColor]);
+
+  const handleHexBlur = useCallback(() => {
+    if (hexText.length === 3 || hexText.length === 6) {
+      onChange("#" + hexText);
+    }
+  }, [hexText, onChange]);
 
   const handleHexChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,8 +112,8 @@ export const ColorField: React.FC<ColorFieldProps> = ({
   );
 
   const handleCopy = useCallback(() => {
-    const clipboard = globalThis.navigator?.clipboard;
-    if (!clipboard?.writeText) {
+    const clipboard = globalThis.navigator.clipboard;
+    if (typeof clipboard.writeText !== "function") {
       return;
     }
     clipboard.writeText(normalizedValue).catch(() => undefined);
@@ -84,14 +124,15 @@ export const ColorField: React.FC<ColorFieldProps> = ({
   }, []);
 
   return (
-    <Box className={className} sx={{ opacity: disabled ? 0.4 : 1 }}>
+    <Box className={className} sx={{ opacity: disabled === true ? 0.4 : 1 }}>
       {/* Hidden native color input — uncontrolled, updated via ref */}
       <input
         ref={colorInputRef}
-        {...(id ? { id } : {})}
+        {...(id !== undefined && id.length > 0 ? { id } : {})}
         type="color"
         defaultValue={normalizedValue}
         onChange={handleColorChange}
+        onBlur={handleColorBlur}
         disabled={disabled}
         style={{
           position: "absolute",
@@ -107,6 +148,7 @@ export const ColorField: React.FC<ColorFieldProps> = ({
         label={label}
         value={hexText}
         onChange={handleHexChange}
+        onBlur={handleHexBlur}
         placeholder="000000"
         disabled={disabled}
         fullWidth
@@ -116,13 +158,13 @@ export const ColorField: React.FC<ColorFieldProps> = ({
             startAdornment: (
               <InputAdornment position="start" sx={{ mr: 0.75 }}>
                 <Box
-                  onClick={disabled ? undefined : openPicker}
+                  onClick={disabled === true ? undefined : openPicker}
                   sx={{
                     width: SWATCH_SIZE,
                     height: SWATCH_SIZE,
                     borderRadius: 0.5,
                     backgroundColor: normalizedValue,
-                    cursor: disabled ? "default" : "pointer",
+                    cursor: disabled === true ? "default" : "pointer",
                     flexShrink: 0
                   }}
                 />

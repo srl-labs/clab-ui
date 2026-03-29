@@ -21,7 +21,7 @@ const ARIA_FALSE = "false";
  * Lab Settings Modal E2E Tests (MUI Dialog version)
  *
  * In the new MUI design, lab settings are shown in a Dialog (modal)
- * with tabs for Basic and Management settings.
+ * with tabs for Basic, Management, and Appearance settings.
  */
 test.describe("Lab Settings Modal", () => {
   test.beforeEach(async ({ topoViewerPage }) => {
@@ -88,15 +88,16 @@ test.describe("Lab Settings Modal", () => {
     await expect(modal.locator("h2")).toHaveText("Lab Settings");
   });
 
-  test("lab settings modal has Basic and Management tabs", async ({ page }) => {
+  test("lab settings modal has Basic, Management, and Appearance tabs", async ({ page }) => {
     await page.locator(SEL_LAB_SETTINGS_BTN).click();
     await page.waitForTimeout(300);
 
     const basicTab = page.locator(SEL_LAB_SETTINGS_TAB_BASIC);
     const mgmtTab = page.locator(SEL_LAB_SETTINGS_TAB_MGMT);
+    const appearanceTab = page.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE);
     await expect(basicTab).toBeVisible();
     await expect(mgmtTab).toBeVisible();
-    await expect(page.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE)).toHaveCount(0);
+    await expect(appearanceTab).toBeVisible();
   });
 
   test("Basic tab is selected by default", async ({ page }) => {
@@ -120,25 +121,73 @@ test.describe("Lab Settings Modal", () => {
     await expect(basicTab).toHaveAttribute(ATTR_ARIA_SELECTED, ARIA_FALSE);
   });
 
-  test("Appearance tab is not present in GUI runtime", async ({ page }) => {
+  test("Appearance tab shows Style selector and Telemetry options", async ({ page }) => {
     const modal = await openModal(page);
-    await expect(modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE)).toHaveCount(0);
+
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
+    await page.waitForTimeout(200);
+
+    const styleSelect = modal
+      .locator('[data-testid="lab-settings-telemetry-style"] [role="combobox"]')
+      .first();
+    await expect(styleSelect).toBeVisible();
+    await expect(modal.getByLabel("Node size")).toBeVisible();
+    await expect(modal.getByLabel("Interface size")).toBeVisible();
+
+    // Interface-name overrides should be hidden on Default style.
+    await expect(modal.getByLabel("Global override (all interfaces)")).toHaveCount(0);
+
+    // Telemetry style exposes interface-name overrides.
+    await styleSelect.click();
+    await chooseOption(page, /^Telemetry Style$/);
+    await expect(modal.getByLabel("Global override (all interfaces)")).toBeVisible();
   });
 
-  test("Basic and Management settings persist after reload", async ({ page, topoViewerPage }) => {
+  test("Appearance settings persist after reload", async ({ page, topoViewerPage }) => {
     const modal = await openModal(page);
 
-    await modal.getByRole("textbox", { name: "Lab Name" }).fill("persisted-lab");
-    await modal.locator(SEL_LAB_SETTINGS_TAB_MGMT).click();
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
     await page.waitForTimeout(200);
-    await modal.getByRole("textbox", { name: "Network Name" }).fill("persisted-mgmt");
+
+    const styleSelect = modal
+      .locator('[data-testid="lab-settings-telemetry-style"] [role="combobox"]')
+      .first();
+    await styleSelect.click();
+    await chooseOption(page, /^Telemetry Style$/);
+
+    await modal.getByLabel("Node size").fill("80");
+    await modal.getByLabel("Interface size").fill("150");
+
+    await modal.locator('[data-testid="lab-settings-appearance-subtab-grid"]').click();
+    await page.waitForTimeout(150);
+    await modal
+      .locator('[data-testid="lab-settings-grid-style"] button[value="quadratic"]')
+      .click();
+
+    await page.waitForTimeout(400);
+    const beforeApplyAnnotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+    expect(beforeApplyAnnotations.viewerSettings?.style).not.toBe("telemetry-style");
+    expect(beforeApplyAnnotations.viewerSettings?.gridStyle).not.toBe("quadratic");
+    expect(beforeApplyAnnotations.viewerSettings?.telemetryNodeSizePx).not.toBe(80);
+    expect(beforeApplyAnnotations.viewerSettings?.telemetryInterfaceSizePercent).not.toBe(150);
 
     await page.locator(SEL_LAB_SETTINGS_SAVE_BTN).click();
     await expect(modal).not.toBeVisible({ timeout: 3000 });
 
-    const yaml = await topoViewerPage.getYamlFromFile(SIMPLE_FILE);
-    expect(yaml).toContain("name: persisted-lab");
-    expect(yaml).toContain("network: persisted-mgmt");
+    await expect
+      .poll(
+        async () => {
+          const annotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+          return annotations.viewerSettings ?? {};
+        },
+        { timeout: 5000 }
+      )
+      .toMatchObject({
+        style: "telemetry-style",
+        gridStyle: "quadratic",
+        telemetryNodeSizePx: 80,
+        telemetryInterfaceSizePercent: 150
+      });
 
     await topoViewerPage.gotoFile(SIMPLE_FILE);
     await topoViewerPage.waitForCanvasReady();
@@ -146,14 +195,21 @@ test.describe("Lab Settings Modal", () => {
     await topoViewerPage.unlock();
 
     const reloadedModal = await openModal(page);
-    await expect(reloadedModal.getByRole("textbox", { name: "Lab Name" })).toHaveValue(
-      "persisted-lab"
-    );
-    await reloadedModal.locator(SEL_LAB_SETTINGS_TAB_MGMT).click();
+    await reloadedModal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
     await page.waitForTimeout(200);
-    await expect(reloadedModal.getByRole("textbox", { name: "Network Name" })).toHaveValue(
-      "persisted-mgmt"
-    );
+
+    const reloadedStyleSelect = reloadedModal
+      .locator('[data-testid="lab-settings-telemetry-style"] [role="combobox"]')
+      .first();
+    await expect(reloadedStyleSelect).toContainText("Telemetry Style");
+    await expect(reloadedModal.getByLabel("Node size")).toHaveValue("80");
+    await expect(reloadedModal.getByLabel("Interface size")).toHaveValue("150");
+
+    await reloadedModal.locator('[data-testid="lab-settings-appearance-subtab-grid"]').click();
+    await page.waitForTimeout(150);
+    await expect(
+      reloadedModal.locator('[data-testid="lab-settings-grid-style"] button[value="quadratic"]')
+    ).toHaveAttribute("aria-pressed", ARIA_TRUE);
   });
 
   test("shows current lab name in Basic tab", async ({ page }) => {
@@ -230,12 +286,22 @@ test.describe("Lab Settings Modal", () => {
     await expect(modal.getByRole("textbox", { name: "Lab Name" })).toBeDisabled();
     await expectMuiSelectDisabled(modal, LABEL_CONTAINER_NAME_PREFIX);
 
-    await modal.locator(SEL_LAB_SETTINGS_TAB_MGMT).click();
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
     await page.waitForTimeout(150);
-    await expect(modal.getByRole("textbox", { name: "Network Name" })).toBeDisabled();
+    await expectMuiSelectDisabled(modal, "Style");
+    await expect(modal.getByLabel("Node size")).toBeDisabled();
+    await expect(modal.getByLabel("Interface size")).toBeDisabled();
+
+    await modal.locator('[data-testid="lab-settings-appearance-subtab-grid"]').click();
+    await page.waitForTimeout(150);
+    const gridSlider = modal.locator('[data-testid="lab-settings-grid-line-width"]');
+    await expect(gridSlider).toHaveClass(/Mui-disabled/);
+    await expect(
+      modal.locator('[data-testid="lab-settings-grid-style"] button').first()
+    ).toBeDisabled();
   });
 
-  test("view mode keeps topology settings read-only and hides save button", async ({
+  test("view mode keeps topology settings read-only and can still save appearance", async ({
     page,
     topoViewerPage
   }) => {
@@ -244,14 +310,37 @@ test.describe("Lab Settings Modal", () => {
     const modal = await openModal(page);
 
     const saveBtn = page.locator(SEL_LAB_SETTINGS_SAVE_BTN);
-    await expect(saveBtn).toHaveCount(0);
+    await expect(saveBtn).toBeVisible();
 
     await expect(modal.getByRole("textbox", { name: "Lab Name" })).toBeDisabled();
     await expectMuiSelectDisabled(modal, LABEL_CONTAINER_NAME_PREFIX);
 
-    await modal.locator(SEL_LAB_SETTINGS_TAB_MGMT).click();
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
     await page.waitForTimeout(150);
-    await expect(modal.getByRole("textbox", { name: "Network Name" })).toBeDisabled();
+
+    const styleSelect = modal
+      .locator('[data-testid="lab-settings-telemetry-style"] [role="combobox"]')
+      .first();
+    await styleSelect.click();
+    await chooseOption(page, /^Telemetry Style$/);
+
+    await modal.getByLabel("Node size").fill("72");
+
+    await saveBtn.click();
+    await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+    await expect
+      .poll(
+        async () => {
+          const annotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+          return annotations.viewerSettings ?? {};
+        },
+        { timeout: 5000 }
+      )
+      .toMatchObject({
+        style: "telemetry-style",
+        telemetryNodeSizePx: 72
+      });
   });
 
   test("can change prefix type to custom and enter custom prefix", async ({ page }) => {

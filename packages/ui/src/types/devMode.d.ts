@@ -10,7 +10,7 @@ import type { GroupStyleAnnotation } from "../core/types/topology";
 import type { NetworkType } from "../core/types/editors";
 import type { TopoNode } from "../core/types/graph";
 import type { CustomIconInfo } from "../core/types/icons";
-import type { CustomNodeTemplate, SchemaData } from "../core/schema/index";
+import type { CustomNodeTemplate, SchemaData } from "../core/schema";
 
 /** Layout option type */
 type LayoutOption = "preset" | "force" | "geo";

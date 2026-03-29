@@ -1,24 +1,28 @@
 // App content — UI composition for the React TopoViewer.
 /* eslint-disable import-x/max-dependencies */
 import React from "react";
-import type { ReactFlowInstance } from "@xyflow/react";
+import type { Edge, Node, ReactFlowInstance } from "@xyflow/react";
 import Box from "@mui/material/Box";
 
-import { ContainerlabExplorerView } from "./explorer/index";
-import type { NetemState } from "./core/parsing/index";
-import type { TopoEdge, TopoNode, TopologyEdgeData, TopologyHostCommand } from "./core/types/index";
+import { ContainerlabExplorerView } from "./explorer/containerlabExplorerView.webview";
+import type { NetemState } from "./core/parsing";
+import type { TopoEdge, TopoNode, TopologyHostCommand } from "./core/types";
 
 import { MuiThemeProvider } from "./theme";
 import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
+  TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE,
   findEdgeAnnotationInLookup,
   nodesToAnnotations,
   collectNodeGroupMemberships,
   parseEndpointLabelOffset
 } from "./annotations";
-import { buildEdgeAnnotationLookup, type EdgeAnnotationLookup } from "./annotations/edgeAnnotations";
+import {
+  buildEdgeAnnotationLookup,
+  type EdgeAnnotationLookup
+} from "./annotations/edgeAnnotations";
 import type { ReactFlowCanvasRef } from "./components/canvas";
 import { ReactFlowCanvas } from "./components/canvas";
 import { Navbar } from "./components/navbar/Navbar";
@@ -29,7 +33,6 @@ import { LifecycleProgressModal } from "./components/panels/LifecycleProgressMod
 import { ShortcutsModal } from "./components/panels/ShortcutsModal";
 import { SvgExportModal } from "./components/panels/SvgExportModal";
 import { BulkLinkModal } from "./components/panels/BulkLinkModal";
-import { GridSettingsPopover } from "./components/panels/GridSettingsPopover";
 import { FindNodePopover } from "./components/panels/FindNodePopover";
 import { ShortcutDisplay, ToastContainer } from "./components/ui";
 import { EasterEggRenderer, useEasterEgg } from "./easter-eggs";
@@ -41,6 +44,7 @@ import {
   useAppToasts,
   useClipboardHandlers,
   useCustomNodeCommands,
+  useDevMockTrafficStats,
   useGraphCreation,
   useIconReconciliation,
   useUndoRedoControls
@@ -65,7 +69,12 @@ import {
   useTopoViewerState
 } from "./stores";
 import { sendCancelLabLifecycle } from "./messaging/extensionMessaging";
-import { executeTopologyCommand, toLinkSaveData, getCustomIconMap } from "./services";
+import {
+  executeTopologyCommand,
+  toLinkSaveData,
+  getCustomIconMap,
+  saveViewerSettings
+} from "./services";
 import {
   PENDING_NETEM_KEY,
   areNetemEquivalent,
@@ -73,9 +82,65 @@ import {
 } from "./utils/netemOverrides";
 
 type LayoutControls = ReturnType<typeof useLayoutControls>;
-const DUMP_CSS_VARS = false;
 const DEV_EXPLORER_MIN_WIDTH = 280;
 const DEV_EXPLORER_DEFAULT_WIDTH = 360;
+
+const TOPO_NODE_TYPES = new Set<string>([
+  "topology-node",
+  "network-node",
+  GROUP_NODE_TYPE,
+  FREE_TEXT_NODE_TYPE,
+  FREE_SHAPE_NODE_TYPE,
+  TRAFFIC_RATE_NODE_TYPE
+]);
+const NETWORK_TYPE_VALUES = new Set<string>([
+  "host",
+  "mgmt-net",
+  "macvlan",
+  "vxlan",
+  "vxlan-stitch",
+  "dummy",
+  "bridge",
+  "ovs-bridge"
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}
+
+function toNetemState(value: unknown): NetemState | undefined {
+  if (!isRecord(value)) return undefined;
+  const state: NetemState = {};
+  if (typeof value.delay === "string") state.delay = value.delay;
+  if (typeof value.jitter === "string") state.jitter = value.jitter;
+  if (typeof value.loss === "string") state.loss = value.loss;
+  if (typeof value.rate === "string") state.rate = value.rate;
+  if (typeof value.corruption === "string") state.corruption = value.corruption;
+  return Object.keys(state).length > 0 ? state : undefined;
+}
+
+function isTopoNode(node: Node): node is TopoNode {
+  return TOPO_NODE_TYPES.has(node.type ?? "");
+}
+
+function isTopoEdge(edge: Edge): edge is TopoEdge {
+  const data = edge.data;
+  return (
+    isRecord(data) &&
+    typeof data.sourceEndpoint === "string" &&
+    typeof data.targetEndpoint === "string"
+  );
+}
+
+function isNetworkTypeValue(
+  value: string
+): value is Parameters<ReturnType<typeof useGraphCreation>["createNetworkAtPosition"]>[1] {
+  return NETWORK_TYPE_VALUES.has(value);
+}
 
 function getDevExplorerMaxWidth(): number {
   return Math.max(DEV_EXPLORER_MIN_WIDTH, Math.floor(window.innerWidth / 2));
@@ -97,11 +162,11 @@ function collectSelectedIds(
   selectedNodeId?: string | null,
   selectedEdgeId?: string | null
 ): { nodeIds: Set<string>; edgeIds: Set<string> } {
-  const nodeIds = new Set(nodes.filter((node) => node.selected).map((node) => node.id));
-  const edgeIds = new Set(edges.filter((edge) => edge.selected).map((edge) => edge.id));
+  const nodeIds = new Set(nodes.filter((node) => node.selected === true).map((node) => node.id));
+  const edgeIds = new Set(edges.filter((edge) => edge.selected === true).map((edge) => edge.id));
 
-  if (selectedNodeId) nodeIds.add(selectedNodeId);
-  if (selectedEdgeId) edgeIds.add(selectedEdgeId);
+  if (selectedNodeId != null && selectedNodeId.length > 0) nodeIds.add(selectedNodeId);
+  if (selectedEdgeId != null && selectedEdgeId.length > 0) edgeIds.add(selectedEdgeId);
 
   return { nodeIds, edgeIds };
 }
@@ -109,11 +174,18 @@ function collectSelectedIds(
 function splitNodeIdsByType(
   nodeIds: Set<string>,
   nodesById: Map<string, { type?: string }>
-): { graphNodeIds: string[]; groupIds: string[]; textIds: string[]; shapeIds: string[] } {
+): {
+  graphNodeIds: string[];
+  groupIds: string[];
+  textIds: string[];
+  shapeIds: string[];
+  trafficRateIds: string[];
+} {
   const graphNodeIds: string[] = [];
   const groupIds: string[] = [];
   const textIds: string[] = [];
   const shapeIds: string[] = [];
+  const trafficRateIds: string[] = [];
 
   for (const nodeId of nodeIds) {
     const node = nodesById.get(nodeId);
@@ -128,12 +200,15 @@ function splitNodeIdsByType(
       case FREE_SHAPE_NODE_TYPE:
         shapeIds.push(nodeId);
         break;
+      case TRAFFIC_RATE_NODE_TYPE:
+        trafficRateIds.push(nodeId);
+        break;
       default:
         graphNodeIds.push(nodeId);
     }
   }
 
-  return { graphNodeIds, groupIds, textIds, shapeIds };
+  return { graphNodeIds, groupIds, textIds, shapeIds, trafficRateIds };
 }
 
 function applyGraphDeletions(
@@ -174,7 +249,7 @@ function buildDeleteCommands(
 }
 
 function buildAnnotationSaveCommand(graphNodesForSave: TopoNode[]): TopologyHostCommand {
-  const { freeTextAnnotations, freeShapeAnnotations, groups } =
+  const { freeTextAnnotations, freeShapeAnnotations, trafficRateAnnotations, groups } =
     nodesToAnnotations(graphNodesForSave);
   const memberships = collectNodeGroupMemberships(graphNodesForSave);
 
@@ -184,6 +259,7 @@ function buildAnnotationSaveCommand(graphNodesForSave: TopoNode[]): TopologyHost
       annotations: {
         freeTextAnnotations,
         freeShapeAnnotations,
+        trafficRateAnnotations,
         groupStyleAnnotations: groups
       },
       memberships: memberships.map((entry) => ({
@@ -204,16 +280,110 @@ function getInteractionLockState(isLocked: boolean, isProcessing: boolean): bool
 }
 
 function isDevMockWebview(): boolean {
-  const maybeVscode = (window as unknown as { vscode?: { __isDevMock__?: boolean } }).vscode;
-  return Boolean(maybeVscode?.__isDevMock__);
+  return window.vscode?.__isDevMock__ === true;
 }
 
 function isDevExplorerDisabledByUrl(): boolean {
   const params = new URLSearchParams(window.location.search);
   const rawValue = params.get("devExplorer");
-  if (!rawValue) return false;
+  if (rawValue == null || rawValue.length === 0) return false;
   const normalized = rawValue.trim().toLowerCase();
   return normalized === "0" || normalized === "false" || normalized === "off";
+}
+
+function shouldDumpCssVars(): boolean {
+  const params = new URLSearchParams(window.location.search);
+  const rawValue = params.get("dumpCssVars");
+  if (rawValue == null || rawValue.length === 0) return false;
+  const normalized = rawValue.trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "on";
+}
+
+function shouldCollectDevMockTrafficStats(
+  isDevMock: boolean,
+  interactionMode: "view" | "edit"
+): boolean {
+  return isDevMock && interactionMode === "view";
+}
+
+function shouldShowBulkLinkModal(isRequested: boolean, isProcessing: boolean): boolean {
+  return isRequested && !isProcessing;
+}
+
+interface DevExplorerPaneState {
+  layoutRef: React.RefObject<HTMLDivElement | null>;
+  devExplorerWidth: number;
+  isDevExplorerDragging: boolean;
+  handleDevExplorerResizeStart: (event: React.MouseEvent<HTMLDivElement>) => void;
+}
+
+function useDevExplorerPane(showDevExplorer: boolean): DevExplorerPaneState {
+  const layoutRef = React.useRef<HTMLDivElement | null>(null);
+  const [devExplorerWidth, setDevExplorerWidth] = React.useState(DEV_EXPLORER_DEFAULT_WIDTH);
+  const [isDevExplorerDragging, setIsDevExplorerDragging] = React.useState(false);
+  const isDevExplorerDraggingRef = React.useRef(false);
+
+  const handleDevExplorerResizeStart = React.useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      if (!showDevExplorer) {
+        return;
+      }
+
+      event.preventDefault();
+      isDevExplorerDraggingRef.current = true;
+      setIsDevExplorerDragging(true);
+
+      const onMouseMove = (moveEvent: MouseEvent) => {
+        if (!isDevExplorerDraggingRef.current) {
+          return;
+        }
+
+        const layoutLeft = layoutRef.current?.getBoundingClientRect().left ?? 0;
+        const nextWidth = moveEvent.clientX - layoutLeft;
+        const clampedWidth = Math.min(
+          getDevExplorerMaxWidth(),
+          Math.max(DEV_EXPLORER_MIN_WIDTH, nextWidth)
+        );
+        setDevExplorerWidth(clampedWidth);
+      };
+
+      const onMouseUp = () => {
+        isDevExplorerDraggingRef.current = false;
+        setIsDevExplorerDragging(false);
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+      };
+
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    },
+    [showDevExplorer]
+  );
+
+  React.useEffect(() => {
+    if (!showDevExplorer) {
+      return;
+    }
+
+    const handleWindowResize = () => {
+      setDevExplorerWidth((currentWidth) =>
+        Math.min(getDevExplorerMaxWidth(), Math.max(DEV_EXPLORER_MIN_WIDTH, currentWidth))
+      );
+    };
+
+    handleWindowResize();
+    window.addEventListener("resize", handleWindowResize);
+    return () => {
+      window.removeEventListener("resize", handleWindowResize);
+    };
+  }, [showDevExplorer]);
+
+  return {
+    layoutRef,
+    devExplorerWidth,
+    isDevExplorerDragging,
+    handleDevExplorerResizeStart
+  };
 }
 
 interface ContextSelectionState {
@@ -228,6 +398,7 @@ interface ContextSelectionState {
 interface ContextAnnotationState {
   editingTextAnnotation: unknown;
   editingShapeAnnotation: unknown;
+  editingTrafficRateAnnotation: unknown;
   editingGroup: unknown;
 }
 
@@ -235,17 +406,19 @@ function hasContextContentState(
   state: ContextSelectionState,
   annotations: ContextAnnotationState
 ): boolean {
-  return Boolean(
-    state.selectedNode ||
-      state.selectedEdge ||
-      state.editingNode ||
-      state.editingEdge ||
-      state.editingNetwork ||
-      state.editingImpairment ||
-      annotations.editingTextAnnotation ||
-      annotations.editingShapeAnnotation ||
-      annotations.editingGroup
-  );
+  const candidates = [
+    state.selectedNode,
+    state.selectedEdge,
+    state.editingNode,
+    state.editingEdge,
+    state.editingNetwork,
+    state.editingImpairment,
+    annotations.editingTextAnnotation,
+    annotations.editingShapeAnnotation,
+    annotations.editingTrafficRateAnnotation,
+    annotations.editingGroup
+  ];
+  return candidates.some((value) => value !== null && value !== undefined);
 }
 
 export interface AppContentProps {
@@ -300,8 +473,10 @@ function useGraphNodeById(nodeId: string | null): TopoNode | null {
   return useGraphStore(
     React.useCallback(
       (graphState) =>
-        nodeId
-          ? ((graphState.nodes.find((node) => node.id === nodeId) as TopoNode | undefined) ?? null)
+        nodeId != null && nodeId.length > 0
+          ? (graphState.nodes.find(
+              (node): node is TopoNode => node.id === nodeId && isTopoNode(node)
+            ) ?? null)
           : null,
       [nodeId]
     ),
@@ -313,7 +488,11 @@ function useGraphEdgeById(edgeId: string | null): TopoEdge | null {
   return useGraphStore(
     React.useCallback(
       (graphState) =>
-        edgeId ? ((graphState.edges.find((edge) => edge.id === edgeId) as TopoEdge | undefined) ?? null) : null,
+        edgeId != null && edgeId.length > 0
+          ? (graphState.edges.find(
+              (edge): edge is TopoEdge => edge.id === edgeId && isTopoEdge(edge)
+            ) ?? null)
+          : null,
       [edgeId]
     ),
     areSelectedEdgesEqual
@@ -362,8 +541,8 @@ const GraphCanvasMain: React.FC<GraphCanvasMainProps> = React.memo(
     endpointLabelOffset
   }) => {
     const { nodes, edges } = useGraphState();
-    const graphNodes = nodes as TopoNode[];
-    const graphEdges = edges as TopoEdge[];
+    const graphNodes = React.useMemo(() => nodes.filter(isTopoNode), [nodes]);
+    const graphEdges = React.useMemo(() => edges.filter(isTopoEdge), [edges]);
     useIconReconciliation();
 
     const { filteredNodes, filteredEdges } = useFilteredGraphElements(
@@ -375,7 +554,8 @@ const GraphCanvasMain: React.FC<GraphCanvasMainProps> = React.memo(
     const renderedEdges = React.useMemo(() => {
       if (filteredEdges.length === 0) return filteredEdges;
       return filteredEdges.map((edge) => {
-        const data = (edge.data ?? {}) as TopologyEdgeData;
+        const data = edge.data;
+        if (data == null) return edge;
         const sourceEndpoint = data.sourceEndpoint;
         const targetEndpoint = data.targetEndpoint;
         const annotation = findEdgeAnnotationInLookup(edgeAnnotationLookup, {
@@ -410,7 +590,14 @@ const GraphCanvasMain: React.FC<GraphCanvasMainProps> = React.memo(
       });
     }, [filteredEdges, edgeAnnotationLookup, endpointLabelOffset, endpointLabelOffsetEnabled]);
 
-    return <ReactFlowCanvas ref={canvasRef} {...canvasProps} nodes={filteredNodes} edges={renderedEdges} />;
+    return (
+      <ReactFlowCanvas
+        ref={canvasRef}
+        {...canvasProps}
+        nodes={filteredNodes}
+        edges={renderedEdges}
+      />
+    );
   }
 );
 GraphCanvasMain.displayName = "GraphCanvasMain";
@@ -441,17 +628,18 @@ const AnnotationRuntimeBridge: React.FC<AnnotationRuntimeBridgeProps> = ({
 
 type SvgExportModalContainerProps = Pick<
   React.ComponentPropsWithoutRef<typeof SvgExportModal>,
-  "onClose" | "rfInstance" | "customIcons"
+  "onClose" | "rfInstance" | "customIcons" | "labName"
 >;
 
 const SvgExportModalContainer: React.FC<SvgExportModalContainerProps> = React.memo(
-  ({ onClose, rfInstance, customIcons }) => {
+  ({ onClose, rfInstance, customIcons, labName }) => {
     const { textAnnotations, shapeAnnotations, groups } = useDerivedAnnotations();
 
     return (
       <SvgExportModal
         isOpen
         onClose={onClose}
+        labName={labName}
         textAnnotations={textAnnotations}
         shapeAnnotations={shapeAnnotations}
         groups={groups}
@@ -476,73 +664,19 @@ export const AppContent: React.FC<AppContentProps> = ({
   const isProcessing = state.isProcessing;
   const isInteractionLocked = getInteractionLockState(state.isLocked, isProcessing);
   const interactionMode = getInteractionMode(state.mode, isProcessing);
+  const isDevMock = React.useMemo(() => isDevMockWebview(), []);
   const showDevExplorer = React.useMemo(
-    () => isDevMockWebview() && !isDevExplorerDisabledByUrl(),
-    []
+    () => isDevMock && !isDevExplorerDisabledByUrl(),
+    [isDevMock]
   );
-  const layoutRef = React.useRef<HTMLDivElement | null>(null);
-  const [devExplorerWidth, setDevExplorerWidth] = React.useState(DEV_EXPLORER_DEFAULT_WIDTH);
-  const [isDevExplorerDragging, setIsDevExplorerDragging] = React.useState(false);
-  const isDevExplorerDraggingRef = React.useRef(false);
-
-  const handleDevExplorerResizeStart = React.useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!showDevExplorer) {
-        return;
-      }
-
-      event.preventDefault();
-      isDevExplorerDraggingRef.current = true;
-      setIsDevExplorerDragging(true);
-
-      const onMouseMove = (moveEvent: MouseEvent) => {
-        if (!isDevExplorerDraggingRef.current) {
-          return;
-        }
-        const layoutLeft = layoutRef.current?.getBoundingClientRect().left ?? 0;
-        const nextWidth = moveEvent.clientX - layoutLeft;
-        const clampedWidth = Math.min(
-          getDevExplorerMaxWidth(),
-          Math.max(DEV_EXPLORER_MIN_WIDTH, nextWidth)
-        );
-        setDevExplorerWidth(clampedWidth);
-      };
-
-      const onMouseUp = () => {
-        isDevExplorerDraggingRef.current = false;
-        setIsDevExplorerDragging(false);
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-      };
-
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
-    },
-    [showDevExplorer]
-  );
+  useDevMockTrafficStats(shouldCollectDevMockTrafficStats(isDevMock, interactionMode));
+  const { layoutRef, devExplorerWidth, isDevExplorerDragging, handleDevExplorerResizeStart } =
+    useDevExplorerPane(showDevExplorer);
 
   React.useEffect(() => {
-    if (!showDevExplorer) {
-      return;
-    }
-
-    const handleWindowResize = () => {
-      setDevExplorerWidth((currentWidth) =>
-        Math.min(getDevExplorerMaxWidth(), Math.max(DEV_EXPLORER_MIN_WIDTH, currentWidth))
-      );
-    };
-
-    handleWindowResize();
-    window.addEventListener("resize", handleWindowResize);
-    return () => {
-      window.removeEventListener("resize", handleWindowResize);
-    };
-  }, [showDevExplorer]);
-
-  React.useEffect(() => {
-    if (!DUMP_CSS_VARS) return;
+    if (!shouldDumpCssVars()) return;
     const htmlStyle = document.querySelector("html")?.getAttribute("style");
-    if (!htmlStyle) return;
+    if (htmlStyle == null || htmlStyle.length === 0) return;
     const vars: Record<string, string> = {};
     for (const part of htmlStyle.split(";")) {
       const trimmed = part.trim();
@@ -552,9 +686,7 @@ export const AppContent: React.FC<AppContentProps> = ({
       vars[trimmed.slice(0, colonIdx).trim()] = trimmed.slice(colonIdx + 1).trim();
     }
     if (Object.keys(vars).length === 0) return;
-    const sorted = Object.fromEntries(
-      Object.entries(vars).sort(([a], [b]) => a.localeCompare(b))
-    );
+    const sorted = Object.fromEntries(Object.entries(vars).sort(([a], [b]) => a.localeCompare(b)));
     window.vscode?.postMessage({ command: "dump-css-vars", vars: sorted });
   }, []);
 
@@ -609,6 +741,9 @@ export const AppContent: React.FC<AppContentProps> = ({
       createShapeAtPosition: (position: { x: number; y: number }, shapeType?: string) => {
         annotationRuntimeRef.current?.createShapeAtPosition(position, shapeType);
       },
+      createTrafficRateAtPosition: (position: { x: number; y: number }) => {
+        annotationRuntimeRef.current?.createTrafficRateAtPosition(position);
+      },
       getNodeMembership: (nodeId: string) =>
         annotationRuntimeRef.current?.getNodeMembership(nodeId) ?? null,
       addNodeToGroup: (nodeId: string, groupId: string) => {
@@ -627,14 +762,63 @@ export const AppContent: React.FC<AppContentProps> = ({
       saveTextAnnotation: (...args: Parameters<AnnotationContextValue["saveTextAnnotation"]>) => {
         annotationRuntimeRef.current?.saveTextAnnotation(...args);
       },
-      deleteTextAnnotation: (...args: Parameters<AnnotationContextValue["deleteTextAnnotation"]>) => {
+      updateTextAnnotation: (
+        ...args: Parameters<AnnotationContextValue["updateTextAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.updateTextAnnotation(...args);
+      },
+      previewTextAnnotation: (
+        ...args: Parameters<AnnotationContextValue["previewTextAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.previewTextAnnotation(...args);
+      },
+      removePreviewTextAnnotation: (
+        ...args: Parameters<AnnotationContextValue["removePreviewTextAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.removePreviewTextAnnotation(...args);
+      },
+      deleteTextAnnotation: (
+        ...args: Parameters<AnnotationContextValue["deleteTextAnnotation"]>
+      ) => {
         annotationRuntimeRef.current?.deleteTextAnnotation(...args);
       },
       saveShapeAnnotation: (...args: Parameters<AnnotationContextValue["saveShapeAnnotation"]>) => {
         annotationRuntimeRef.current?.saveShapeAnnotation(...args);
       },
-      deleteShapeAnnotation: (...args: Parameters<AnnotationContextValue["deleteShapeAnnotation"]>) => {
+      updateShapeAnnotation: (
+        ...args: Parameters<AnnotationContextValue["updateShapeAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.updateShapeAnnotation(...args);
+      },
+      previewShapeAnnotation: (
+        ...args: Parameters<AnnotationContextValue["previewShapeAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.previewShapeAnnotation(...args);
+      },
+      removePreviewShapeAnnotation: (
+        ...args: Parameters<AnnotationContextValue["removePreviewShapeAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.removePreviewShapeAnnotation(...args);
+      },
+      deleteShapeAnnotation: (
+        ...args: Parameters<AnnotationContextValue["deleteShapeAnnotation"]>
+      ) => {
         annotationRuntimeRef.current?.deleteShapeAnnotation(...args);
+      },
+      saveTrafficRateAnnotation: (
+        ...args: Parameters<AnnotationContextValue["saveTrafficRateAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.saveTrafficRateAnnotation(...args);
+      },
+      updateTrafficRateAnnotation: (
+        ...args: Parameters<AnnotationContextValue["updateTrafficRateAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.updateTrafficRateAnnotation(...args);
+      },
+      deleteTrafficRateAnnotation: (
+        ...args: Parameters<AnnotationContextValue["deleteTrafficRateAnnotation"]>
+      ) => {
+        annotationRuntimeRef.current?.deleteTrafficRateAnnotation(...args);
       },
       saveGroup: (...args: Parameters<AnnotationContextValue["saveGroup"]>) => {
         annotationRuntimeRef.current?.saveGroup(...args);
@@ -649,7 +833,9 @@ export const AppContent: React.FC<AppContentProps> = ({
     []
   );
 
-  const canvasAnnotationHandlers = React.useMemo<NonNullable<CanvasPropsWithoutGraph["annotationHandlers"]>>(
+  const canvasAnnotationHandlers = React.useMemo<
+    NonNullable<CanvasPropsWithoutGraph["annotationHandlers"]>
+  >(
     () => ({
       onAddTextClick: (position) => {
         annotationRuntimeRef.current?.handleTextCanvasClick(position);
@@ -669,17 +855,26 @@ export const AppContent: React.FC<AppContentProps> = ({
       onEditFreeShape: (id) => {
         annotationRuntimeRef.current?.editShapeAnnotation(id);
       },
+      onEditTrafficRate: (id) => {
+        annotationRuntimeRef.current?.editTrafficRateAnnotation(id);
+      },
       onDeleteFreeText: (id) => {
         annotationRuntimeRef.current?.deleteTextAnnotation(id);
       },
       onDeleteFreeShape: (id) => {
         annotationRuntimeRef.current?.deleteShapeAnnotation(id);
       },
+      onDeleteTrafficRate: (id) => {
+        annotationRuntimeRef.current?.deleteTrafficRateAnnotation(id);
+      },
       onUpdateFreeTextSize: (id, width, height) => {
         annotationRuntimeRef.current?.updateTextSize(id, width, height);
       },
       onUpdateFreeShapeSize: (id, width, height) => {
         annotationRuntimeRef.current?.updateShapeSize(id, width, height);
+      },
+      onUpdateTrafficRateSize: (id, width, height) => {
+        annotationRuntimeRef.current?.updateTrafficRateSize(id, width, height);
       },
       onUpdateFreeTextRotation: (id, rotation) => {
         annotationRuntimeRef.current?.updateTextRotation(id, rotation);
@@ -747,6 +942,14 @@ export const AppContent: React.FC<AppContentProps> = ({
     },
     edgeAnnotationLookup
   );
+  const enableSelectedNodeVisualEditor =
+    interactionMode === "view" &&
+    isInteractionLocked === false &&
+    selectionData.editingNodeData === null &&
+    selectionData.selectedNodeEditorData !== null;
+  const effectiveNodeEditorData =
+    selectionData.editingNodeData ??
+    (enableSelectedNodeVisualEditor ? selectionData.selectedNodeEditorData : null);
 
   const [paletteTabRequest, setPaletteTabRequest] = React.useState<{ tabId: string } | undefined>(
     undefined
@@ -785,10 +988,10 @@ export const AppContent: React.FC<AppContentProps> = ({
       const { edges } = useGraphStore.getState();
       const edge = edges.find((item) => item.id === data.id);
       if (!edge) return;
-      const edgeData = edge.data as Record<string, unknown> | undefined;
-      const extraData = (edgeData?.extraData ?? {}) as Record<string, unknown>;
-      const currentSourceNetem = extraData.clabSourceNetem as NetemState | undefined;
-      const currentTargetNetem = extraData.clabTargetNetem as NetemState | undefined;
+      const edgeData = edge.data;
+      const extraData = toRecord(edgeData?.extraData);
+      const currentSourceNetem = toNetemState(extraData.clabSourceNetem);
+      const currentTargetNetem = toNetemState(extraData.clabTargetNetem);
       const hasNetemChanges =
         !areNetemEquivalent(currentSourceNetem, data.sourceNetem) ||
         !areNetemEquivalent(currentTargetNetem, data.targetNetem);
@@ -832,12 +1035,9 @@ export const AppContent: React.FC<AppContentProps> = ({
     [addToast]
   );
 
-  const {
-    nodeEditorHandlers,
-    linkEditorHandlers,
-    networkEditorHandlers
-  } = useAppEditorBindings({
+  const { nodeEditorHandlers, linkEditorHandlers, networkEditorHandlers } = useAppEditorBindings({
     selectionData,
+    effectiveNodeEditorData,
     state: {
       edgeAnnotations: state.edgeAnnotations
     },
@@ -853,7 +1053,10 @@ export const AppContent: React.FC<AppContentProps> = ({
     handleUpdateEdgeData: graphHandlers.handleUpdateEdgeData
   });
 
-  const getGraphNodes = React.useCallback(() => useGraphStore.getState().nodes as TopoNode[], []);
+  const getGraphNodes = React.useCallback(
+    () => useGraphStore.getState().nodes.filter(isTopoNode),
+    []
+  );
 
   const graphCreation = useGraphCreation({
     rfInstance,
@@ -893,10 +1096,8 @@ export const AppContent: React.FC<AppContentProps> = ({
         handleLockedAction();
         return;
       }
-      graphCreation.createNetworkAtPosition(
-        position,
-        networkType as Parameters<typeof graphCreation.createNetworkAtPosition>[1]
-      );
+      if (!isNetworkTypeValue(networkType)) return;
+      graphCreation.createNetworkAtPosition(position, networkType);
     },
     [isInteractionLocked, graphCreation, handleLockedAction]
   );
@@ -949,6 +1150,7 @@ export const AppContent: React.FC<AppContentProps> = ({
     topoActions.selectEdge(null);
     annotationUiActions.closeTextEditor();
     annotationUiActions.closeShapeEditor();
+    annotationUiActions.closeTrafficRateEditor();
     annotationUiActions.closeGroupEditor();
   }, [topoActions, annotationUiActions]);
 
@@ -1009,23 +1211,27 @@ export const AppContent: React.FC<AppContentProps> = ({
     if (nodeIds.size === 0 && edgeIds.size === 0) return;
 
     const nodesById = new Map(currentNodes.map((node) => [node.id, node]));
-    const edgesById = new Map(currentEdges.map((edge) => [edge.id, edge as TopoEdge]));
+    const edgesById = new Map(currentEdges.filter(isTopoEdge).map((edge) => [edge.id, edge]));
 
-    const { graphNodeIds, groupIds, textIds, shapeIds } = splitNodeIdsByType(nodeIds, nodesById);
+    const { graphNodeIds, groupIds, textIds, shapeIds, trafficRateIds } = splitNodeIdsByType(
+      nodeIds,
+      nodesById
+    );
 
     applyGraphDeletions(graphActions, menuHandlers, graphNodeIds, edgeIds);
 
     const annotationResult = annotationActions.deleteSelectedForBatch({
       groupIds,
       textIds,
-      shapeIds
+      shapeIds,
+      trafficRateIds
     });
 
     const commands = buildDeleteCommands(graphNodeIds, edgeIds, edgesById);
 
     if (annotationResult.didDelete || annotationResult.membersCleared) {
-      const graphNodesForSave = useGraphStore.getState().nodes;
-      commands.push(buildAnnotationSaveCommand(graphNodesForSave as TopoNode[]));
+      const graphNodesForSave = useGraphStore.getState().nodes.filter(isTopoNode);
+      commands.push(buildAnnotationSaveCommand(graphNodesForSave));
     }
 
     if (commands.length === 0) return;
@@ -1049,6 +1255,7 @@ export const AppContent: React.FC<AppContentProps> = ({
     annotations: {
       selectedTextIds: annotationUiState.selectedTextIds,
       selectedShapeIds: annotationUiState.selectedShapeIds,
+      selectedTrafficRateIds: annotationUiState.selectedTrafficRateIds,
       selectedGroupIds: annotationUiState.selectedGroupIds,
       clearAllSelections: annotationUiActions.clearAllSelections,
       handleAddGroup: annotationActions.handleAddGroup
@@ -1120,6 +1327,7 @@ export const AppContent: React.FC<AppContentProps> = ({
       onAddTextAtPosition: annotationActions.createTextAtPosition,
       onAddGroupAtPosition: annotationActions.createGroupAtPosition,
       onAddShapeAtPosition: annotationActions.createShapeAtPosition,
+      onAddTrafficRateAtPosition: annotationActions.createTrafficRateAtPosition,
       onDropCreateNode: handleDropCreateNode,
       onDropCreateNetwork: handleDropCreateNetwork,
       onLockedAction: handleLockedAction
@@ -1175,6 +1383,30 @@ export const AppContent: React.FC<AppContentProps> = ({
     sendCancelLabLifecycle();
   }, []);
 
+  const handleToggleSplit = React.useCallback(() => {
+    panelVisibility.handleOpenContextPanel("manual");
+    setPaletteTabRequest({ tabId: "yaml" });
+  }, [panelVisibility]);
+  const isBulkLinkModalOpen = shouldShowBulkLinkModal(
+    panelVisibility.showBulkLinkModal,
+    isProcessing
+  );
+
+  const handleLinkLabelModeChange = React.useCallback(
+    (mode: Parameters<typeof topoActions.setLinkLabelMode>[0]) => {
+      topoActions.setLinkLabelMode(mode);
+      const nextLastNonTelemetryMode =
+        mode === "telemetry-style" ? state.lastNonTelemetryLinkLabelMode : mode;
+      const style = mode === "telemetry-style" ? "telemetry-style" : "default";
+      void saveViewerSettings({
+        style,
+        linkLabelMode: mode,
+        lastNonTelemetryLinkLabelMode: nextLastNonTelemetryMode
+      });
+    },
+    [topoActions, state.lastNonTelemetryLinkLabelMode]
+  );
+
   return (
     <MuiThemeProvider>
       <Box
@@ -1195,18 +1427,14 @@ export const AppContent: React.FC<AppContentProps> = ({
           layout={layoutControls.layout}
           onLayoutChange={layoutControls.setLayout}
           onLabSettings={panelVisibility.handleShowLabSettings}
-          onToggleSplit={() => {
-            panelVisibility.handleOpenContextPanel("manual");
-            setPaletteTabRequest({ tabId: "yaml" });
-          }}
+          onToggleSplit={handleToggleSplit}
           onFindNode={panelVisibility.handleOpenFindPopover}
           onCaptureViewport={panelVisibility.handleShowSvgExport}
           onShowShortcuts={panelVisibility.handleShowShortcuts}
           onShowAbout={panelVisibility.handleShowAbout}
           onShowBulkLink={panelVisibility.handleShowBulkLink}
-          onShowGridSettings={panelVisibility.handleOpenGridPopover}
           linkLabelMode={state.linkLabelMode}
-          onLinkLabelModeChange={topoActions.setLinkLabelMode}
+          onLinkLabelModeChange={handleLinkLabelModeChange}
           shortcutDisplayEnabled={shortcutDisplay.isEnabled}
           onToggleShortcutDisplay={shortcutDisplay.toggle}
           canUndo={undoRedo.canUndo}
@@ -1280,6 +1508,13 @@ export const AppContent: React.FC<AppContentProps> = ({
             editor={{
               editingNodeData: selectionData.editingNodeData,
               editingNodeInheritedProps: selectionData.editingNodeInheritedProps,
+              selectedNodeVisualData: enableSelectedNodeVisualEditor
+                ? selectionData.selectedNodeEditorData
+                : null,
+              selectedNodeVisualInheritedProps: enableSelectedNodeVisualEditor
+                ? selectionData.selectedNodeInheritedProps
+                : [],
+              enableSelectedNodeVisualEditor,
               nodeEditorHandlers: {
                 handleClose: nodeEditorHandlers.handleClose,
                 handleSave: nodeEditorHandlers.handleSave,
@@ -1316,14 +1551,49 @@ export const AppContent: React.FC<AppContentProps> = ({
               editingTextAnnotation: annotationUiState.editingTextAnnotation,
               textAnnotationHandlers: {
                 onSave: annotationActions.saveTextAnnotation,
+                onPreview: (annotation) => {
+                  const exists =
+                    annotationRuntimeRef.current?.textAnnotations.some(
+                      (entry) => entry.id === annotation.id
+                    ) ?? false;
+                  if (exists) {
+                    annotationActions.updateTextAnnotation(annotation.id, annotation);
+                    return true;
+                  }
+                  annotationActions.previewTextAnnotation(annotation);
+                  return false;
+                },
+                onPreviewDelete: annotationActions.removePreviewTextAnnotation,
                 onClose: annotationUiActions.closeTextEditor,
                 onDelete: annotationActions.deleteTextAnnotation
               },
               editingShapeAnnotation: annotationUiState.editingShapeAnnotation,
               shapeAnnotationHandlers: {
                 onSave: annotationActions.saveShapeAnnotation,
+                onPreview: (annotation) => {
+                  const exists =
+                    annotationRuntimeRef.current?.shapeAnnotations.some(
+                      (entry) => entry.id === annotation.id
+                    ) ?? false;
+                  if (exists) {
+                    annotationActions.updateShapeAnnotation(annotation.id, annotation);
+                    return true;
+                  }
+                  annotationActions.previewShapeAnnotation(annotation);
+                  return false;
+                },
+                onPreviewDelete: annotationActions.removePreviewShapeAnnotation,
                 onClose: annotationUiActions.closeShapeEditor,
                 onDelete: annotationActions.deleteShapeAnnotation
+              },
+              editingTrafficRateAnnotation: annotationUiState.editingTrafficRateAnnotation,
+              trafficRateAnnotationHandlers: {
+                onSave: annotationActions.saveTrafficRateAnnotation,
+                onPreview: (annotation) => {
+                  annotationActions.updateTrafficRateAnnotation(annotation.id, annotation);
+                },
+                onClose: annotationUiActions.closeTrafficRateEditor,
+                onDelete: annotationActions.deleteTrafficRateAnnotation
               },
               editingGroup: annotationUiState.editingGroup,
               groupHandlers: {
@@ -1374,20 +1644,30 @@ export const AppContent: React.FC<AppContentProps> = ({
           mode={state.mode}
           isLocked={isInteractionLocked}
           labSettings={state.labSettings ?? { name: state.labName }}
+          gridLineWidth={layoutControls.gridLineWidth}
+          onGridLineWidthChange={layoutControls.setGridLineWidth}
+          gridStyle={layoutControls.gridStyle}
+          onGridStyleChange={layoutControls.setGridStyle}
+          gridColor={layoutControls.gridColor}
+          onGridColorChange={layoutControls.setGridColor}
+          gridBgColor={layoutControls.gridBgColor}
+          onGridBgColorChange={layoutControls.setGridBgColor}
+          onResetGridColors={layoutControls.resetGridColors}
         />
         <ShortcutsModal
           isOpen={panelVisibility.showShortcutsModal}
           onClose={panelVisibility.handleCloseShortcuts}
         />
-        {panelVisibility.showSvgExportModal ? (
+        {panelVisibility.showSvgExportModal && (
           <SvgExportModalContainer
             onClose={panelVisibility.handleCloseSvgExport}
             rfInstance={rfInstance}
+            labName={state.labName}
             customIcons={getCustomIconMap(state.customIcons)}
           />
-        ) : null}
+        )}
         <BulkLinkModal
-          isOpen={panelVisibility.showBulkLinkModal && !isProcessing}
+          isOpen={isBulkLinkModalOpen}
           mode={interactionMode}
           isLocked={isInteractionLocked}
           onClose={panelVisibility.handleCloseBulkLink}
@@ -1398,19 +1678,6 @@ export const AppContent: React.FC<AppContentProps> = ({
         />
 
         {/* Popovers */}
-        <GridSettingsPopover
-          anchorPosition={panelVisibility.gridPopoverPosition}
-          onClose={panelVisibility.handleCloseGridPopover}
-          gridLineWidth={layoutControls.gridLineWidth}
-          onGridLineWidthChange={layoutControls.setGridLineWidth}
-          gridStyle={layoutControls.gridStyle}
-          onGridStyleChange={layoutControls.setGridStyle}
-          gridColor={layoutControls.gridColor}
-          onGridColorChange={layoutControls.setGridColor}
-          gridBgColor={layoutControls.gridBgColor}
-          onGridBgColorChange={layoutControls.setGridBgColor}
-          onResetColors={layoutControls.resetGridColors}
-        />
         <FindNodePopover
           anchorPosition={panelVisibility.findPopoverPosition}
           onClose={panelVisibility.handleCloseFindPopover}

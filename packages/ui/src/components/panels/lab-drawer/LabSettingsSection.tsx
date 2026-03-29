@@ -6,11 +6,15 @@ import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 
 import { useLabSettingsState } from "../../../hooks/editor";
+import { saveViewerSettings } from "../../../services";
+import { useTopoViewerStore } from "../../../stores/topoViewerStore";
+import type { GridSettingsControlsProps } from "../GridSettingsPopover";
 import { BasicTab } from "../lab-settings/BasicTab";
 import { MgmtTab } from "../lab-settings/MgmtTab";
+import { AppearanceTab } from "../lab-settings/AppearanceTab";
 import type { LabSettings } from "../lab-settings/types";
 
-export interface LabSettingsSectionProps {
+export interface LabSettingsSectionProps extends GridSettingsControlsProps {
   mode: "view" | "edit";
   isLocked: boolean;
   labSettings?: LabSettings;
@@ -23,15 +27,49 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
   isLocked,
   labSettings,
   onClose,
-  saveRef
+  saveRef,
+  gridLineWidth,
+  onGridLineWidthChange,
+  gridStyle,
+  onGridStyleChange,
+  gridColor,
+  onGridColorChange,
+  gridBgColor,
+  onGridBgColorChange,
+  onResetGridColors
 }) => {
   const [activeTab, setActiveTab] = useState("basic");
-  const isReadOnly = mode === "view" || isLocked;
+  const areTopologySettingsReadOnly = mode === "view" || isLocked;
+  const isAppearanceReadOnly = isLocked;
 
   const state = useLabSettingsState(labSettings);
+  const linkLabelMode = useTopoViewerStore((store) => store.linkLabelMode);
+  const lastNonTelemetryLinkLabelMode = useTopoViewerStore(
+    (store) => store.lastNonTelemetryLinkLabelMode
+  );
+  const telemetryNodeSizePx = useTopoViewerStore((store) => store.telemetryNodeSizePx);
+  const telemetryInterfaceSizePercent = useTopoViewerStore(
+    (store) => store.telemetryInterfaceSizePercent
+  );
 
   const handleSave = async () => {
-    await state.handleSave();
+    if (!areTopologySettingsReadOnly) {
+      await state.handleSave();
+    }
+    const style = linkLabelMode === "telemetry-style" ? "telemetry-style" : "default";
+    const nextLastNonTelemetryLinkLabelMode =
+      linkLabelMode === "telemetry-style" ? lastNonTelemetryLinkLabelMode : linkLabelMode;
+    await saveViewerSettings({
+      style,
+      linkLabelMode,
+      lastNonTelemetryLinkLabelMode: nextLastNonTelemetryLinkLabelMode,
+      telemetryNodeSizePx,
+      telemetryInterfaceSizePercent,
+      gridLineWidth,
+      gridStyle,
+      gridColor,
+      gridBgColor
+    });
     onClose();
   };
 
@@ -50,6 +88,7 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
       >
         <Tab label="Basic" value="basic" data-testid="lab-settings-tab-basic" />
         <Tab label="Management Network" value="mgmt" data-testid="lab-settings-tab-mgmt" />
+        <Tab label="Appearance" value="appearance" data-testid="lab-settings-tab-appearance" />
       </Tabs>
       <Divider />
 
@@ -59,7 +98,7 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
             labName={state.basic.labName}
             prefixType={state.basic.prefixType}
             customPrefix={state.basic.customPrefix}
-            isViewMode={isReadOnly}
+            isViewMode={areTopologySettingsReadOnly}
             onLabNameChange={state.setBasic.setLabName}
             onPrefixTypeChange={state.setBasic.setPrefixType}
             onCustomPrefixChange={state.setBasic.setCustomPrefix}
@@ -81,7 +120,7 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
           bridge={state.mgmt.bridge}
           externalAccess={state.mgmt.externalAccess}
           driverOptions={state.mgmt.driverOptions}
-          isViewMode={isReadOnly}
+          isViewMode={areTopologySettingsReadOnly}
           onNetworkNameChange={state.setMgmt.setNetworkName}
           onIpv4TypeChange={state.setMgmt.setIpv4Type}
           onIpv4SubnetChange={state.setMgmt.setIpv4Subnet}
@@ -96,6 +135,23 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
           onAddDriverOption={state.driverOpts.add}
           onSetDriverOptions={state.driverOpts.setAll}
         />
+      )}
+
+      {activeTab === "appearance" && (
+        <Box sx={{ p: 2 }}>
+          <AppearanceTab
+            gridLineWidth={gridLineWidth}
+            onGridLineWidthChange={onGridLineWidthChange}
+            gridStyle={gridStyle}
+            onGridStyleChange={onGridStyleChange}
+            gridColor={gridColor}
+            onGridColorChange={onGridColorChange}
+            gridBgColor={gridBgColor}
+            onGridBgColorChange={onGridBgColorChange}
+            onResetGridColors={onResetGridColors}
+            isReadOnly={isAppearanceReadOnly}
+          />
+        </Box>
       )}
     </Box>
   );

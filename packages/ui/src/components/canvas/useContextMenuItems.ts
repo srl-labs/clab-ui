@@ -36,6 +36,7 @@ interface ContextMenuItemsParams {
   onAddTextAtPosition?: (position: { x: number; y: number }) => void;
   onAddShapes?: (shapeType?: string) => void;
   onAddShapeAtPosition?: (position: { x: number; y: number }, shapeType?: string) => void;
+  onAddTrafficRateAtPosition?: (position: { x: number; y: number }) => void;
 }
 
 interface ResolveContextMenuItemsParams extends ContextMenuItemsParams {
@@ -72,7 +73,9 @@ function buildNodeItems(
     deleteFreeText: params.annotationHandlers?.onDeleteFreeText,
     deleteFreeShape: params.annotationHandlers?.onDeleteFreeShape,
     editGroup: params.annotationHandlers?.onEditGroup,
-    deleteGroup: params.annotationHandlers?.onDeleteGroup
+    deleteGroup: params.annotationHandlers?.onDeleteGroup,
+    editTrafficRate: params.annotationHandlers?.onEditTrafficRate,
+    deleteTrafficRate: params.annotationHandlers?.onDeleteTrafficRate
   });
 }
 
@@ -114,16 +117,17 @@ function buildPaneItems(params: ResolveContextMenuItemsParams): ContextMenuItem[
     onAddText: params.onAddText,
     onAddTextAtPosition: params.onAddTextAtPosition,
     onAddShapes: params.onAddShapes,
-    onAddShapeAtPosition: params.onAddShapeAtPosition
+    onAddShapeAtPosition: params.onAddShapeAtPosition,
+    onAddTrafficRateAtPosition: params.onAddTrafficRateAtPosition
   });
 }
 
 function resolveContextMenuItems(params: ResolveContextMenuItemsParams): ContextMenuItem[] {
-  if (params.type === "node" && params.targetId) {
+  if (params.type === "node" && params.targetId !== null && params.targetId.length > 0) {
     return buildNodeItems({ ...params, targetId: params.targetId });
   }
 
-  if (params.type === "edge" && params.targetId) {
+  if (params.type === "edge" && params.targetId !== null && params.targetId.length > 0) {
     return buildEdgeItems({ ...params, targetId: params.targetId });
   }
 
@@ -161,7 +165,8 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
     onAddText,
     onAddTextAtPosition,
     onAddShapes,
-    onAddShapeAtPosition
+    onAddShapeAtPosition,
+    onAddTrafficRateAtPosition
   } = params;
   const { type, targetId, position: menuPosition } = handlers.contextMenu;
 
@@ -171,8 +176,8 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
       type,
       targetId,
       menuPosition,
-      nodes: nodesRef.current ?? [],
-      edges: edgesRef.current ?? [],
+      nodes: nodesRef.current,
+      edges: edgesRef.current,
       isEditMode: state.mode === "edit",
       isLocked: state.isLocked
     });
@@ -204,6 +209,7 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
     onAddText,
     onAddTextAtPosition,
     onAddShapes,
-    onAddShapeAtPosition
+    onAddShapeAtPosition,
+    onAddTrafficRateAtPosition
   ]);
 }

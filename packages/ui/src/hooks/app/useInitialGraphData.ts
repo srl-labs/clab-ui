@@ -4,7 +4,7 @@
  * Topology state now comes from TopologyHost snapshots; this shape
  * represents only non-topology bootstrap data injected by the host.
  */
-import type { CustomNodeTemplate, SchemaData } from "../../core/schema/index";
+import type { CustomNodeTemplate, SchemaData } from "../../core/schema";
 import type { CustomIconInfo } from "../../core/types/icons";
 
 export interface InitialGraphData {

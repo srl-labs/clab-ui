@@ -16,7 +16,8 @@ const {
   LinkEditorView,
   LinkImpairmentView,
   NetworkEditorView,
-  NodeEditorView
+  NodeEditorView,
+  TrafficRateEditorView
 } = editorViews;
 
 export interface EditorTabContentProps extends ContextPanelEditorState {
@@ -35,6 +36,9 @@ const EditorPlaceholder: React.FC = () => (
 export const EditorTabContent: React.FC<EditorTabContentProps> = ({
   editingNodeData,
   editingNodeInheritedProps,
+  selectedNodeVisualData,
+  selectedNodeVisualInheritedProps,
+  enableSelectedNodeVisualEditor,
   nodeEditorHandlers,
   editingLinkData,
   linkEditorHandlers,
@@ -46,6 +50,8 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
   textAnnotationHandlers,
   editingShapeAnnotation,
   shapeAnnotationHandlers,
+  editingTrafficRateAnnotation,
+  trafficRateAnnotationHandlers,
   editingGroup,
   groupHandlers,
   onFooterRef,
@@ -54,19 +60,29 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
   const panelView = useContextPanelContent();
   const isLocked = useIsLocked();
   const isReadOnly = isLocked && panelView.hasFooter;
+  const shouldUseSelectedNodeVisualEditor =
+    enableSelectedNodeVisualEditor && panelView.kind === "nodeInfo";
+  const nodeEditorData = shouldUseSelectedNodeVisualEditor
+    ? selectedNodeVisualData
+    : editingNodeData;
+  const nodeEditorInheritedProps = shouldUseSelectedNodeVisualEditor
+    ? selectedNodeVisualInheritedProps
+    : editingNodeInheritedProps;
 
   // Render the appropriate editor based on current state
   switch (panelView.kind) {
     case "nodeEditor":
+    case "nodeInfo":
       return (
         <NodeEditorView
-          nodeData={editingNodeData}
+          nodeData={nodeEditorData}
           onSave={nodeEditorHandlers.handleSave}
           onApply={nodeEditorHandlers.handleApply}
           onPreview={nodeEditorHandlers.previewVisuals}
-          inheritedProps={editingNodeInheritedProps}
+          inheritedProps={nodeEditorInheritedProps}
           onFooterRef={onFooterRef}
           readOnly={isReadOnly}
+          visualOnly={shouldUseSelectedNodeVisualEditor}
         />
       );
     case "linkEditor":
@@ -109,6 +125,8 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
         <FreeTextEditorView
           annotation={editingTextAnnotation}
           onSave={textAnnotationHandlers.onSave}
+          onPreview={textAnnotationHandlers.onPreview}
+          onPreviewDelete={textAnnotationHandlers.onPreviewDelete}
           onClose={textAnnotationHandlers.onClose}
           onDelete={textAnnotationHandlers.onDelete}
           onFooterRef={onFooterRef}
@@ -120,6 +138,8 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
         <FreeShapeEditorView
           annotation={editingShapeAnnotation}
           onSave={shapeAnnotationHandlers.onSave}
+          onPreview={shapeAnnotationHandlers.onPreview}
+          onPreviewDelete={shapeAnnotationHandlers.onPreviewDelete}
           onClose={shapeAnnotationHandlers.onClose}
           onDelete={shapeAnnotationHandlers.onDelete}
           onFooterRef={onFooterRef}
@@ -134,6 +154,18 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
           onClose={groupHandlers.onClose}
           onDelete={groupHandlers.onDelete}
           onStylePreview={groupHandlers.onStylePreview}
+          onFooterRef={onFooterRef}
+          readOnly={isReadOnly}
+        />
+      );
+    case "trafficRateEditor":
+      return (
+        <TrafficRateEditorView
+          annotation={editingTrafficRateAnnotation}
+          onSave={trafficRateAnnotationHandlers.onSave}
+          onPreview={trafficRateAnnotationHandlers.onPreview}
+          onClose={trafficRateAnnotationHandlers.onClose}
+          onDelete={trafficRateAnnotationHandlers.onDelete}
           onFooterRef={onFooterRef}
           readOnly={isReadOnly}
         />

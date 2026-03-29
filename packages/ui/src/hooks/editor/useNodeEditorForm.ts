@@ -2,14 +2,15 @@
  * useNodeEditorForm - Form state management for the Node Editor
  * Extracted from NodeEditorView.tsx
  */
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 import type { NodeEditorData, NodeEditorTabId } from "../../components/panels/node-editor/types";
+import { convertEditorDataToNodeSaveData } from "../../core/utilities";
 
 import { applyFormUpdates } from "./formState";
 
 /** Maps YAML kebab-case keys to camelCase NodeEditorData keys */
-export const YAML_TO_EDITOR_MAP: Record<string, keyof NodeEditorData> = {
+export const YAML_TO_EDITOR_MAP: Partial<Record<string, keyof NodeEditorData>> = {
   "startup-config": "startupConfig",
   "enforce-startup-config": "enforceStartupConfig",
   "suppress-startup-config": "suppressStartupConfig",
@@ -31,9 +32,9 @@ export function hasFieldChanged(
   formData: NodeEditorData,
   initialData: NodeEditorData
 ): boolean {
-  const editorKey = YAML_TO_EDITOR_MAP[yamlKey] || yamlKey;
-  const currentVal = formData[editorKey as keyof NodeEditorData];
-  const initialVal = initialData[editorKey as keyof NodeEditorData];
+  const editorKey = YAML_TO_EDITOR_MAP[yamlKey] ?? yamlKey;
+  const currentVal: unknown = Reflect.get(formData, editorKey);
+  const initialVal: unknown = Reflect.get(initialData, editorKey);
   return JSON.stringify(currentVal) !== JSON.stringify(initialVal);
 }
 
@@ -48,6 +49,37 @@ export interface UseNodeEditorFormReturn {
   originalData: NodeEditorData | null;
 }
 
+function normalizeForDirtyCheck(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => normalizeForDirtyCheck(entry))
+      .filter((entry) => entry !== undefined && entry !== null);
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const entries = Object.entries(value)
+      .map(([key, entry]) => [key, normalizeForDirtyCheck(entry)] as const)
+      .filter(([, entry]) => entry !== undefined && entry !== null)
+      .sort(([a], [b]) => a.localeCompare(b));
+
+    if (entries.length === 0) return undefined;
+
+    const normalized: Record<string, unknown> = {};
+    for (const [key, entry] of entries) {
+      normalized[key] = entry;
+    }
+    return normalized;
+  }
+
+  return value;
+}
+
+function toDirtySnapshot(data: NodeEditorData): string {
+  const saveData = convertEditorDataToNodeSaveData(data);
+  const normalized = normalizeForDirtyCheck(saveData);
+  return JSON.stringify(normalized);
+}
+
 export function useNodeEditorForm(
   nodeData: NodeEditorData | null,
   readOnly = false
@@ -58,6 +90,13 @@ export function useNodeEditorForm(
   const [originalData, setOriginalData] = useState<NodeEditorData | null>(null);
   const [loadedNodeId, setLoadedNodeId] = useState<string | null>(null);
   const skipNextSyncRef = useRef(false);
+  const formDataRef = useRef<NodeEditorData | null>(null);
+  const lastAppliedDataRef = useRef<NodeEditorData | null>(null);
+
+  useEffect(() => {
+    formDataRef.current = formData;
+    lastAppliedDataRef.current = lastAppliedData;
+  }, [formData, lastAppliedData]);
 
   useEffect(() => {
     if (nodeData && nodeData.id !== loadedNodeId) {
@@ -72,9 +111,26 @@ export function useNodeEditorForm(
         skipNextSyncRef.current = false;
         return;
       }
+      const currentFormData = formDataRef.current;
+      const currentLastAppliedData = lastAppliedDataRef.current;
+      const hasLocalChanges =
+        currentFormData !== null &&
+        currentLastAppliedData !== null &&
+        toDirtySnapshot(currentFormData) !== toDirtySnapshot(currentLastAppliedData);
+      if (hasLocalChanges) {
+        return;
+      }
+      const nextSnapshot = toDirtySnapshot(nodeData);
+      const formSnapshot = currentFormData ? toDirtySnapshot(currentFormData) : null;
+      const appliedSnapshot = currentLastAppliedData
+        ? toDirtySnapshot(currentLastAppliedData)
+        : null;
+      if (formSnapshot === nextSnapshot && appliedSnapshot === nextSnapshot) {
+        return;
+      }
       setFormData({ ...nodeData });
       setLastAppliedData({ ...nodeData });
-    } else if (!nodeData && loadedNodeId) {
+    } else if (nodeData === null && loadedNodeId !== null) {
       setLoadedNodeId(null);
       skipNextSyncRef.current = false;
     }
@@ -98,10 +154,10 @@ export function useNodeEditorForm(
     if (lastAppliedData) setFormData({ ...lastAppliedData });
   }, [lastAppliedData]);
 
-  const hasChanges =
-    formData && lastAppliedData
-      ? JSON.stringify(formData) !== JSON.stringify(lastAppliedData)
-      : false;
+  const hasChanges = useMemo(() => {
+    if (!formData || !lastAppliedData) return false;
+    return toDirtySnapshot(formData) !== toDirtySnapshot(lastAppliedData);
+  }, [formData, lastAppliedData]);
 
   return {
     activeTab,

@@ -16,8 +16,8 @@ import {
   ReactFlow,
   ReactFlowProvider,
   SelectionMode,
-  getNodesBounds,
   getViewportForBounds,
+  useReactFlow,
   useNodesInitialized,
   useStore,
   type Edge,
@@ -28,6 +28,7 @@ import {
 import {
   FREE_SHAPE_NODE_TYPE,
   FREE_TEXT_NODE_TYPE,
+  TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE,
   isAnnotationNodeType
 } from "../../annotations/annotationNodeConverters";
@@ -73,6 +74,25 @@ const MIN_ZOOM = 0.1;
 const MAX_FIT_ZOOM = 2;
 
 /** Hook for wrapped node click handling */
+function resolveAltDeleteHandler(
+  nodeType: string | undefined,
+  annotationHandlers?: AnnotationHandlers
+): ((nodeId: string) => void) | undefined {
+  if (!annotationHandlers) return undefined;
+  switch (nodeType) {
+    case FREE_TEXT_NODE_TYPE:
+      return annotationHandlers.onDeleteFreeText;
+    case FREE_SHAPE_NODE_TYPE:
+      return annotationHandlers.onDeleteFreeShape;
+    case GROUP_NODE_TYPE:
+      return annotationHandlers.onDeleteGroup;
+    case TRAFFIC_RATE_NODE_TYPE:
+      return annotationHandlers.onDeleteTrafficRate;
+    default:
+      return undefined;
+  }
+}
+
 function handleAltDelete(
   event: React.MouseEvent,
   node: { id: string; type?: string },
@@ -81,31 +101,30 @@ function handleAltDelete(
   handleDeleteNode: (nodeId: string) => void,
   annotationHandlers?: AnnotationHandlers
 ): boolean {
-  if (!event.altKey || mode !== "edit" || isLocked) return false;
+  if (!event.altKey || isLocked) return false;
+
+  // Annotation overlays are editable in unlocked view mode (running labs).
+  const annotationDelete = resolveAltDeleteHandler(node.type, annotationHandlers);
+  if (annotationDelete) {
+    event.stopPropagation();
+    annotationDelete(node.id);
+    return true;
+  }
+
+  if (mode !== "edit") return false;
+
   event.stopPropagation();
-  if (node.type === FREE_TEXT_NODE_TYPE && annotationHandlers?.onDeleteFreeText) {
-    annotationHandlers.onDeleteFreeText(node.id);
-    return true;
-  }
-  if (node.type === FREE_SHAPE_NODE_TYPE && annotationHandlers?.onDeleteFreeShape) {
-    annotationHandlers.onDeleteFreeShape(node.id);
-    return true;
-  }
-  if (node.type === GROUP_NODE_TYPE && annotationHandlers?.onDeleteGroup) {
-    annotationHandlers.onDeleteGroup(node.id);
-    return true;
-  }
   handleDeleteNode(node.id);
   return true;
 }
 
 function handleLinkCreationClick(
   event: React.MouseEvent,
-  node: { id: string; type?: string },
+  node: Node,
   linkSourceNode: string | null,
   completeLinkCreation: (nodeId: string) => void
 ): boolean {
-  if (!linkSourceNode) return false;
+  if (linkSourceNode == null || linkSourceNode.length === 0) return false;
   const isLoopLink = linkSourceNode === node.id;
   const isNetworkNode = node.type === "network-node";
   if (isLoopLink && isNetworkNode) {
@@ -116,19 +135,66 @@ function handleLinkCreationClick(
   return true;
 }
 
+function isLinkCreationNode(node: Node): boolean {
+  return node.type === "topology-node" || node.type === "network-node";
+}
+
+function hasOtherSelectedTopologyNodes(
+  reactFlowInstanceRef: React.RefObject<ReactFlowInstance | null>,
+  nodeId: string
+): boolean {
+  const instance = reactFlowInstanceRef.current;
+  if (!instance) return false;
+  return instance
+    .getNodes()
+    .some(
+      (candidate) =>
+        candidate.selected === true &&
+        candidate.id !== nodeId &&
+        (candidate.type === "topology-node" || candidate.type === "network-node")
+    );
+}
+
+function handleShiftStartLinkClick(
+  event: React.MouseEvent,
+  node: Node,
+  linkSourceNode: string | null,
+  startLinkCreation: (nodeId: string) => void,
+  mode: "view" | "edit",
+  isLocked: boolean,
+  hasOtherSelectedNodes: boolean,
+  onLockedAction?: () => void
+): boolean {
+  if (!event.shiftKey) return false;
+  if (linkSourceNode != null && linkSourceNode.length > 0) return false;
+  if (mode !== "edit") return false;
+  if (!isLinkCreationNode(node)) return false;
+  // Preserve multi-select flows: if additional nodes are already selected,
+  // treat Shift+Click as selection expansion, not link creation.
+  if (hasOtherSelectedNodes) return false;
+
+  event.stopPropagation();
+  if (isLocked) {
+    onLockedAction?.();
+    return true;
+  }
+  startLinkCreation(node.id);
+  return true;
+}
+
 function openAnnotationEditor(
-  node: { id: string; type?: string },
+  node: Node,
   clearContextForAnnotationEdit: () => void,
   annotationHandlers?: AnnotationHandlers
 ): boolean {
   if (!annotationHandlers) return false;
 
-  if (node.type === FREE_TEXT_NODE_TYPE && annotationHandlers.onEditFreeText) {
+  if (node.type === FREE_TEXT_NODE_TYPE) {
     clearContextForAnnotationEdit();
     annotationHandlers.onEditFreeText(node.id);
     return true;
   }
-  if (node.type === FREE_SHAPE_NODE_TYPE && annotationHandlers.onEditFreeShape) {
+  if (node.type === FREE_SHAPE_NODE_TYPE) {
     clearContextForAnnotationEdit();
     annotationHandlers.onEditFreeShape(node.id);
     return true;
@@ -138,41 +204,83 @@ function openAnnotationEditor(
     annotationHandlers.onEditGroup(node.id);
     return true;
   }
+  if (node.type === TRAFFIC_RATE_NODE_TYPE && annotationHandlers.onEditTrafficRate) {
+    clearContextForAnnotationEdit();
+    annotationHandlers.onEditTrafficRate(node.id);
+    return true;
+  }
 
   return false;
 }
 
-function useWrappedNodeClick(
-  linkSourceNode: string | null,
-  completeLinkCreation: (nodeId: string) => void,
-  onNodeClick: ReturnType<typeof useCanvasHandlers>["onNodeClick"],
-  mode: "view" | "edit",
-  isLocked: boolean,
-  handleDeleteNode: (nodeId: string) => void,
-  clearContextForAnnotationEdit: () => void,
-  annotationHandlers?: AnnotationHandlers
-) {
+interface WrappedNodeClickConfig {
+  linkSourceNode: string | null;
+  startLinkCreation: (nodeId: string) => void;
+  completeLinkCreation: (nodeId: string) => void;
+  reactFlowInstanceRef: React.RefObject<ReactFlowInstance | null>;
+  onNodeClick: ReturnType<typeof useCanvasHandlers>["onNodeClick"];
+  mode: "view" | "edit";
+  isLocked: boolean;
+  handleDeleteNode: (nodeId: string) => void;
+  clearContextForAnnotationEdit: () => void;
+  onLockedAction?: () => void;
+  annotationHandlers?: AnnotationHandlers;
+}
+
+function useWrappedNodeClick(config: WrappedNodeClickConfig) {
+  const {
+    linkSourceNode,
+    startLinkCreation,
+    completeLinkCreation,
+    reactFlowInstanceRef,
+    onNodeClick,
+    mode,
+    isLocked,
+    handleDeleteNode,
+    clearContextForAnnotationEdit,
+    onLockedAction,
+    annotationHandlers
+  } = config;
+
   return useCallback(
-    (event: React.MouseEvent, node: { id: string; type?: string }) => {
+    (event: React.MouseEvent, node: Node) => {
       if (handleAltDelete(event, node, mode, isLocked, handleDeleteNode, annotationHandlers))
         return;
       if (handleLinkCreationClick(event, node, linkSourceNode, completeLinkCreation)) return;
+      const hasOtherSelectedNodes = hasOtherSelectedTopologyNodes(reactFlowInstanceRef, node.id);
+      if (
+        handleShiftStartLinkClick(
+          event,
+          node,
+          linkSourceNode,
+          startLinkCreation,
+          mode,
+          isLocked,
+          hasOtherSelectedNodes,
+          onLockedAction
+        )
+      ) {
+        return;
+      }
       const didOpenAnnotationEditor = openAnnotationEditor(
         node,
         clearContextForAnnotationEdit,
         annotationHandlers
       );
-      onNodeClick(event, node as Parameters<typeof onNodeClick>[1]);
       if (didOpenAnnotationEditor) return;
+      onNodeClick(event, node);
     },
     [
       linkSourceNode,
+      startLinkCreation,
       completeLinkCreation,
+      reactFlowInstanceRef,
       onNodeClick,
       mode,
       isLocked,
       handleDeleteNode,
       clearContextForAnnotationEdit,
+      onLockedAction,
       annotationHandlers
     ]
   );
@@ -185,13 +293,13 @@ function useWrappedEdgeClick(
   handleDeleteEdge: (edgeId: string) => void
 ) {
   return useCallback(
-    (event: React.MouseEvent, edge: { id: string }) => {
+    (event: React.MouseEvent, edge: Edge) => {
       if (event.altKey && mode === "edit" && !isLocked) {
         event.stopPropagation();
         handleDeleteEdge(edge.id);
         return;
       }
-      onEdgeClick(event, edge as Parameters<typeof onEdgeClick>[1]);
+      onEdgeClick(event, edge);
     },
     [onEdgeClick, mode, isLocked, handleDeleteEdge]
   );
@@ -229,7 +337,9 @@ function getContextPanelOcclusion(
     return { side: null, width: 0 };
   }
 
-  const panel = document.querySelector<HTMLElement>("[data-testid='context-panel'] .MuiDrawer-paper");
+  const panel = document.querySelector<HTMLElement>(
+    "[data-testid='context-panel'] .MuiDrawer-paper"
+  );
   if (!panel) {
     return { side: null, width: 0 };
   }
@@ -249,7 +359,9 @@ function getContextPanelOcclusion(
 }
 
 function hasFiniteViewport(viewport: { x: number; y: number; zoom: number }): boolean {
-  return Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && Number.isFinite(viewport.zoom);
+  return (
+    Number.isFinite(viewport.x) && Number.isFinite(viewport.y) && Number.isFinite(viewport.zoom)
+  );
 }
 
 // ============================================================================
@@ -281,7 +393,7 @@ function useRenderConfig(
   const edgeRenderConfig = useMemo(
     () => ({
       labelMode: linkLabelMode,
-      suppressLabels: isLowDetail,
+      suppressLabels: isLowDetail && linkLabelMode !== "telemetry-style",
       suppressHitArea: isLowDetail
     }),
     [linkLabelMode, isLowDetail]
@@ -357,11 +469,38 @@ function useWrappedOnInit(
 
 const CANVAS_DROP_MIME_TYPE = "application/reactflow-node";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isCanvasDropDataType(value: unknown): value is CanvasDropData["type"] {
+  return value === "node" || value === "network" || value === "annotation";
+}
+
+function isCanvasDropData(value: unknown): value is CanvasDropData {
+  if (!isRecord(value)) return false;
+  if (!isCanvasDropDataType(value.type)) return false;
+  if (value.templateName !== undefined && typeof value.templateName !== "string") return false;
+  if (value.networkType !== undefined && typeof value.networkType !== "string") return false;
+  if (
+    value.annotationType !== undefined &&
+    value.annotationType !== "text" &&
+    value.annotationType !== "shape" &&
+    value.annotationType !== "group" &&
+    value.annotationType !== "traffic-rate"
+  ) {
+    return false;
+  }
+  if (value.shapeType !== undefined && typeof value.shapeType !== "string") return false;
+  return true;
+}
+
 function parseCanvasDropData(event: React.DragEvent): CanvasDropData | null {
   const dataStr = event.dataTransfer.getData(CANVAS_DROP_MIME_TYPE);
   if (!dataStr) return null;
   try {
-    return JSON.parse(dataStr) as CanvasDropData;
+    const parsed: unknown = JSON.parse(dataStr);
+    return isCanvasDropData(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -386,7 +525,9 @@ function handleNodeDrop(
   snappedPosition: { x: number; y: number },
   handlers: CanvasDropHandlers
 ) {
-  if (!data.templateName || !handlers.onDropCreateNode) return;
+  if (data.templateName == null || data.templateName.length === 0 || !handlers.onDropCreateNode) {
+    return;
+  }
   handlers.onDropCreateNode(snappedPosition, data.templateName);
 }
 
@@ -395,7 +536,9 @@ function handleNetworkDrop(
   snappedPosition: { x: number; y: number },
   handlers: CanvasDropHandlers
 ) {
-  if (!data.networkType || !handlers.onDropCreateNetwork) return;
+  if (data.networkType == null || data.networkType.length === 0 || !handlers.onDropCreateNetwork) {
+    return;
+  }
   handlers.onDropCreateNetwork(snappedPosition, data.networkType);
 }
 
@@ -414,6 +557,10 @@ function handleAnnotationDrop(
   }
   if (data.annotationType === "group") {
     handlers.onAddGroupAtPosition?.(snappedPosition);
+    return;
+  }
+  if (data.annotationType === "traffic-rate") {
+    handlers.onAddTrafficRateAtPosition?.(snappedPosition);
   }
 }
 
@@ -430,9 +577,7 @@ function handleCanvasDrop(
     handleNetworkDrop(data, snappedPosition, handlers);
     return;
   }
-  if (data.type === "annotation") {
-    handleAnnotationDrop(data, snappedPosition, handlers);
-  }
+  handleAnnotationDrop(data, snappedPosition, handlers);
 }
 
 function handleCanvasDropEvent(params: {
@@ -445,10 +590,12 @@ function handleCanvasDropEvent(params: {
   const { event, mode, isLocked, reactFlowInstanceRef, handlers } = params;
   event.preventDefault();
 
-  if (mode !== "edit" || isLocked) return;
+  if (isLocked) return;
 
   const data = parseCanvasDropData(event);
   if (!data) return;
+  // Deployed labs run in view mode, but unlocked users can still place annotation overlays.
+  if (mode !== "edit" && data.type !== "annotation") return;
 
   const rfInstance = reactFlowInstanceRef.current;
   if (!rfInstance) return;
@@ -486,13 +633,15 @@ function getRenderableNodes(allNodes: Node[], nodesDraggable: boolean): Node[] {
   if (nodesDraggable) return allNodes;
 
   let changed = false;
-  const nextNodes = allNodes.map((node) => {
+  const nextNodes: Node[] = [];
+  for (const node of allNodes) {
     if (!isAnnotationNodeType(node.type) || node.draggable === false) {
-      return node;
+      nextNodes.push(node);
+      continue;
     }
     changed = true;
-    return { ...node, draggable: false };
-  });
+    nextNodes.push({ ...node, draggable: false });
+  }
   return changed ? nextNodes : allNodes;
 }
 
@@ -530,14 +679,14 @@ function useLinkTargetHover(linkSourceNode: string | null) {
   const [linkTargetNodeId, setLinkTargetNodeId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!linkSourceNode) {
+    if (linkSourceNode == null || linkSourceNode.length === 0) {
       setLinkTargetNodeId(null);
     }
   }, [linkSourceNode]);
 
   const handleNodeMouseEnter = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      if (!linkSourceNode) return;
+      if (linkSourceNode == null || linkSourceNode.length === 0) return;
       setLinkTargetNodeId(node.id);
     },
     [linkSourceNode]
@@ -545,7 +694,7 @@ function useLinkTargetHover(linkSourceNode: string | null) {
 
   const handleNodeMouseLeave = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      if (!linkSourceNode) return;
+      if (linkSourceNode == null || linkSourceNode.length === 0) return;
       setLinkTargetNodeId((current) => (current === node.id ? null : current));
     },
     [linkSourceNode]
@@ -567,8 +716,6 @@ function useGeoWheelZoom(
     if (!map || !container) return;
 
     const handleWheel = (event: WheelEvent) => {
-      if (!isGeoLayout || !isGeoEdit) return;
-
       const mapCanvas = map.getCanvas();
       if (event.target instanceof Element && mapCanvas.contains(event.target)) {
         // Let native MapLibre scroll-zoom handle direct map-canvas wheel events.
@@ -679,9 +826,11 @@ function getGeoEditableState(isGeoLayout: boolean, isLocked: boolean): boolean {
   return isGeoLayout && !isLocked;
 }
 
-function getEffectiveEdgeRenderConfig(
-  edgeRenderConfig: { labelMode: EdgeLabelMode; suppressLabels: boolean; suppressHitArea: boolean }
-): { labelMode: EdgeLabelMode; suppressLabels: boolean; suppressHitArea: boolean } {
+function getEffectiveEdgeRenderConfig(edgeRenderConfig: {
+  labelMode: EdgeLabelMode;
+  suppressLabels: boolean;
+  suppressHitArea: boolean;
+}): { labelMode: EdgeLabelMode; suppressLabels: boolean; suppressHitArea: boolean } {
   return edgeRenderConfig;
 }
 
@@ -701,7 +850,7 @@ function getGeoInteractingState(isGeoLayout: boolean, isInteracting: boolean): b
 }
 
 function shouldOnlyRenderVisibleElements(isLowDetail: boolean, isGeoLayout: boolean): boolean {
-  return !isLowDetail && !isGeoLayout;
+  return isLowDetail && !isGeoLayout;
 }
 
 function renderGeoMapLayer(
@@ -731,6 +880,8 @@ function renderBackgroundLayer(params: {
 }): React.ReactElement {
   const { gridLineWidth, gridStyle, effectiveGridColor, gridBgColor } = params;
   const isQuadraticGrid = gridStyle === "quadratic";
+  const backgroundStyle =
+    gridBgColor != null && gridBgColor.length > 0 ? { backgroundColor: gridBgColor } : undefined;
   return (
     <Background
       variant={isQuadraticGrid ? BackgroundVariant.Lines : BackgroundVariant.Dots}
@@ -738,7 +889,7 @@ function renderBackgroundLayer(params: {
       size={isQuadraticGrid ? undefined : gridLineWidth}
       lineWidth={isQuadraticGrid ? gridLineWidth : undefined}
       color={effectiveGridColor}
-      style={gridBgColor ? { backgroundColor: gridBgColor } : undefined}
+      style={backgroundStyle}
     />
   );
 }
@@ -816,9 +967,11 @@ function buildCanvasOverlays(params: {
 
   const canShowGeoMap = isGeoLayout;
   const canShowBackground = !isLowDetail && !isGeoLayout;
-  const canShowLinkCreation = Boolean(linkSourceNode);
-  const canShowLinkIndicator = Boolean(linkSourceNode);
-  const canShowAnnotationIndicator = isInAddMode && Boolean(addModeMessage);
+  const hasLinkSourceNode = linkSourceNode != null && linkSourceNode.length > 0;
+  const hasAddModeMessage = addModeMessage != null && addModeMessage.length > 0;
+  const canShowLinkCreation = hasLinkSourceNode;
+  const canShowLinkIndicator = hasLinkSourceNode;
+  const canShowAnnotationIndicator = isInAddMode && hasAddModeMessage;
 
   const geoMapLayer = canShowGeoMap ? renderGeoMapLayer(geoContainerRef) : null;
   const backgroundLayer = canShowBackground
@@ -826,7 +979,7 @@ function buildCanvasOverlays(params: {
     : null;
   const linkCreationLine = canShowLinkCreation
     ? renderLinkCreationLine({
-        linkSourceNode: linkSourceNode as string,
+        linkSourceNode: linkSourceNode,
         linkTargetNodeId,
         nodes,
         edges,
@@ -834,9 +987,9 @@ function buildCanvasOverlays(params: {
         linkCreationSeed
       })
     : null;
-  const linkIndicator = canShowLinkIndicator ? renderLinkIndicator(linkSourceNode as string) : null;
+  const linkIndicator = canShowLinkIndicator ? renderLinkIndicator(linkSourceNode) : null;
   const annotationIndicator = canShowAnnotationIndicator
-    ? renderAnnotationIndicator(addModeMessage as string)
+    ? renderAnnotationIndicator(addModeMessage)
     : null;
 
   return { geoMapLayer, backgroundLayer, linkCreationLine, linkIndicator, annotationIndicator };
@@ -879,6 +1032,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       onAddTextAtPosition,
       onAddGroupAtPosition,
       onAddShapeAtPosition,
+      onAddTrafficRateAtPosition,
       onDropCreateNode,
       onDropCreateNetwork,
       onLockedAction
@@ -905,6 +1059,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
     const lastFitViewRequestRef = useRef(0);
     const [isReactFlowReady, setIsReactFlowReady] = useState(false);
     const areNodesInitialized = useNodesInitialized({ includeHiddenNodes: false });
+    const { getNodesBounds } = useReactFlow<Node, Edge>();
     const suppressSelectionSyncUntilRef = useRef(0);
 
     const topoState = useMemo(() => ({ mode, isLocked }), [mode, isLocked]);
@@ -914,10 +1069,10 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       useCanvasStore();
 
     // All nodes (topology + annotation) are now unified in propNodes
-    const allNodes = useMemo(() => (propNodes as Node[]) ?? [], [propNodes]);
-    const allEdges = useMemo(() => (propEdges as Edge[]) ?? [], [propEdges]);
+    const allNodes = useMemo<Node[]>(() => propNodes ?? [], [propNodes]);
+    const allEdges = useMemo<Edge[]>(() => propEdges ?? [], [propEdges]);
     const visibleNodeCount = useMemo(
-      () => allNodes.reduce((count, node) => (node.hidden ? count : count + 1), 0),
+      () => allNodes.reduce((count, node) => (node.hidden === true ? count : count + 1), 0),
       [allNodes]
     );
 
@@ -980,7 +1135,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       async (options: { padding: number; duration: number }) => {
         const instance = reactFlowInstanceRef.current;
         const canvasContainer = canvasContainerRef.current;
-        const visibleNodes = allNodes.filter((node) => !node.hidden);
+        const visibleNodes = allNodes.filter((node) => node.hidden !== true);
 
         if (!instance || !canvasContainer || visibleNodes.length === 0) {
           return;
@@ -1012,7 +1167,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
         const adjustedX = occlusion.side === "left" ? viewport.x + occlusion.width : viewport.x;
         await instance.setViewport({ x: adjustedX, y: viewport.y, zoom: viewport.zoom }, options);
       },
-      [allNodes, isContextPanelOpen]
+      [allNodes, getNodesBounds, isContextPanelOpen]
     );
 
     useEffect(() => {
@@ -1033,6 +1188,18 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       const requestedFitId = fitViewRequestId;
       let completedPasses = 0;
       const requiredPasses = 2;
+      let retryCount = 0;
+      const MAX_FIT_RETRIES = 120;
+
+      const scheduleRetry = () => {
+        if (cancelled) return;
+        retryCount += 1;
+        if (retryCount > MAX_FIT_RETRIES) {
+          lastFitViewRequestRef.current = requestedFitId;
+          return;
+        }
+        window.requestAnimationFrame(tryFit);
+      };
 
       const tryFit = () => {
         if (cancelled) return;
@@ -1040,13 +1207,13 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
 
         if (isGeoLayout) {
           if (!geoLayout.isReady) {
-            window.requestAnimationFrame(tryFit);
+            scheduleRetry();
             return;
           }
           geoLayout.fitToViewport({ duration: 0 });
           completedPasses += 1;
           if (completedPasses < requiredPasses) {
-            window.requestAnimationFrame(tryFit);
+            scheduleRetry();
             return;
           }
           lastFitViewRequestRef.current = requestedFitId;
@@ -1057,7 +1224,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
         const canvasRect = canvasContainer?.getBoundingClientRect();
         const hasCanvasArea = Boolean(canvasRect && canvasRect.width > 1 && canvasRect.height > 1);
         if (!hasCanvasArea) {
-          window.requestAnimationFrame(tryFit);
+          scheduleRetry();
           return;
         }
 
@@ -1067,14 +1234,14 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
             if (requestedFitId <= lastFitViewRequestRef.current) return;
             completedPasses += 1;
             if (completedPasses < requiredPasses) {
-              window.requestAnimationFrame(tryFit);
+              scheduleRetry();
               return;
             }
             lastFitViewRequestRef.current = requestedFitId;
           })
           .catch(() => {
             if (cancelled) return;
-            window.requestAnimationFrame(tryFit);
+            scheduleRetry();
           });
       };
 
@@ -1199,14 +1366,16 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
     );
     useImperativeHandle(ref, () => refHandle, [refHandle]);
 
-    const wrappedOnNodeClick = useWrappedNodeClick(
+    const wrappedOnNodeClick = useWrappedNodeClick({
       linkSourceNode,
+      startLinkCreation,
       completeLinkCreation,
-      handlers.onNodeClick,
+      reactFlowInstanceRef: handlers.reactFlowInstance,
+      onNodeClick: handlers.onNodeClick,
       mode,
       isLocked,
       handleDeleteNode,
-      () => {
+      clearContextForAnnotationEdit: () => {
         // Switch the context panel from node/link editors to annotation editors.
         // This is intentionally destructive to any in-progress node/link edits.
         editNode(null);
@@ -1217,8 +1386,9 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
         selectNode(null);
         selectEdge(null);
       },
+      onLockedAction,
       annotationHandlers
-    );
+    });
     const wrappedOnEdgeClick = useWrappedEdgeClick(
       handlers.onEdgeClick,
       mode,
@@ -1248,7 +1418,8 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       onAddText,
       onAddTextAtPosition,
       onAddShapes,
-      onAddShapeAtPosition
+      onAddShapeAtPosition,
+      onAddTrafficRateAtPosition
     });
 
     const {
@@ -1279,13 +1450,17 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       const handleMapClick = (event: { originalEvent?: MouseEvent }) => {
         const originalEvent = event.originalEvent;
         if (!originalEvent) return;
-        const target = (originalEvent.target as EventTarget | null) ?? canvasContainerRef.current;
-        wrappedOnPaneClick({
-          shiftKey: originalEvent.shiftKey,
-          target: (target ?? document.body) as EventTarget,
-          clientX: originalEvent.clientX,
-          clientY: originalEvent.clientY
-        } as React.MouseEvent);
+        const pane = canvasContainerRef.current?.querySelector<HTMLElement>(".react-flow__pane");
+        if (!pane) return;
+        pane.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            clientX: originalEvent.clientX,
+            clientY: originalEvent.clientY,
+            shiftKey: originalEvent.shiftKey
+          })
+        );
       };
 
       map.on("click", handleMapClick);
@@ -1338,7 +1513,8 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
             onDropCreateNetwork,
             onAddTextAtPosition,
             onAddShapeAtPosition,
-            onAddGroupAtPosition
+            onAddGroupAtPosition,
+            onAddTrafficRateAtPosition
           }
         });
       },
@@ -1350,7 +1526,8 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
         onDropCreateNetwork,
         onAddTextAtPosition,
         onAddShapeAtPosition,
-        onAddGroupAtPosition
+        onAddGroupAtPosition,
+        onAddTrafficRateAtPosition
       ]
     );
 
@@ -1373,7 +1550,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       [allNodes, nodesDraggable]
     );
     const effectiveGridColor = useMemo(() => {
-      if (gridColor) return gridColor;
+      if (gridColor != null && gridColor.length > 0) return gridColor;
       const bg = gridBgColor ?? resolveComputedColor("--vscode-editor-background", "#1e1e1e");
       return invertHexColor(bg);
     }, [gridColor, gridBgColor]);
@@ -1404,6 +1581,10 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       [closeContextMenu]
     );
 
+    const handleCanvasContextMenu = useCallback((event: React.MouseEvent) => {
+      event.preventDefault();
+    }, []);
+
     return (
       <div
         ref={canvasContainerRef}
@@ -1411,7 +1592,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
         className={getCanvasContainerClassName(isGeoLayout, isGeoInteracting)}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={handleCanvasContextMenu}
       >
         {overlays.geoMapLayer}
         <ReactFlow

@@ -16,6 +16,7 @@ import {
   Layers as LayersIcon,
   Link as LinkIcon,
   Remove as RemoveIcon,
+  Speed as SpeedIcon,
   Terminal as TerminalIcon,
   TextFields as TextFieldsIcon,
   Tune as TuneIcon
@@ -28,6 +29,7 @@ import { sendCommandToExtension } from "../../messaging/extensionMessaging";
 import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
+  TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE
 } from "../../annotations/annotationNodeConverters";
 
@@ -63,6 +65,10 @@ interface MenuBuilderContext {
   editGroup?: (id: string) => void;
   /** Delete group annotation */
   deleteGroup?: (id: string) => void;
+  /** Edit traffic-rate annotation */
+  editTrafficRate?: (id: string) => void;
+  /** Delete traffic-rate annotation */
+  deleteTrafficRate?: (id: string) => void;
 }
 
 interface EdgeMenuBuilderContext {
@@ -89,6 +95,7 @@ type PaneMenuActions = Pick<
   | "onAddTextAtPosition"
   | "onAddShapes"
   | "onAddShapeAtPosition"
+  | "onAddTrafficRateAtPosition"
 >;
 
 interface PaneMenuBuilderContext extends PaneMenuActions {
@@ -102,11 +109,24 @@ interface PaneMenuBuilderContext extends PaneMenuActions {
   menuPosition?: { x: number; y: number };
 }
 
+function isNonEmptyString(value: string | undefined | null): value is string {
+  return typeof value === "string" && value.length > 0;
+}
+
+function getExtraDataString(
+  extraData: Record<string, unknown> | undefined,
+  key: string
+): string | undefined {
+  if (extraData === undefined) return undefined;
+  const value = extraData[key];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
 /**
  * Build context menu for free text annotations
  */
 function buildFreeTextContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, isEditMode, isLocked, closeContextMenu, editFreeText, deleteFreeText } = ctx;
+  const { targetId, isLocked, closeContextMenu, editFreeText, deleteFreeText } = ctx;
 
   const items: ContextMenuItem[] = [
     {
@@ -120,7 +140,7 @@ function buildFreeTextContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       }
     }
   ];
-  if (isEditMode) {
+  if (!isLocked) {
     items.push(
       { id: DIVIDER_ID, label: "", divider: true },
       {
@@ -143,7 +163,7 @@ function buildFreeTextContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
  * Build context menu for free shape annotations
  */
 function buildFreeShapeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, isEditMode, isLocked, closeContextMenu, editFreeShape, deleteFreeShape } = ctx;
+  const { targetId, isLocked, closeContextMenu, editFreeShape, deleteFreeShape } = ctx;
 
   const items: ContextMenuItem[] = [
     {
@@ -157,7 +177,7 @@ function buildFreeShapeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       }
     }
   ];
-  if (isEditMode) {
+  if (!isLocked) {
     items.push(
       { id: DIVIDER_ID, label: "", divider: true },
       {
@@ -180,7 +200,7 @@ function buildFreeShapeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
  * Build context menu for group annotations
  */
 function buildGroupContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, isEditMode, isLocked, closeContextMenu, editGroup, deleteGroup } = ctx;
+  const { targetId, isLocked, closeContextMenu, editGroup, deleteGroup } = ctx;
 
   const items: ContextMenuItem[] = [
     {
@@ -194,7 +214,7 @@ function buildGroupContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       }
     }
   ];
-  if (isEditMode) {
+  if (!isLocked) {
     items.push(
       { id: DIVIDER_ID, label: "", divider: true },
       {
@@ -210,6 +230,45 @@ function buildGroupContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       }
     );
   }
+  return items;
+}
+
+/**
+ * Build context menu for traffic-rate annotations
+ */
+function buildTrafficRateContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
+  const { targetId, isLocked, closeContextMenu, editTrafficRate, deleteTrafficRate } = ctx;
+
+  const items: ContextMenuItem[] = [
+    {
+      id: "edit-traffic-rate",
+      label: "Edit Traffic Rate",
+      icon: React.createElement(EditIcon, { fontSize: "small" }),
+      disabled: isLocked,
+      onClick: () => {
+        editTrafficRate?.(targetId);
+        closeContextMenu();
+      }
+    }
+  ];
+
+  if (!isLocked) {
+    items.push(
+      { id: DIVIDER_ID, label: "", divider: true },
+      {
+        id: "delete-traffic-rate",
+        label: "Delete Traffic Rate",
+        icon: React.createElement(DeleteIcon, { fontSize: "small" }),
+        disabled: isLocked,
+        danger: true,
+        onClick: () => {
+          deleteTrafficRate?.(targetId);
+          closeContextMenu();
+        }
+      }
+    );
+  }
+
   return items;
 }
 
@@ -281,6 +340,9 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
   if (targetNodeType === FREE_SHAPE_NODE_TYPE) {
     return buildFreeShapeContextMenu(ctx);
   }
+  if (targetNodeType === TRAFFIC_RATE_NODE_TYPE) {
+    return buildTrafficRateContextMenu(ctx);
+  }
   if (targetNodeType === GROUP_NODE_TYPE) {
     return buildGroupContextMenu(ctx);
   }
@@ -293,7 +355,7 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
   const isNetworkNode = targetNodeType === "network-node";
 
   // If in link creation mode, show cancel option
-  if (linkSourceNode) {
+  if (isNonEmptyString(linkSourceNode)) {
     items.push({
       id: "cancel-link",
       label: "Cancel Link Creation",
@@ -307,12 +369,12 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
   }
 
   // Show "Create Link" if not already in link creation mode
-  if (!linkSourceNode) {
+  if (!isNonEmptyString(linkSourceNode)) {
     items.push({
       id: "create-link",
       label: "Create Link",
       icon: React.createElement(LinkIcon, { fontSize: "small" }),
-      disabled: !isEditMode || isLocked,
+      disabled: isLocked,
       onClick: () => {
         startLinkCreation?.(targetId);
         closeContextMenu();
@@ -327,7 +389,7 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
     icon: isNetworkNode
       ? React.createElement(LanIcon, { fontSize: "small" })
       : React.createElement(EditIcon, { fontSize: "small" }),
-    disabled: !isEditMode || isLocked,
+    disabled: isLocked,
     onClick: () => {
       if (isNetworkNode) {
         editNetwork?.(targetId);
@@ -344,7 +406,7 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
     id: "delete-node",
     label: "Delete Node",
     icon: React.createElement(DeleteIcon, { fontSize: "small" }),
-    disabled: !isEditMode || isLocked,
+    disabled: isLocked,
     danger: true,
     onClick: () => handleDeleteNode(targetId)
   });
@@ -374,9 +436,9 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
 
   // Build capture items for each endpoint
   const captureItems: ContextMenuItem[] = [];
-  const srcName = (extraData?.clabSourceLongName as string) ?? sourceNode;
-  const dstName = (extraData?.clabTargetLongName as string) ?? targetNode;
-  if (srcName && sourceEndpoint) {
+  const srcName = getExtraDataString(extraData, "clabSourceLongName") ?? sourceNode;
+  const dstName = getExtraDataString(extraData, "clabTargetLongName") ?? targetNode;
+  if (isNonEmptyString(srcName) && isNonEmptyString(sourceEndpoint)) {
     captureItems.push({
       id: "capture-source",
       label: `${srcName} - ${sourceEndpoint}`,
@@ -390,7 +452,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
       }
     });
   }
-  if (dstName && targetEndpoint) {
+  if (isNonEmptyString(dstName) && isNonEmptyString(targetEndpoint)) {
     captureItems.push({
       id: "capture-target",
       label: `${dstName} - ${targetEndpoint}`,
@@ -437,7 +499,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
       id: "edit-edge",
       label: "Edit Link",
       icon: React.createElement(EditIcon, { fontSize: "small" }),
-      disabled: !isEditMode || isLocked,
+      disabled: isLocked,
       onClick: () => {
         editEdge(targetId);
         closeContextMenu();
@@ -448,7 +510,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
       id: "delete-edge",
       label: "Delete Link",
       icon: React.createElement(DeleteIcon, { fontSize: "small" }),
-      disabled: !isEditMode || isLocked,
+      disabled: isLocked,
       danger: true,
       onClick: () => handleDeleteEdge(targetId)
     }
@@ -471,6 +533,7 @@ export function buildPaneContextMenu(ctx: PaneMenuBuilderContext): ContextMenuIt
     onAddTextAtPosition,
     onAddShapes,
     onAddShapeAtPosition,
+    onAddTrafficRateAtPosition,
     menuPosition
   } = ctx;
   const items: ContextMenuItem[] = [];
@@ -589,6 +652,21 @@ export function buildPaneContextMenu(ctx: PaneMenuBuilderContext): ContextMenuIt
           }
         }
       ]
+    });
+  }
+  if (onAddTrafficRateAtPosition) {
+    editorItems.push({
+      id: "add-traffic-rate",
+      label: "Add Traffic Rate",
+      icon: React.createElement(SpeedIcon, { fontSize: "small" }),
+      disabled: isLocked,
+      onClick: () => {
+        const flowPosition = getFlowPosition();
+        if (flowPosition) {
+          onAddTrafficRateAtPosition(flowPosition);
+        }
+        closeContextMenu();
+      }
     });
   }
   if (editorItems.length > 0) {

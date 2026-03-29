@@ -24,7 +24,6 @@ async function clickNode(page: Page, nodeId: string): Promise<void> {
     if (!box) throw new Error(`Node ${nodeId} has no bounding box`);
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
     await page.waitForTimeout(300);
-    return;
   } catch {
     // Fallback: select directly through dev API when DOM node is off-viewport or not mounted yet.
     await page.evaluate((id) => {

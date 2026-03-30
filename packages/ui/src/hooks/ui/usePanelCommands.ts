@@ -8,7 +8,7 @@
  */
 import { useCallback, useState } from "react";
 
-import { sendCommandToExtension } from "../../messaging/extensionMessaging";
+import { sendLifecycleCommand } from "../../messaging/extensionMessaging";
 
 export interface DeploymentCommands {
   onDeploy: () => void;
@@ -22,12 +22,12 @@ export interface DeploymentCommands {
 // Keep deployment commands - they need extension to run containerlab CLI
 export function useDeploymentCommands(): DeploymentCommands {
   return {
-    onDeploy: useCallback(() => sendCommandToExtension("deployLab"), []),
-    onDeployCleanup: useCallback(() => sendCommandToExtension("deployLabCleanup"), []),
-    onDestroy: useCallback(() => sendCommandToExtension("destroyLab"), []),
-    onDestroyCleanup: useCallback(() => sendCommandToExtension("destroyLabCleanup"), []),
-    onRedeploy: useCallback(() => sendCommandToExtension("redeployLab"), []),
-    onRedeployCleanup: useCallback(() => sendCommandToExtension("redeployLabCleanup"), [])
+    onDeploy: useCallback(() => sendLifecycleCommand("deployLab"), []),
+    onDeployCleanup: useCallback(() => sendLifecycleCommand("deployLabCleanup"), []),
+    onDestroy: useCallback(() => sendLifecycleCommand("destroyLab"), []),
+    onDestroyCleanup: useCallback(() => sendLifecycleCommand("destroyLabCleanup"), []),
+    onRedeploy: useCallback(() => sendLifecycleCommand("redeployLab"), []),
+    onRedeployCleanup: useCallback(() => sendLifecycleCommand("redeployLabCleanup"), [])
   };
 }
 

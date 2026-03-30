@@ -1,9 +1,8 @@
 import { useEffect, useRef } from "react";
 
-import { usePostMessage } from "./usePostMessage";
+import { getClabUiHost } from "../../../host";
 
 export function useReadySignal(): void {
-  const postMessage = usePostMessage();
   const sentRef = useRef(false);
 
   useEffect(() => {
@@ -12,6 +11,6 @@ export function useReadySignal(): void {
     }
 
     sentRef.current = true;
-    postMessage({ command: "ready" });
-  }, [postMessage]);
+    getClabUiHost().explorer.connect();
+  }, []);
 }

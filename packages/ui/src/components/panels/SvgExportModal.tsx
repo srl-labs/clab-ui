@@ -34,15 +34,15 @@ import type {
   FreeShapeAnnotation,
   GroupStyleAnnotation
 } from "../../core/types/topology";
-import { EXPORT_COMMANDS } from "../../core/messages/extension";
-import { MSG_SVG_EXPORT_RESULT } from "../../core/messages/webview";
 import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
   GROUP_NODE_TYPE
 } from "../../annotations/annotationNodeConverters";
-import { sendCommandToExtension } from "../../messaging/extensionMessaging";
-import { subscribeToWebviewMessages } from "../../messaging/webviewMessageBus";
+import {
+  sendGrafanaBundleExport
+} from "../../messaging/extensionMessaging";
+import { getClabUiHost } from "../../host";
 import { log } from "../../utils/logger";
 import { ColorField, PREVIEW_GRID_BG_SX } from "../ui/form";
 import { DialogTitleWithClose } from "../ui/dialog/DialogChrome";
@@ -120,7 +120,7 @@ const INTERFACE_SELECT_TOKEN_PREFIX = "__token__:";
 const GLOBAL_INTERFACE_PART_INDEX_PREFIX = "__part-index__:";
 
 interface SvgExportResultMessage {
-  type: typeof MSG_SVG_EXPORT_RESULT;
+  type: "svgExportResult";
   requestId: string;
   success: boolean;
   error?: string;
@@ -283,7 +283,7 @@ function parseTrafficThresholdUnit(value: string): TrafficThresholdUnit {
 
 function isSvgExportResultMessage(value: unknown): value is SvgExportResultMessage {
   if (!isRecord(value)) return false;
-  if (value.type !== MSG_SVG_EXPORT_RESULT) return false;
+  if (value.type !== "svgExportResult") return false;
   if (asNonEmptyString(value.requestId) === null) return false;
   if (typeof value.success !== "boolean") return false;
   if (value.error !== undefined && typeof value.error !== "string") return false;
@@ -342,26 +342,25 @@ function requestGrafanaBundleExport(payload: GrafanaBundlePayload): Promise<stri
       reject(new Error("Timed out waiting for export confirmation"));
     }, 30_000);
 
-    unsubscribe = subscribeToWebviewMessages((event) => {
-      const message = event.data;
-      if (!isSvgExportResultMessage(message)) return;
-      if (message.requestId !== payload.requestId) return;
+    unsubscribe = getClabUiHost().topoViewer.subscribe((event) => {
+      if (!isSvgExportResultMessage(event)) return;
+      if (event.requestId !== payload.requestId) return;
 
       unsubscribe();
       window.clearTimeout(timeoutId);
 
-      if (!message.success) {
-        reject(new Error(message.error ?? "Grafana bundle export failed"));
+      if (!event.success) {
+        reject(new Error(event.error ?? "Grafana bundle export failed"));
         return;
       }
 
-      const files = Array.isArray(message.files)
-        ? message.files.filter((file): file is string => typeof file === "string")
+      const files = Array.isArray(event.files)
+        ? event.files.filter((file): file is string => typeof file === "string")
         : [];
       resolve(files);
     });
 
-    sendCommandToExtension(EXPORT_COMMANDS.EXPORT_SVG_GRAFANA_BUNDLE, {
+    sendGrafanaBundleExport({
       requestId: payload.requestId,
       baseName: payload.baseName,
       svgContent: payload.svgContent,

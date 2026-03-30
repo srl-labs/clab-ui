@@ -25,7 +25,10 @@ import {
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
 import { WiresharkIcon } from "../context-menu/WiresharkIcon";
 import { getViewportCenter } from "../../utils/viewportUtils";
-import { sendCommandToExtension } from "../../messaging/extensionMessaging";
+import {
+  sendInterfaceCapture,
+  sendNodeAction
+} from "../../messaging/extensionMessaging";
 import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
@@ -280,7 +283,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       label: "SSH",
       icon: React.createElement(TerminalIcon, { fontSize: "small" }),
       onClick: () => {
-        sendCommandToExtension("clab-node-connect-ssh", { nodeName: targetId });
+        sendNodeAction("ssh", targetId);
         closeContextMenu();
       }
     },
@@ -289,7 +292,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       label: "Shell",
       icon: React.createElement(TerminalIcon, { fontSize: "small" }),
       onClick: () => {
-        sendCommandToExtension("clab-node-attach-shell", { nodeName: targetId });
+        sendNodeAction("shell", targetId);
         closeContextMenu();
       }
     },
@@ -298,7 +301,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       label: "Logs",
       icon: React.createElement(ArticleIcon, { fontSize: "small" }),
       onClick: () => {
-        sendCommandToExtension("clab-node-view-logs", { nodeName: targetId });
+        sendNodeAction("logs", targetId);
         closeContextMenu();
       }
     },
@@ -444,10 +447,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
       label: `${srcName} - ${sourceEndpoint}`,
       icon: React.createElement(WiresharkIcon, { fontSize: "small" }),
       onClick: () => {
-        sendCommandToExtension("clab-interface-capture", {
-          nodeName: srcName,
-          interfaceName: sourceEndpoint
-        });
+        sendInterfaceCapture(srcName, sourceEndpoint);
         closeContextMenu();
       }
     });
@@ -458,10 +458,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
       label: `${dstName} - ${targetEndpoint}`,
       icon: React.createElement(WiresharkIcon, { fontSize: "small" }),
       onClick: () => {
-        sendCommandToExtension("clab-interface-capture", {
-          nodeName: dstName,
-          interfaceName: targetEndpoint
-        });
+        sendInterfaceCapture(dstName, targetEndpoint);
         closeContextMenu();
       }
     });

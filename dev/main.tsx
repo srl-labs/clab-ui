@@ -9,6 +9,7 @@ import "@webview/styles/global.css";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
+import { createApiClabUiHost, setClabUiHost } from "@webview/host";
 import { setHostContext } from "@webview/services/topologyHostClient";
 import { refreshTopologySnapshot } from "@webview/services/topologyHostCommands";
 import { useGraphStore, useTopoViewerStore } from "@webview/stores";
@@ -30,12 +31,12 @@ import {
   type ExplorerActionInvocation,
   type ExplorerSnapshotOptions,
   type ExplorerSnapshotProviders
-} from "@srl-labs/clab-ui/explorer";
+} from "@srl-labs/clab-ui/explorer/snapshot";
 import type {
   ExplorerIncomingMessage,
   ExplorerOutgoingMessage,
   ExplorerUiState
-} from "@srl-labs/clab-ui/explorer";
+} from "@srl-labs/clab-ui/explorer/snapshot";
 import { installInMemoryApi } from "./mock/inMemoryApi";
 import { loadDevSession, saveDevSession } from "./mock/devSession";
 
@@ -1327,6 +1328,13 @@ function setupDevModeCommandInterceptor(): void {
       warnOnce(msg.command);
     }
   };
+
+  setClabUiHost(
+    createApiClabUiHost({
+      postMessage: mockVscodeApi.postMessage,
+      targetWindow: window
+    })
+  );
 
   // Expose the mock API on window.vscode
   (window as unknown as { vscode: typeof mockVscodeApi }).vscode = mockVscodeApi;

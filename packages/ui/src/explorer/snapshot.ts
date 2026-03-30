@@ -1,4 +1,3 @@
-export { ContainerlabExplorerView } from "./containerlabExplorerView.webview";
 export {
   buildExplorerSnapshot,
   type ExplorerActionInvocation,

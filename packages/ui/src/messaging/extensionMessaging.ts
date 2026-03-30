@@ -1,42 +1,67 @@
 /**
- * VS Code extension messaging helpers.
- * Use for VS Code/CLI operations and settings updates. Topology persistence goes
- * through the host command pipeline, not these messages.
+ * TopoViewer host action helpers.
+ * UI code talks in semantic intents; the configured host translates them to
+ * VS Code commands, standalone backend calls, or no-ops as appropriate.
  */
-import type { ExtensionCommandType } from "../core/messages/extension";
-import { MSG_CANCEL_LAB_LIFECYCLE } from "../core/messages/extension";
 import type { SaveCustomNodeData } from "../core/utilities/customNodeConversions";
-import { log } from "../utils/logger";
+import { getClabUiHost } from "../host";
 
-declare global {
-  interface Window {
-    vscode?: { postMessage(data: unknown): void; __isDevMock__?: boolean };
-  }
-}
-
-/**
- * Get VS Code API instance exposed by the extension host.
- */
-function getVscodeApi(): { postMessage(data: unknown): void } | undefined {
-  return typeof window !== "undefined" ? window.vscode : undefined;
-}
-
-/**
- * Send a fire-and-forget command message to the extension.
- */
-export function sendCommandToExtension(
-  command: ExtensionCommandType,
-  payload?: Record<string, unknown>
+export function sendLifecycleCommand(
+  action:
+    | "deployLab"
+    | "deployLabCleanup"
+    | "destroyLab"
+    | "destroyLabCleanup"
+    | "redeployLab"
+    | "redeployLabCleanup"
 ): void {
-  const vscodeApi = getVscodeApi();
-  if (!vscodeApi) {
-    log.warn(`[ExtensionMessaging] VS Code API unavailable, command skipped: ${command}`);
-    return;
-  }
+  getClabUiHost().topoViewer.runLifecycle(action);
+}
 
-  const message = payload ? { command, ...payload } : { command };
-  vscodeApi.postMessage(message);
-  log.debug(`[ExtensionMessaging] Sent command: ${command}`);
+export function sendToggleSplitView(): void {
+  getClabUiHost().topoViewer.toggleSplitView();
+}
+
+export function sendNodeAction(action: "ssh" | "shell" | "logs", nodeName: string): void {
+  getClabUiHost().topoViewer.runNodeAction(action, nodeName);
+}
+
+export function sendInterfaceCapture(nodeName: string, interfaceName: string): void {
+  getClabUiHost().topoViewer.captureInterface(nodeName, interfaceName);
+}
+
+export function sendLinkImpairment(
+  nodeName: string,
+  interfaceName: string,
+  data: unknown
+): void {
+  getClabUiHost().topoViewer.setLinkImpairment(nodeName, interfaceName, data);
+}
+
+export function sendRequestIconList(): void {
+  getClabUiHost().topoViewer.requestIconList();
+}
+
+export function sendUploadIcon(): void {
+  getClabUiHost().topoViewer.uploadIcon();
+}
+
+export function sendDeleteIcon(iconName: string): void {
+  getClabUiHost().topoViewer.deleteIcon(iconName);
+}
+
+export function sendGrafanaBundleExport(payload: {
+  requestId: string;
+  baseName: string;
+  svgContent: string;
+  dashboardJson: string;
+  panelYaml: string;
+}): void {
+  getClabUiHost().topoViewer.exportGrafanaBundle(payload);
+}
+
+export function sendDumpCssVars(vars: Record<string, string>): void {
+  getClabUiHost().topoViewer.dumpCssVars(vars);
 }
 
 // ============================================================================
@@ -54,7 +79,7 @@ export function sendCommandToExtension(
  * Handled by: extension `MessageRouter`
  */
 export function sendDeleteCustomNode(nodeName: string): void {
-  sendCommandToExtension("delete-custom-node", { name: nodeName });
+  getClabUiHost().topoViewer.deleteCustomNode(nodeName);
 }
 
 /**
@@ -64,7 +89,7 @@ export function sendDeleteCustomNode(nodeName: string): void {
  * Handled by: extension `MessageRouter`
  */
 export function sendSetDefaultCustomNode(nodeName: string): void {
-  sendCommandToExtension("set-default-custom-node", { name: nodeName });
+  getClabUiHost().topoViewer.setDefaultCustomNode(nodeName);
 }
 
 /**
@@ -77,13 +102,8 @@ export function sendSetDefaultCustomNode(nodeName: string): void {
  * Handled by: extension `MessageRouter`
  */
 export function sendSaveCustomNode(data: SaveCustomNodeData): void {
-  sendCommandToExtension("save-custom-node", data);
+  getClabUiHost().topoViewer.saveCustomNode(data as Record<string, unknown>);
 }
-
-/**
- * Alias for sendCommandToExtension - simpler name for common use cases.
- */
-export const postCommand = sendCommandToExtension;
 
 // ============================================================================
 // ICON RECONCILIATION
@@ -96,12 +116,12 @@ export const postCommand = sendCommandToExtension;
  * @param usedIcons - Array of custom icon names currently used by nodes
  */
 export function sendIconReconcile(usedIcons: string[]): void {
-  sendCommandToExtension("icon-reconcile", { usedIcons });
+  getClabUiHost().topoViewer.reconcileIcons(usedIcons);
 }
 
 /**
  * Request cancellation of the currently running lab lifecycle command.
  */
 export function sendCancelLabLifecycle(): void {
-  sendCommandToExtension(MSG_CANCEL_LAB_LIFECYCLE);
+  getClabUiHost().topoViewer.cancelLifecycle();
 }

@@ -17,7 +17,7 @@ import {
 import {
   sendDeleteCustomNode,
   sendSetDefaultCustomNode,
-  sendCommandToExtension
+  sendToggleSplitView
 } from "../../messaging/extensionMessaging";
 import type { GroupStyleAnnotation } from "../../core/types/topology";
 import { useTopoViewerStore } from "../../stores/topoViewerStore";
@@ -93,7 +93,7 @@ export function useNavbarCommands(): NavbarCommands {
   }, []);
 
   const onToggleSplit = React.useCallback(() => {
-    sendCommandToExtension("topo-toggle-split-view");
+    sendToggleSplitView();
   }, []);
 
   return {

@@ -1,4 +1,4 @@
-import { postCommand } from "../../../messaging/extensionMessaging";
+import { sendLinkImpairment } from "../../../messaging/extensionMessaging";
 import type { NetemState } from "../../../core/parsing";
 import { normalizeNetemPercentage } from "../../../utils/netemNormalization";
 
@@ -95,18 +95,18 @@ export function formatNetemData(data: LinkImpairmentData): LinkImpairmentData {
  */
 export function applyNetemSettings(data: LinkImpairmentData): void {
   if (JSON.stringify(data.sourceNetem) !== JSON.stringify(data.extraData?.clabSourceNetem)) {
-    postCommand("clab-link-impairment", {
-      nodeName: data.extraData?.clabSourceLongName ?? data.source,
-      interfaceName: data.sourceEndpoint,
-      data: data.sourceNetem
-    });
+    sendLinkImpairment(
+      data.extraData?.clabSourceLongName ?? data.source,
+      data.sourceEndpoint ?? "",
+      data.sourceNetem ?? {}
+    );
   }
 
   if (JSON.stringify(data.targetNetem) !== JSON.stringify(data.extraData?.clabTargetNetem)) {
-    postCommand("clab-link-impairment", {
-      nodeName: data.extraData?.clabTargetLongName ?? data.target,
-      interfaceName: data.targetEndpoint,
-      data: data.targetNetem
-    });
+    sendLinkImpairment(
+      data.extraData?.clabTargetLongName ?? data.target,
+      data.targetEndpoint ?? "",
+      data.targetNetem ?? {}
+    );
   }
 }

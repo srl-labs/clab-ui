@@ -62,12 +62,13 @@ import {
   useState
 } from "react";
 
+import { getClabUiHost } from "../host";
 import { MuiThemeProvider } from "../theme/index";
 import {
   ContextMenu,
   type ContextMenuItem
 } from "../components/context-menu/ContextMenu";
-import { useMessageListener, usePostMessage, useReadySignal } from "./shared/hooks";
+import { useMessageListener, useReadySignal } from "./shared/hooks";
 import {
   EXPLORER_SECTION_ORDER,
   type ExplorerAction,
@@ -1634,7 +1635,6 @@ function ExplorerSectionCard({
 const EXPLORER_WEBVIEW_KIND = "containerlab-explorer";
 
 export function ContainerlabExplorerView() {
-  const postMessage = usePostMessage();
   const [sections, setSections] = useState<ExplorerSectionSnapshot[]>([]);
   const [sectionOrder, setSectionOrder] = useState<ExplorerSectionId[]>(EXPLORER_SECTION_ORDER);
   const [collapsedBySection, setCollapsedBySection] = useState<
@@ -1768,12 +1768,9 @@ export function ContainerlabExplorerView() {
 
   const invokeAction = useCallback(
     (action: ExplorerAction) => {
-      postMessage({
-        command: "invokeAction",
-        actionRef: action.actionRef
-      });
+      void Promise.resolve(getClabUiHost().explorer.invokeAction(action.actionRef));
     },
-    [postMessage]
+    []
   );
 
   const handleFilterChange = useCallback(
@@ -1787,16 +1784,16 @@ export function ContainerlabExplorerView() {
       }
 
       if (value.trim().length === 0) {
-        postMessage({ command: "setFilter", value: "" });
+        void Promise.resolve(getClabUiHost().explorer.setFilter(""));
         return;
       }
 
       filterTimeoutRef.current = window.setTimeout(() => {
         filterTimeoutRef.current = null;
-        postMessage({ command: "setFilter", value });
+        void Promise.resolve(getClabUiHost().explorer.setFilter(value));
       }, FILTER_UPDATE_DEBOUNCE_MS);
     },
-    [postMessage]
+    []
   );
 
   const handleExpandedItemsChange = useCallback((sectionId: ExplorerSectionId, itemIds: string[]) => {
@@ -1944,12 +1941,9 @@ export function ContainerlabExplorerView() {
     }
     uiStateTimeoutRef.current = window.setTimeout(() => {
       uiStateTimeoutRef.current = null;
-      postMessage({
-        command: "persistUiState",
-        state: uiState
-      });
+      void Promise.resolve(getClabUiHost().explorer.persistUiState(uiState));
     }, UI_STATE_UPDATE_DEBOUNCE_MS);
-  }, [sectionOrder, collapsedBySection, expandedBySection, heightRatioBySection, uiStateHydrated, postMessage]);
+  }, [sectionOrder, collapsedBySection, expandedBySection, heightRatioBySection, uiStateHydrated]);
 
   return (
     <Box

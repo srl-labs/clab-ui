@@ -4,6 +4,7 @@
  * The webview previously registered multiple `window.addEventListener('message', ...)` listeners
  * across hooks and services. This module centralizes the listener and allows scoped subscriptions.
  */
+import { getClabUiHost } from "../host";
 
 /**
  * Base webview message structure from the extension.
@@ -29,6 +30,7 @@ interface Subscriber {
 
 let started = false;
 let windowListener: ((event: TypedMessageEvent) => void) | null = null;
+let unsubscribeFromHost: (() => void) | null = null;
 const subscribers = new Set<Subscriber>();
 
 function ensureStarted(): void {
@@ -41,15 +43,17 @@ function ensureStarted(): void {
     }
   };
 
-  window.addEventListener("message", windowListener);
+  unsubscribeFromHost = getClabUiHost().subscribe((event) => {
+    windowListener?.(event as TypedMessageEvent);
+  });
   started = true;
 }
 
 function maybeStop(): void {
   if (!started) return;
   if (subscribers.size > 0) return;
-  if (!windowListener) return;
-  window.removeEventListener("message", windowListener);
+  unsubscribeFromHost?.();
+  unsubscribeFromHost = null;
   windowListener = null;
   started = false;
 }

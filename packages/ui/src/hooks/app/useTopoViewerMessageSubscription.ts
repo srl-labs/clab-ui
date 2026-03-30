@@ -1,31 +1,13 @@
 /**
- * useTopoViewerMessageSubscription - Message subscription hook for UI state updates
- *
- * Handles extension messages related to TopoViewer UI state:
- * - topo-mode-changed: Update mode, deploymentState
- * - panel-action: Trigger edit/select actions
- * - custom-nodes-updated: Update customNodes
- * - custom-node-error: Show error
- * - icon-list-response: Update customIcons
- * - lab-lifecycle-log: Append streaming deploy/destroy logs
- * - lab-lifecycle-status: Clear processing state
- * - fit-viewport: Fit graph to current viewport
+ * useTopoViewerMessageSubscription - TopoViewer host event subscription hook
  */
 import { useEffect } from "react";
 
 import type { CustomNodeTemplate } from "../../core/types/editors";
 import type { CustomIconInfo } from "../../core/types/icons";
-import {
-  subscribeToWebviewMessages,
-  type TypedMessageEvent,
-  type WebviewMessageBase
-} from "../../messaging/webviewMessageBus";
+import { getClabUiHost, type ClabUiTopoViewerEvent } from "../../host";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { useTopoViewerStore, type DeploymentState } from "../../stores/topoViewerStore";
-
-// ============================================================================
-// Message Helpers
-// ============================================================================
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -33,10 +15,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
-}
-
-function getMessageData(message: WebviewMessageBase): Record<string, unknown> | undefined {
-  return isRecord(message.data) ? message.data : undefined;
 }
 
 function isDeploymentState(value: unknown): value is DeploymentState {
@@ -57,33 +35,26 @@ function isCustomIconInfo(value: unknown): value is CustomIconInfo {
   );
 }
 
-// ============================================================================
-// Message Handlers
-// ============================================================================
-
-function handleTopoModeChanged(msg: WebviewMessageBase): void {
+function handleTopoModeChanged(
+  event: Extract<ClabUiTopoViewerEvent, { type: "modeChanged" }>
+): void {
   const { setMode, setDeploymentState } = useTopoViewerStore.getState();
-  const data = getMessageData(msg);
-
-  if (isNonEmptyString(data?.mode)) {
-    const modeValue = data.mode;
-    const normalizedMode = modeValue === "viewer" || modeValue === "view" ? "view" : "edit";
-    setMode(normalizedMode);
-  }
-
-  if (isDeploymentState(data?.deploymentState)) {
-    setDeploymentState(data.deploymentState);
+  setMode(event.mode === "viewer" ? "view" : "edit");
+  if (isDeploymentState(event.deploymentState)) {
+    setDeploymentState(event.deploymentState);
   }
 }
 
-function handlePanelAction(msg: WebviewMessageBase): void {
+function handlePanelAction(
+  event: Extract<ClabUiTopoViewerEvent, { type: "panelAction" }>
+): void {
   const { selectNode, selectEdge, editNode, editEdge, isProcessing } =
     useTopoViewerStore.getState();
   if (isProcessing) return;
-  const action = isNonEmptyString(msg.action) ? msg.action : undefined;
-  const nodeId = isNonEmptyString(msg.nodeId) ? msg.nodeId : undefined;
-  const edgeId = isNonEmptyString(msg.edgeId) ? msg.edgeId : undefined;
 
+  const action = isNonEmptyString(event.action) ? event.action : undefined;
+  const nodeId = isNonEmptyString(event.nodeId) ? event.nodeId : undefined;
+  const edgeId = isNonEmptyString(event.edgeId) ? event.edgeId : undefined;
   if (action === undefined) return;
 
   switch (action) {
@@ -98,58 +69,54 @@ function handlePanelAction(msg: WebviewMessageBase): void {
       return;
     case "link-info":
       if (edgeId !== undefined) selectEdge(edgeId);
-      break;
+      return;
   }
 }
 
-function handleCustomNodesUpdated(msg: WebviewMessageBase): void {
+function handleCustomNodesUpdated(
+  event: Extract<ClabUiTopoViewerEvent, { type: "customNodesUpdated" }>
+): void {
   const { setCustomNodes } = useTopoViewerStore.getState();
-  if (!Array.isArray(msg.customNodes)) return;
-  const customNodes = msg.customNodes.filter(isCustomNodeTemplate);
-  const defaultNode = isNonEmptyString(msg.defaultNode) ? msg.defaultNode : "";
-  setCustomNodes(customNodes, defaultNode);
+  setCustomNodes(event.customNodes.filter(isCustomNodeTemplate), event.defaultNode);
 }
 
-function handleCustomNodeError(msg: WebviewMessageBase): void {
+function handleCustomNodeError(
+  event: Extract<ClabUiTopoViewerEvent, { type: "customNodeError" }>
+): void {
   const { setCustomNodeError } = useTopoViewerStore.getState();
-  if (isNonEmptyString(msg.error)) {
-    setCustomNodeError(msg.error);
+  if (isNonEmptyString(event.error)) {
+    setCustomNodeError(event.error);
   }
 }
 
-function handleIconListResponse(msg: WebviewMessageBase): void {
+function handleIconList(
+  event: Extract<ClabUiTopoViewerEvent, { type: "iconList" }>
+): void {
   const { setCustomIcons } = useTopoViewerStore.getState();
-  if (!Array.isArray(msg.icons)) return;
-  setCustomIcons(msg.icons.filter(isCustomIconInfo));
+  setCustomIcons(event.icons.filter(isCustomIconInfo));
 }
 
-function handleLabLifecycleLog(msg: WebviewMessageBase): void {
+function handleLifecycleLog(
+  event: Extract<ClabUiTopoViewerEvent, { type: "lifecycleLog" }>
+): void {
   const { appendLifecycleLog, isProcessing } = useTopoViewerStore.getState();
-  if (!isProcessing) {
+  if (!isProcessing || !isNonEmptyString(event.line)) {
     return;
   }
-  const data = getMessageData(msg);
-  const line = data?.line;
-  if (!isNonEmptyString(line)) {
-    return;
-  }
-  const stream = data?.stream === "stderr" ? "stderr" : "stdout";
-  appendLifecycleLog(line, stream);
+  appendLifecycleLog(event.line, event.stream === "stderr" ? "stderr" : "stdout");
 }
 
-function handleLabLifecycleStatus(msg: WebviewMessageBase): void {
+function handleLifecycleStatus(
+  event: Extract<ClabUiTopoViewerEvent, { type: "lifecycleStatus" }>
+): void {
   const { appendLifecycleLog, setLifecycleStatus, setProcessing } = useTopoViewerStore.getState();
-  const data = getMessageData(msg);
-  const status = data?.status;
-  const errorMessage = data?.errorMessage;
-
-  if (status === "error" && isNonEmptyString(errorMessage)) {
-    appendLifecycleLog(`[error] ${errorMessage}`, "stderr");
-    setLifecycleStatus("error", errorMessage);
-  } else if (status === "error") {
+  if (event.status === "error" && isNonEmptyString(event.errorMessage)) {
+    appendLifecycleLog(`[error] ${event.errorMessage}`, "stderr");
+    setLifecycleStatus("error", event.errorMessage);
+  } else if (event.status === "error") {
     setLifecycleStatus("error", "Lifecycle command failed.");
   }
-  if (status === "success") {
+  if (event.status === "success") {
     appendLifecycleLog("Command completed successfully.", "stdout");
     setLifecycleStatus("success");
   }
@@ -161,38 +128,37 @@ function handleFitViewport(): void {
   requestFitView();
 }
 
-const MESSAGE_HANDLERS: Partial<Record<string, (message: WebviewMessageBase) => void>> = {
-  "topo-mode-changed": handleTopoModeChanged,
-  "panel-action": handlePanelAction,
-  "custom-nodes-updated": handleCustomNodesUpdated,
-  "custom-node-error": handleCustomNodeError,
-  "icon-list-response": handleIconListResponse,
-  "lab-lifecycle-log": handleLabLifecycleLog,
-  "lab-lifecycle-status": handleLabLifecycleStatus,
-  "fit-viewport": () => {
-    handleFitViewport();
-  }
-};
-
-// ============================================================================
-// Hook
-// ============================================================================
-
-/**
- * Hook to subscribe to TopoViewer UI-related extension messages.
- * Should be called once at the app root.
- */
 export function useTopoViewerMessageSubscription(): void {
   useEffect(() => {
-    const handleMessage = (event: TypedMessageEvent) => {
-      const message = event.data;
-      if (message === undefined || !isNonEmptyString(message.type)) return;
-      const handler = MESSAGE_HANDLERS[message.type];
-      if (handler !== undefined) {
-        handler(message);
+    return getClabUiHost().topoViewer.subscribe((event) => {
+      switch (event.type) {
+        case "modeChanged":
+          handleTopoModeChanged(event);
+          return;
+        case "panelAction":
+          handlePanelAction(event);
+          return;
+        case "customNodesUpdated":
+          handleCustomNodesUpdated(event);
+          return;
+        case "customNodeError":
+          handleCustomNodeError(event);
+          return;
+        case "iconList":
+          handleIconList(event);
+          return;
+        case "lifecycleLog":
+          handleLifecycleLog(event);
+          return;
+        case "lifecycleStatus":
+          handleLifecycleStatus(event);
+          return;
+        case "fitViewport":
+          handleFitViewport();
+          return;
+        case "svgExportResult":
+          return;
       }
-    };
-
-    return subscribeToWebviewMessages(handleMessage);
+    });
   }, []);
 }

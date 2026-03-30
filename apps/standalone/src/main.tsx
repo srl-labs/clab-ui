@@ -12,6 +12,7 @@ import "@webview/styles/global.css";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
+import { createApiClabUiHost, setClabUiHost } from "@webview/host";
 import {
   setHostContext
 } from "@webview/services/topologyHostClient";
@@ -35,12 +36,11 @@ import {
   type ExplorerActionInvocation,
   type ExplorerSnapshotOptions,
   type ExplorerSnapshotProviders
-} from "@srl-labs/clab-ui/explorer";
+} from "@srl-labs/clab-ui/explorer/snapshot";
 import type {
   ExplorerIncomingMessage,
-  ExplorerOutgoingMessage,
   ExplorerUiState
-} from "@srl-labs/clab-ui/explorer";
+} from "@srl-labs/clab-ui/explorer/snapshot";
 import { useTopoViewerStore } from "@webview/stores/topoViewerStore";
 
 import clabSchema from "../../../schema/clab.schema.json";
@@ -160,6 +160,7 @@ let explorerFilterText = "";
 let explorerUiState: ExplorerUiState = {};
 let explorerRefreshTimer: number | null = null;
 let explorerActionBindings = new Map<string, ExplorerActionInvocation>();
+const explorerSubscribers = new Set<(message: ExplorerIncomingMessage) => void>();
 const unhandledCommands = new Set<string>();
 const FILE_LIST_CACHE_TTL_MS = 1500;
 let fileListCache: { fetchedAt: number; entries: TopologyFileEntry[] } | null = null;
@@ -250,7 +251,9 @@ let activeLifecycleRequest: ActiveLifecycleRequest | null = null;
 let nextLifecycleRequestId = 0;
 
 function sendExplorerMessage(message: ExplorerIncomingMessage): void {
-  window.dispatchEvent(new MessageEvent<ExplorerIncomingMessage>("message", { data: message }));
+  for (const subscriber of explorerSubscribers) {
+    subscriber(message);
+  }
 }
 
 function postExplorerFilterState(): void {
@@ -1563,8 +1566,8 @@ async function executeExplorerCommand(commandId: string, args: unknown[]): Promi
   }
 }
 
-// Mock VS Code API - forces HTTP path in topologyHostClient.ts
-function setupMockVscodeApi(): void {
+// Standalone host bridge - explicit UI host with API-backed topology transport.
+function setupStandaloneUiHost(): void {
   type VscodeMessage = {
     command?: string;
     type?: string;
@@ -1581,44 +1584,38 @@ function setupMockVscodeApi(): void {
 
   const warnedCommands = new Set<string>();
 
-  const isExplorerOutgoing = (msg: VscodeMessage): msg is ExplorerOutgoingMessage => {
-    return (
-      msg.command === "ready" ||
-      msg.command === "setFilter" ||
-      msg.command === "invokeAction" ||
-      msg.command === "persistUiState"
-    );
-  };
-
-  const handleExplorerMessage = (message: ExplorerOutgoingMessage): void => {
-    if (message.command === "ready") {
+  const explorer = {
+    connect(): void {
       postExplorerFilterState();
       postExplorerUiState();
       scheduleExplorerSnapshot(0);
-      return;
-    }
-    if (message.command === "setFilter") {
-      explorerFilterText = message.value.trim();
+    },
+    setFilter(filterText: string): void {
+      explorerFilterText = filterText.trim();
       postExplorerFilterState();
       scheduleExplorerSnapshot(0);
-      return;
-    }
-    if (message.command === "persistUiState") {
-      explorerUiState = message.state || {};
-      return;
-    }
-    if (message.command === "invokeAction") {
-      const binding = explorerActionBindings.get(message.actionRef);
+    },
+    persistUiState(state: ExplorerUiState): void {
+      explorerUiState = state || {};
+    },
+    invokeAction(actionRef: string): Promise<void> {
+      const binding = explorerActionBindings.get(actionRef);
       if (!binding) {
         postExplorerError("Action is no longer available. Refresh and try again.");
-        return;
+        return Promise.resolve();
       }
-      Promise.resolve(executeExplorerCommand(binding.commandId, binding.args ?? []))
+      return Promise.resolve(executeExplorerCommand(binding.commandId, binding.args ?? []))
         .then(() => scheduleExplorerSnapshot(0))
         .catch((error: unknown) => {
           const msg = error instanceof Error ? error.message : String(error);
           postExplorerError(`Failed to execute action: ${msg}`);
         });
+    },
+    subscribe(handler: (message: ExplorerIncomingMessage) => void): () => void {
+      explorerSubscribers.add(handler);
+      return () => {
+        explorerSubscribers.delete(handler);
+      };
     }
   };
 
@@ -1632,66 +1629,68 @@ function setupMockVscodeApi(): void {
     URL.revokeObjectURL(url);
   };
 
+  const postMessage = (message: unknown) => {
+    const msg = message as VscodeMessage | undefined;
+
+    if (!msg?.command) return;
+
+    if (msg.command === "reactTopoViewerLog" || msg.command === "topoViewerLog") {
+      return;
+    }
+
+    if (msg.command === MSG_CANCEL_LAB_LIFECYCLE) {
+      handleStandaloneLifecycleCancellation();
+      return;
+    }
+
+    if (isStandaloneLifecycleCommand(msg.command)) {
+      const lifecycleCommand = msg.command;
+      void runStandaloneLifecycleCommand(lifecycleCommand).catch((error: unknown) => {
+        const config = LIFECYCLE_COMMAND_CONFIG[lifecycleCommand];
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`[Standalone] ${config.label} failed:`, error);
+        postLifecycleStatusMessage(config.commandType, "error", message);
+      });
+      return;
+    }
+
+    if (msg.command === EXPORT_COMMANDS.EXPORT_SVG_GRAFANA_BUNDLE) {
+      const baseName = typeof msg.baseName === "string" ? msg.baseName.trim() || "topology" : "topology";
+      const svgContent = typeof msg.svgContent === "string" ? msg.svgContent : "";
+      if (svgContent) {
+        triggerDownload(`${baseName}.svg`, svgContent, "image/svg+xml");
+      }
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            type: MSG_SVG_EXPORT_RESULT,
+            requestId: msg.requestId ?? "",
+            success: true,
+            files: [`${baseName}.svg`]
+          }
+        })
+      );
+      return;
+    }
+
+    if (!warnedCommands.has(msg.command)) {
+      warnedCommands.add(msg.command);
+      console.warn(`[Standalone] Unhandled VS Code command: ${msg.command}`);
+    }
+  };
+
+  setClabUiHost(
+    createApiClabUiHost({
+      explorer,
+      postMessage,
+      targetWindow: window
+    })
+  );
+
   const mockVscodeApi = {
     __isDevMock__: true,
     __disableDevMockTraffic__: true,
-    postMessage: (message: unknown) => {
-      const msg = message as VscodeMessage | undefined;
-
-      // Ignore topology-host messages - these use HTTP in standalone mode
-      if (msg?.type?.startsWith("topology-host:")) return;
-
-      if (!msg?.command) return;
-
-      if (isExplorerOutgoing(msg)) {
-        handleExplorerMessage(msg);
-        return;
-      }
-
-      if (msg.command === "reactTopoViewerLog" || msg.command === "topoViewerLog") {
-        return;
-      }
-
-      if (msg.command === MSG_CANCEL_LAB_LIFECYCLE) {
-        handleStandaloneLifecycleCancellation();
-        return;
-      }
-
-      if (isStandaloneLifecycleCommand(msg.command)) {
-        const lifecycleCommand = msg.command;
-        void runStandaloneLifecycleCommand(lifecycleCommand).catch((error: unknown) => {
-          const config = LIFECYCLE_COMMAND_CONFIG[lifecycleCommand];
-          const message = error instanceof Error ? error.message : String(error);
-          console.error(`[Standalone] ${config.label} failed:`, error);
-          postLifecycleStatusMessage(config.commandType, "error", message);
-        });
-        return;
-      }
-
-      if (msg.command === EXPORT_COMMANDS.EXPORT_SVG_GRAFANA_BUNDLE) {
-        const baseName = typeof msg.baseName === "string" ? msg.baseName.trim() || "topology" : "topology";
-        const svgContent = typeof msg.svgContent === "string" ? msg.svgContent : "";
-        if (svgContent) {
-          triggerDownload(`${baseName}.svg`, svgContent, "image/svg+xml");
-        }
-        window.dispatchEvent(
-          new MessageEvent("message", {
-            data: {
-              type: MSG_SVG_EXPORT_RESULT,
-              requestId: msg.requestId ?? "",
-              success: true,
-              files: [`${baseName}.svg`]
-            }
-          })
-        );
-        return;
-      }
-
-      if (!warnedCommands.has(msg.command)) {
-        warnedCommands.add(msg.command);
-        console.warn(`[Standalone] Unhandled VS Code command: ${msg.command}`);
-      }
-    }
+    postMessage
   };
 
   (window as unknown as { vscode: typeof mockVscodeApi }).vscode = mockVscodeApi;
@@ -1888,5 +1887,5 @@ if (currentTheme === "light") {
   document.documentElement.classList.remove("light");
 }
 applyDevVars(currentTheme);
-setupMockVscodeApi();
+setupStandaloneUiHost();
 renderApp();

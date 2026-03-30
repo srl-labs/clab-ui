@@ -18,7 +18,10 @@ import type { NodeType } from "../../icons/SvgGenerator";
 import { generateEncodedSVG } from "../../icons/SvgGenerator";
 import { useEscapeKey } from "../../hooks/ui/useDomInteractions";
 import { useCustomIcons } from "../../stores/topoViewerStore";
-import { postCommand } from "../../messaging/extensionMessaging";
+import {
+  sendDeleteIcon,
+  sendUploadIcon
+} from "../../messaging/extensionMessaging";
 import { isBuiltInIcon } from "../../core/types/icons";
 
 import { DialogCancelSaveActions, DialogTitleWithClose } from "./dialog/DialogChrome";
@@ -341,11 +344,11 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
   }, [icon, resultColor, radius, onSave, onClose]);
 
   const handleUploadIcon = useCallback(() => {
-    postCommand("icon-upload");
+    sendUploadIcon();
   }, []);
 
   const handleDeleteIcon = useCallback((iconName: string) => {
-    postCommand("icon-delete", { iconName });
+    sendDeleteIcon(iconName);
   }, []);
 
   // Get preview icon source

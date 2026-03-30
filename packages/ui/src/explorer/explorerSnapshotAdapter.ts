@@ -40,11 +40,24 @@ export interface ExplorerSnapshotProviders {
 export interface ExplorerSnapshotOptions {
   hideNonOwnedLabs: boolean;
   isLocalCaptureAllowed: boolean;
+  commandMetadata?: ExplorerCommandMetadata;
 }
 
 export interface ExplorerActionInvocation {
   commandId: string;
   args: unknown[];
+}
+
+export interface ExplorerContributedMenuItem {
+  commandId: string;
+  label?: string;
+  iconId?: string;
+}
+
+export interface ExplorerCommandMetadata {
+  contributedContainerActions?: readonly ExplorerContributedMenuItem[];
+  commandLabels?: ReadonlyMap<string, string>;
+  commandIcons?: ReadonlyMap<string, string>;
 }
 
 export interface ExplorerSnapshotBuildResult {
@@ -133,6 +146,25 @@ const DESTRUCTIVE_COMMANDS = new Set<string>([
 ]);
 const SECTION_BUILD_TIMEOUT_MS = 4000;
 const TREE_ITEM_COLLAPSIBLE_NONE = 0;
+const BUILTIN_CONTAINER_ACTION_COMMANDS: readonly string[] = [
+  "containerlab.node.showLogs",
+  "containerlab.node.attachShell",
+  "containerlab.node.ssh",
+  "containerlab.node.telnet",
+  "containerlab.node.openBrowser",
+  "containerlab.node.start",
+  "containerlab.node.stop",
+  "containerlab.node.pause",
+  "containerlab.node.unpause",
+  "containerlab.node.save",
+  "containerlab.node.manageImpairments",
+  "containerlab.node.copyName",
+  "containerlab.node.copyID",
+  "containerlab.node.copyIPv4Address",
+  "containerlab.node.copyIPv6Address",
+  "containerlab.node.copyKind",
+  "containerlab.node.copyImage"
+];
 
 function labelToText(label: string | vscode.TreeItemLabel | undefined): string {
   if (!label) {
@@ -260,7 +292,8 @@ class ExplorerActionRegistry {
     commandId: string,
     label: string,
     args: unknown[] = [],
-    destructive = false
+    destructive = false,
+    iconId?: string
   ): ExplorerAction {
     const actionRef = `action:${this.counter++}`;
     this.bindings.set(actionRef, { commandId, args });
@@ -269,6 +302,7 @@ class ExplorerActionRegistry {
       actionRef,
       label,
       commandId,
+      iconId,
       destructive
     };
   }
@@ -285,7 +319,8 @@ function pushAction(
   commandId: string,
   args: unknown[] = [],
   label?: string,
-  destructive?: boolean
+  destructive?: boolean,
+  iconId?: string
 ): void {
   const resolvedLabel = commandLabel(commandId, label);
   const key = `${commandId}:${resolvedLabel}`;
@@ -299,9 +334,26 @@ function pushAction(
       commandId,
       resolvedLabel,
       args,
-      destructive ?? DESTRUCTIVE_COMMANDS.has(commandId)
+      destructive ?? DESTRUCTIVE_COMMANDS.has(commandId),
+      iconId
     )
   );
+}
+
+function applyCommandIcons(
+  actions: ExplorerAction[],
+  commandIcons: ReadonlyMap<string, string>
+): ExplorerAction[] {
+  for (const action of actions) {
+    if (action.iconId !== undefined) {
+      continue;
+    }
+    const iconId = commandIcons.get(action.commandId);
+    if (iconId !== undefined && iconId.length > 0) {
+      action.iconId = iconId;
+    }
+  }
+  return actions;
 }
 
 function getLinkArgument(item: ExplorerTreeItemLike): string | undefined {
@@ -426,25 +478,33 @@ function appendContainerActions(
   actions: ExplorerAction[],
   seen: Set<string>,
   registry: ExplorerActionRegistry,
-  item: ExplorerTreeItemLike
+  item: ExplorerTreeItemLike,
+  contributedActions: readonly ExplorerContributedMenuItem[],
+  commandLabels: ReadonlyMap<string, string>,
+  commandIcons: ReadonlyMap<string, string>
 ): void {
-  pushAction(actions, seen, registry, "containerlab.node.showLogs", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.attachShell", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.ssh", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.telnet", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.openBrowser", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.start", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.stop", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.pause", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.unpause", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.save", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.manageImpairments", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.copyName", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.copyID", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.copyIPv4Address", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.copyIPv6Address", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.copyKind", [item]);
-  pushAction(actions, seen, registry, "containerlab.node.copyImage", [item]);
+  for (const commandId of BUILTIN_CONTAINER_ACTION_COMMANDS) {
+    pushAction(actions, seen, registry, commandId, [item]);
+  }
+
+  const existingCommands = new Set(actions.map((action) => action.commandId));
+  for (const contributedAction of contributedActions) {
+    if (existingCommands.has(contributedAction.commandId)) {
+      continue;
+    }
+
+    pushAction(
+      actions,
+      seen,
+      registry,
+      contributedAction.commandId,
+      [item],
+      commandLabels.get(contributedAction.commandId) ?? contributedAction.label,
+      undefined,
+      commandIcons.get(contributedAction.commandId) ?? contributedAction.iconId
+    );
+    existingCommands.add(contributedAction.commandId);
+  }
 }
 
 function appendInterfaceActions(
@@ -502,33 +562,45 @@ function getNodeActions(
 ): ExplorerAction[] {
   const actions: ExplorerAction[] = [];
   const seen = new Set<string>();
+  const commandMetadata = options.commandMetadata;
+  const contributedActions = commandMetadata?.contributedContainerActions ?? [];
+  const commandLabels = commandMetadata?.commandLabels ?? new Map<string, string>();
+  const commandIcons = commandMetadata?.commandIcons ?? new Map<string, string>();
 
   const contextValue = item.contextValue;
   if (sectionId === "helpFeedback") {
     appendHelpFeedbackActions(actions, seen, registry, item);
-    return actions;
+    return applyCommandIcons(actions, commandIcons);
   }
 
   if (isLabContext(contextValue)) {
     appendLabActions(actions, seen, registry, sectionId, item);
-    return actions;
+    return applyCommandIcons(actions, commandIcons);
   }
 
   if (contextValue === "containerlabContainer" || contextValue === "containerlabContainerGroup") {
-    appendContainerActions(actions, seen, registry, item);
-    return actions;
+    appendContainerActions(
+      actions,
+      seen,
+      registry,
+      item,
+      contributedActions,
+      commandLabels,
+      commandIcons
+    );
+    return applyCommandIcons(actions, commandIcons);
   }
 
   if (contextValue === "containerlabInterfaceUp") {
     appendInterfaceActions(actions, seen, registry, item, options.isLocalCaptureAllowed);
-    return actions;
+    return applyCommandIcons(actions, commandIcons);
   }
 
   if (contextValue === "containerlabSSHXLink" || contextValue === "containerlabGottyLink") {
     appendLinkActions(actions, seen, registry, item);
   }
 
-  return actions;
+  return applyCommandIcons(actions, commandIcons);
 }
 
 function resolvePrimaryAction(
@@ -678,6 +750,7 @@ function toolbarActionsForSection(
 ): ExplorerAction[] {
   const actions: ExplorerAction[] = [];
   const seen = new Set<string>();
+  const commandIcons = options.commandMetadata?.commandIcons ?? new Map<string, string>();
 
   if (sectionId === "runningLabs") {
     pushAction(actions, seen, registry, "containerlab.lab.deploy.specificFile");
@@ -687,7 +760,7 @@ function toolbarActionsForSection(
     } else {
       pushAction(actions, seen, registry, "containerlab.treeView.runningLabs.hideNonOwnedLabs");
     }
-    return actions;
+    return applyCommandIcons(actions, commandIcons);
   }
 
   if (sectionId === "localLabs") {
@@ -695,7 +768,7 @@ function toolbarActionsForSection(
     pushAction(actions, seen, registry, "containerlab.lab.cloneRepo");
   }
 
-  return actions;
+  return applyCommandIcons(actions, commandIcons);
 }
 
 async function buildSectionSnapshot(

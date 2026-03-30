@@ -68,7 +68,10 @@ import {
   useTopoViewerActions,
   useTopoViewerState
 } from "./stores";
-import { sendCancelLabLifecycle } from "./messaging/extensionMessaging";
+import {
+  sendCancelLabLifecycle,
+  sendDumpCssVars
+} from "./messaging/extensionMessaging";
 import {
   executeTopologyCommand,
   toLinkSaveData,
@@ -694,7 +697,7 @@ export const AppContent: React.FC<AppContentProps> = ({
     }
     if (Object.keys(vars).length === 0) return;
     const sorted = Object.fromEntries(Object.entries(vars).sort(([a], [b]) => a.localeCompare(b)));
-    window.vscode?.postMessage({ command: "dump-css-vars", vars: sorted });
+    sendDumpCssVars(sorted);
   }, []);
 
   const undoRedo = useUndoRedoControls(state.canUndo, state.canRedo);

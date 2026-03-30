@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
 
-interface WebviewMessage {
-  command: string;
-}
+import { getClabUiHost } from "../../../host";
+import type { ExplorerIncomingMessage } from "../explorer/types";
 
-export function useMessageListener<T extends WebviewMessage>(
+export function useMessageListener<T extends ExplorerIncomingMessage>(
   handler: (message: T) => void
 ): void {
   const handlerRef = useRef(handler);
@@ -14,10 +13,8 @@ export function useMessageListener<T extends WebviewMessage>(
   }, [handler]);
 
   useEffect(() => {
-    const listener = (event: MessageEvent<T>) => {
-      handlerRef.current(event.data);
-    };
-    window.addEventListener("message", listener);
-    return () => window.removeEventListener("message", listener);
+    return getClabUiHost().explorer.subscribe((message) => {
+      handlerRef.current(message as T);
+    });
   }, []);
 }

@@ -526,9 +526,12 @@ function buildRunningLabItems(filterText: string, files: TopologyFileEntry[]): E
     const labPath = topologyEntry?.path;
     const fallbackPathHint = lab.containers.values().next().value?.labPath as string | undefined;
     const pathHint = labPath ?? fallbackPathHint;
+    const fallbackOwner = lab.containers.values().next().value?.owner as string | undefined;
+    const owner = (lab.owner || fallbackOwner || "").trim();
+    const labLabel = owner ? `${labName} (${owner})` : labName;
     const labItem: ExplorerTreeItem = {
       id: `running-lab:${labName}`,
-      label: labName,
+      label: labLabel,
       description: pathHint || "No API topology file",
       tooltip: pathHint || `No API topology file available for running lab "${labName}"`,
       contextValue: "containerlabLabDeployed",

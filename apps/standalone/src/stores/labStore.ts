@@ -5,6 +5,7 @@ export interface ContainerState {
   containerId: string;
   labName: string;
   labPath: string;
+  owner: string;
   nodeName: string;
   kind: string;
   image: string;
@@ -41,6 +42,7 @@ export interface InterfaceState {
 
 export interface LabState {
   name: string;
+  owner: string;
   containers: Map<string, ContainerState>;
 }
 
@@ -65,6 +67,7 @@ function extractContainerState(attrs: Record<string, string>): ContainerState {
     containerId: attrs["container-id"] ?? attrs.id ?? attrs.name ?? "",
     labName: attrs.lab ?? attrs.containerlab ?? "",
     labPath: attrs["lab-path"] ?? attrs["clab-topo-file"] ?? "",
+    owner: attrs["clab-owner"] ?? attrs.owner ?? "",
     nodeName: attrs["clab-node-name"] ?? "",
     kind: attrs["clab-node-kind"] ?? "",
     image: attrs.image ?? "",
@@ -142,8 +145,8 @@ export const useLabStore = create<LabStoreState>((set, get) => ({
     const labs = new Map(previousLabs);
     const existingLab = previousLabs.get(labName);
     const lab: LabState = existingLab
-      ? { name: existingLab.name, containers: new Map(existingLab.containers) }
-      : { name: labName, containers: new Map() };
+      ? { name: existingLab.name, owner: existingLab.owner, containers: new Map(existingLab.containers) }
+      : { name: labName, owner: attrs["clab-owner"] ?? attrs.owner ?? "", containers: new Map() };
 
     const containerName = attrs.name ?? "";
     if (!containerName) return;
@@ -167,6 +170,9 @@ export const useLabStore = create<LabStoreState>((set, get) => ({
           ...incoming,
           interfaces: new Map(existing?.interfaces ?? incoming.interfaces)
         };
+        if (incoming.owner) {
+          lab.owner = incoming.owner;
+        }
         lab.containers.set(containerName, container);
         labs.set(labName, lab);
       }

@@ -22,6 +22,14 @@ export interface TopologyEntry {
   deploymentState: string;
 }
 
+export interface LifecycleActionResult {
+  result?: unknown;
+  message?: string;
+  logs?: string[];
+}
+
+type LifecycleEndpoint = "deploy" | "destroy" | "redeploy";
+
 export class ClabApiClient {
   private readonly baseUrl: string;
 
@@ -103,30 +111,133 @@ export class ClabApiClient {
     );
   }
 
-  async deployLab(token: string, labName: string): Promise<unknown> {
+  async deployLab(
+    token: string,
+    labName: string,
+    options: { path?: string; includeLogs?: boolean } = {}
+  ): Promise<LifecycleActionResult> {
+    const params = new URLSearchParams();
+    if (options.path) {
+      params.set("path", options.path);
+    }
+    if (options.includeLogs) {
+      params.set("includeLogs", "true");
+    }
+    const query = params.toString();
     const res = await this.request(
       "POST",
-      `/api/v1/labs/${enc(labName)}/deploy`,
+      `/api/v1/labs/${enc(labName)}/deploy${query ? `?${query}` : ""}`,
       token,
       JSON.stringify({}),
       "application/json"
     );
-    return await res.json();
+    const payload = (await res.json()) as unknown;
+    return normalizeLifecycleActionResult(payload);
   }
 
-  async destroyLab(token: string, labName: string): Promise<void> {
-    await this.request("DELETE", `/api/v1/labs/${enc(labName)}`, token);
+  async destroyLab(
+    token: string,
+    labName: string,
+    options: { cleanup?: boolean; includeLogs?: boolean } = {}
+  ): Promise<LifecycleActionResult> {
+    const params = new URLSearchParams();
+    if (options.cleanup) {
+      params.set("cleanup", "true");
+    }
+    if (options.includeLogs) {
+      params.set("includeLogs", "true");
+    }
+    const query = params.toString();
+    const res = await this.request(
+      "DELETE",
+      `/api/v1/labs/${enc(labName)}${query ? `?${query}` : ""}`,
+      token
+    );
+
+    const payload = await res.json().catch(() => undefined);
+    return normalizeLifecycleActionResult(payload);
   }
 
-  async redeployLab(token: string, labName: string): Promise<unknown> {
+  async redeployLab(
+    token: string,
+    labName: string,
+    options: { cleanup?: boolean; includeLogs?: boolean } = {}
+  ): Promise<LifecycleActionResult> {
+    const params = new URLSearchParams();
+    if (options.cleanup) {
+      params.set("cleanup", "true");
+    }
+    if (options.includeLogs) {
+      params.set("includeLogs", "true");
+    }
+    const query = params.toString();
     const res = await this.request(
       "PUT",
-      `/api/v1/labs/${enc(labName)}`,
+      `/api/v1/labs/${enc(labName)}${query ? `?${query}` : ""}`,
       token,
       JSON.stringify({}),
       "application/json"
     );
-    return await res.json();
+    const payload = (await res.json()) as unknown;
+    return normalizeLifecycleActionResult(payload);
+  }
+
+  async openLifecycleStream(
+    token: string,
+    endpoint: LifecycleEndpoint,
+    labName: string,
+    options: { path?: string; cleanup?: boolean } = {}
+  ): Promise<Response> {
+    const params = new URLSearchParams();
+    params.set("stream", "true");
+
+    if (endpoint === "deploy" && options.path) {
+      params.set("path", options.path);
+    }
+    if ((endpoint === "destroy" || endpoint === "redeploy") && options.cleanup) {
+      params.set("cleanup", "true");
+    }
+
+    let method = "POST";
+    let path = `/api/v1/labs/${enc(labName)}/deploy`;
+    let body: string | undefined = JSON.stringify({});
+    let contentType: string | undefined = "application/json";
+
+    if (endpoint === "destroy") {
+      method = "DELETE";
+      path = `/api/v1/labs/${enc(labName)}`;
+      body = undefined;
+      contentType = undefined;
+    } else if (endpoint === "redeploy") {
+      method = "PUT";
+      path = `/api/v1/labs/${enc(labName)}`;
+    }
+
+    const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+    if (contentType) {
+      headers["Content-Type"] = contentType;
+    }
+
+    const res = await fetch(`${this.baseUrl}${path}?${params.toString()}`, { method, headers, body });
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      const err: HttpError = new Error(`${method} ${path} failed (${res.status}): ${text}`);
+      err.status = res.status;
+      throw err;
+    }
+    return res;
+  }
+
+  async isLabRunning(token: string, labName: string): Promise<boolean> {
+    try {
+      await this.get(`/api/v1/labs/${enc(labName)}`, token);
+      return true;
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**
@@ -194,6 +305,31 @@ export class ClabApiClient {
 
 function enc(value: string): string {
   return encodeURIComponent(value);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function toStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const lines = value.filter((line): line is string => typeof line === "string");
+  return lines.length > 0 ? lines : [];
+}
+
+function normalizeLifecycleActionResult(payload: unknown): LifecycleActionResult {
+  if (!isRecord(payload)) {
+    return { result: payload };
+  }
+
+  const logs = toStringArray(payload.logs);
+  const message = typeof payload.message === "string" ? payload.message : undefined;
+  const hasResultField = Object.prototype.hasOwnProperty.call(payload, "result");
+  const result = hasResultField ? payload.result : payload;
+
+  return { result, message, logs };
 }
 
 export function isNotFoundError(error: unknown): boolean {

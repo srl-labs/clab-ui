@@ -19,13 +19,12 @@ export function registerFileProxy(app: FastifyInstance, getClient: ClientResolve
       const client = getClient(request);
       const topologies = await client.listTopologies(token);
       // Transform to the format expected by the Explorer bridge.
-      // Running/deployed state is derived from events in the frontend store.
       return reply.send(topologies.map((topo) => ({
         filename: topo.yamlFileName,
         path: topo.yamlFileName,
         hasAnnotations: topo.hasAnnotations,
         labName: topo.labName,
-        deploymentState: "undeployed"
+        deploymentState: topo.deploymentState || "unknown"
       })));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

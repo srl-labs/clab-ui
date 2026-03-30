@@ -4,11 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n server,vite \"tsx watch server/index.ts\" \"sh -c 'until curl -sSf http://localhost:${PORT:-3000}/api/config >/dev/null 2>&1; do sleep 0.2; done; vite --config vite.config.ts'\"",
+    "dev": "NODE_ENV=development concurrently -k -n server,vite \"tsx watch server/index.ts\" \"sh -c 'until curl -sSf http://localhost:${PORT:-3000}/api/config >/dev/null 2>&1; do sleep 0.2; done; vite --config vite.config.ts'\"",
     "build": "vite build --config vite.config.ts && npm run build:server",
     "build:server": "esbuild server/index.ts --bundle --platform=node --format=cjs --target=node24 --outfile=dist/server/index.cjs --sourcemap",
     "typecheck:server": "tsc -p tsconfig.server.json",
-    "start": "node dist/server/index.cjs",
+    "start": "NODE_ENV=production node dist/server/index.cjs",
     "preview": "vite preview --config vite.config.ts"
   },
   "dependencies": {

@@ -328,7 +328,7 @@ interface TopoViewerPage {
   /** Navigate to TopoViewer and load a file-based topology (real file I/O) */
   gotoFile(filename: TopologyFileName): Promise<void>;
 
-  /** Get the currently loaded file path (null if in-memory) */
+  /** Get the currently loaded file path */
   getCurrentFile(): Promise<string | null>;
 
   /** Read annotations from file API */

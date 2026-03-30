@@ -17,14 +17,6 @@
       "@webview/*": ["./packages/ui/src/*"],
       "@webviews/*": ["./packages/ui/src/webviews/*"],
       "@shared/*": ["./packages/ui/src/core/*"],
-      "@srl-labs/clab-host-contract": ["./packages/host-contract/src/index.ts"],
-      "@srl-labs/clab-host-contract/*": ["./packages/host-contract/src/*"],
-      "@srl-labs/clab-adapter-memory": ["./packages/adapter-memory/src/index.ts"],
-      "@srl-labs/clab-adapter-memory/*": ["./packages/adapter-memory/src/*"],
-      "@srl-labs/clab-adapter-vscode": ["./packages/adapter-vscode/src/index.ts"],
-      "@srl-labs/clab-adapter-vscode/*": ["./packages/adapter-vscode/src/*"],
-      "@srl-labs/clab-adapter-api": ["./packages/adapter-api/src/index.ts"],
-      "@srl-labs/clab-adapter-api/*": ["./packages/adapter-api/src/*"],
       "@srl-labs/clab-ui": ["./packages/ui/src/index.ts"],
       "@srl-labs/clab-ui/*": ["./packages/ui/src/*"]
     }

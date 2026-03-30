@@ -1,5 +1,5 @@
 /**
- * Shared I/O types for both VS Code extension and dev server
+ * Shared I/O types for both VS Code extension and standalone-backed runtimes
  */
 
 /**
@@ -37,7 +37,7 @@ export const noopLogger: IOLogger = {
  *
  * This allows the same I/O logic to work in both:
  * - VS Code extension (using Node.js fs.promises directly)
- * - Dev server (using session-based in-memory storage for test isolation)
+ * - Standalone/API-backed hosts (using backend file proxies)
  */
 export interface FileSystemAdapter {
   /**

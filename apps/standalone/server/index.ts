@@ -20,7 +20,7 @@ import { registerTopologyEventsProxy } from "./topologyEventsProxy.js";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const DEFAULT_CLAB_API_URL = process.env.CLAB_API_URL ?? "http://localhost:8080";
-const VITE_DEV_URL = process.env.VITE_DEV_URL ?? "http://localhost:5174";
+const VITE_DEV_URL = process.env.VITE_DEV_URL ?? "http://localhost:5173";
 const IS_DEV = process.env.NODE_ENV !== "production";
 
 async function start(): Promise<void> {

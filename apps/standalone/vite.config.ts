@@ -18,10 +18,7 @@ export default defineConfig({
       "@webview": path.resolve(root, "packages/ui/src"),
       "@webviews": path.resolve(root, "packages/ui/src/webviews"),
       "@shared": path.resolve(root, "packages/ui/src/core"),
-      "@srl-labs/clab-ui": path.resolve(root, "packages/ui/src"),
-      "@srl-labs/clab-host-contract": path.resolve(root, "packages/host-contract/src"),
-      "@srl-labs/clab-adapter-api": path.resolve(root, "packages/adapter-api/src"),
-      "@srl-labs/clab-adapter-memory": path.resolve(root, "packages/adapter-memory/src")
+      "@srl-labs/clab-ui": path.resolve(root, "packages/ui/src")
     },
     dedupe: ["react", "react-dom"]
   },
@@ -32,7 +29,7 @@ export default defineConfig({
     postcss: path.resolve(root, "postcss.config.js")
   },
   server: {
-    port: 5174,
+    port: 5173,
     open: false,
     proxy: {
       "/auth": "http://localhost:3000",

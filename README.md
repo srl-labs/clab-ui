@@ -12,7 +12,7 @@ Primary consumer today: [`vscode-containerlab`](https://github.com/srl-labs/vsco
 
 - React UI and topology editing logic used by containerlab webviews
 - Shared parsing/core utilities used by the extension host
-- A local browser dev harness (`npm run dev`) for fast UI iteration
+- A standalone-backed local development flow (`npm run dev`) that exercises the real browser/runtime integration
 - Build tooling that produces webview-ready assets in `dist/`
 
 ---
@@ -32,12 +32,8 @@ Primary consumer today: [`vscode-containerlab`](https://github.com/srl-labs/vsco
 
 | Component | Package | Status | Notes |
 | --- | --- | --- | --- |
-| Main UI package | `@srl-labs/clab-ui` | Published | Published to GitHub Packages |
-| Host contract | `@srl-labs/clab-host-contract` | Workspace-only | `private: true` |
-| API adapter | `@srl-labs/clab-adapter-api` | Workspace-only | `private: true` |
-| VS Code adapter | `@srl-labs/clab-adapter-vscode` | Workspace-only | `private: true` |
-| Memory adapter | `@srl-labs/clab-adapter-memory` | Workspace-only | Used by local dev harness |
-| Standalone app | N/A | Planned | Dev harness exists; production standalone distribution is not complete yet |
+| Main UI package | `@srl-labs/clab-ui` | Published | Owns the shared browser-side host contract and constructors |
+| Standalone app | `@srl-labs/clab-standalone` | Workspace app | Local dev/runtime host backed by the API proxy server |
 
 ---
 
@@ -63,7 +59,7 @@ npx playwright install chromium
 
 ## Getting Started
 
-Start the dev harness:
+Start the standalone-backed dev flow:
 
 ```bash
 npm run dev
@@ -71,12 +67,11 @@ npm run dev
 
 Then open `http://localhost:5173`.
 
-Dev harness runtime model:
+Local dev runtime model:
 
-- Pure frontend runtime (no Node middleware backend in this repo)
-- In-memory topology host using shared `TopologyHostCore`
-- File/session persistence in browser `localStorage`
-- Reset action restores seeded topologies from `dev/topologies-original/`
+- Browser frontend served by the standalone Vite app
+- Fastify backend proxy for auth, topology snapshot/command, files, and lifecycle actions
+- Shared `ClabUiHost` runtime used by both standalone and VS Code webviews
 
 ---
 
@@ -84,7 +79,7 @@ Dev harness runtime model:
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Run Vite dev harness from `dev/` |
+| `npm run dev` | Run the standalone-backed local development flow |
 | `npm run build` | Build production webview assets into `dist/` |
 | `npm run build:watch` | Build in dev mode (inline sourcemaps, no minify) |
 | `npm run build:dev` | Build in dev mode (same output profile as `build:watch`) |
@@ -143,8 +138,8 @@ Frequently used exports:
 
 Notes:
 
-- The workspace also ships host adapter packages, but they are not published externally yet.
-- Current UI host context APIs are imported from service subpaths (for example `@srl-labs/clab-ui/services/topologyHostClient`).
+- Browser runtime integration is exposed from `@srl-labs/clab-ui/host`.
+- Current UI host context APIs are still imported from service subpaths (for example `@srl-labs/clab-ui/services/topologyHostClient`).
 
 ---
 
@@ -153,20 +148,10 @@ Notes:
 The UI currently uses host messaging via `services/topologyHostClient`:
 
 ```ts
-import { App } from "@srl-labs/clab-ui";
-import { setHostContext } from "@srl-labs/clab-ui/services/topologyHostClient";
-import { refreshTopologySnapshot } from "@srl-labs/clab-ui/services/topologyHostCommands";
+import { createWindowClabUiHost, setClabUiHost } from "@srl-labs/clab-ui/host";
 
-setHostContext({
-  path: "labs/my-lab.clab.yml",
-  mode: "edit",
-  deploymentState: "undeployed"
-});
-
-await refreshTopologySnapshot();
+setClabUiHost(createWindowClabUiHost());
 ```
-
-The adapter packages in `packages/adapter-*` are part of the transport direction but are currently workspace-only.
 
 ---
 
@@ -174,7 +159,7 @@ The adapter packages in `packages/adapter-*` are part of the transport direction
 
 - `npm install` fails with engine mismatch: ensure Node `>= 24` (`node -v`).
 - Playwright tests fail before opening a browser: run `npx playwright install chromium`.
-- Dev harness state feels stale: clear browser localStorage keys `containerlab-gui.dev.in-memory-labs.v1` and `containerlab-gui.dev.session.v1`.
+- Local dev flow cannot reach the backend: ensure the standalone dev server on `http://localhost:3000` is starting successfully.
 
 ---
 
@@ -193,8 +178,8 @@ Detailed steps: [`PUBLISHING.md`](PUBLISHING.md)
 
 ---
 
-## Standalone Roadmap Note
+## Standalone Runtime
 
-The standalone browser experience exists today as a dev harness (`npm run dev`) and is useful for UI iteration and testing.
+The standalone browser experience is the supported local development runtime for `containerlab-gui`.
 
-A fully supported standalone distribution is planned but not complete yet. Until that lands, the production integration target remains `vscode-containerlab`.
+It uses the same browser-side host contract as VS Code, with only platform-specific differences in backend transport and shell behavior.

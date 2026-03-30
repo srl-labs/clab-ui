@@ -12,7 +12,7 @@ import "@webview/styles/global.css";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
-import { setClabUiHost } from "@webview/host";
+import { createApiClabUiHost, setClabUiHost } from "@webview/host";
 import {
   setHostContext
 } from "@webview/services/topologyHostClient";
@@ -50,7 +50,6 @@ import { useEventStream } from "./hooks/useEventStream";
 import { LoginPage } from "./components/LoginPage";
 import { SettingsOverlay } from "./components/SettingsOverlay";
 import { getRuntimeContainersForLab, runtimeContainersEqual } from "./runtimeData";
-import { createApiClabUiHost } from "./clabUiHost";
 
 // Monaco workers setup
 const monacoGlobal = self as typeof self & {

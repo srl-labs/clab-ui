@@ -9,7 +9,7 @@
 
 The `publish-package.yml` workflow publishes `@srl-labs/clab-ui` to GitHub Packages.
 
-No wrapper packages are published separately; consume core/explorer/inspect APIs from
+No wrapper packages are published separately; consume browser runtime, core, explorer, and inspect APIs from
 `@srl-labs/clab-ui` subpath exports.
 
 ## Local publish (manual)
@@ -36,5 +36,4 @@ node scripts/set-clab-package-source.mjs --source=github --version=<version>
 npm install
 ```
 
-Host adapters (`@srl-labs/clab-adapter-vscode`, `@srl-labs/clab-adapter-api`,
-`@srl-labs/clab-adapter-memory`) are workspace packages used for integration and testing.
+Browser-side runtime integration is owned by `@srl-labs/clab-ui/host`.

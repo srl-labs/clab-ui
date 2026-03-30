@@ -8,10 +8,7 @@
       "@webview/*": ["../../packages/ui/src/*"],
       "@shared/*": ["../../packages/ui/src/core/*"],
       "@srl-labs/clab-ui": ["../../packages/ui/src"],
-      "@srl-labs/clab-ui/*": ["../../packages/ui/src/*"],
-      "@srl-labs/clab-host-contract": ["../../packages/host-contract/src"],
-      "@srl-labs/clab-adapter-api": ["../../packages/adapter-api/src"],
-      "@srl-labs/clab-adapter-memory": ["../../packages/adapter-memory/src"]
+      "@srl-labs/clab-ui/*": ["../../packages/ui/src/*"]
     }
   },
   "include": ["src/**/*"]

@@ -1,9 +1,8 @@
 /**
  * Topology host protocol endpoints.
  *
- * Exposes /api/topology/snapshot and /api/topology/command — the same
- * endpoints the dev harness uses, so the UI's topologyHostClient.ts
- * works without changes.
+ * Exposes /api/topology/snapshot and /api/topology/command so the shared
+ * UI topologyHostClient.ts works unchanged across standalone and VS Code hosts.
  *
  * Each lab gets a TopologyHostCore backed by ClabApiFileSystemAdapter.
  */

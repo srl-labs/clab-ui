@@ -136,7 +136,7 @@ async function build() {
       outfile: "dist/containerlabExplorerView.js"
     },
     {
-      entryPoints: ["packages/ui/src/webviews/welcome/welcomePage.webview.tsx"],
+      entryPoints: ["packages/ui/src/welcome/entry.tsx"],
       outfile: "dist/welcomePageWebview.js"
     },
     {
@@ -144,11 +144,11 @@ async function build() {
       outfile: "dist/inspectWebview.js"
     },
     {
-      entryPoints: ["packages/ui/src/webviews/nodeImpairments/nodeImpairments.webview.tsx"],
+      entryPoints: ["packages/ui/src/node-impairments/entry.tsx"],
       outfile: "dist/nodeImpairmentsWebview.js"
     },
     {
-      entryPoints: ["packages/ui/src/webviews/wiresharkVnc/wiresharkVnc.webview.tsx"],
+      entryPoints: ["packages/ui/src/wireshark-vnc/entry.tsx"],
       outfile: "dist/wiresharkVncWebview.js"
     }
   ].map((build) =>

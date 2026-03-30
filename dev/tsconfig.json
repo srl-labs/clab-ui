@@ -8,6 +8,8 @@
   "include": [
     "./**/*.ts",
     "./**/*.tsx",
+    "../apps/standalone/src/**/*.ts",
+    "../apps/standalone/src/**/*.tsx",
     "../src/reactTopoViewer/**/*.ts",
     "../src/reactTopoViewer/**/*.tsx",
     "../packages/**/*.ts",

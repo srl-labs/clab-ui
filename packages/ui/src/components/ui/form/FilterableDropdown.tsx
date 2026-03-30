@@ -83,7 +83,7 @@ export const FilterableDropdown: React.FC<FilterableDropdownProps> = ({
       }
       renderInput={(params) => (
         <TextField
-          {...params}
+          {...(params as unknown as React.ComponentProps<typeof TextField>)}
           label={label}
           placeholder={placeholder}
           helperText={helperText}

@@ -9,7 +9,7 @@ import "@webview/styles/global.css";
 import EditorWorker from "monaco-editor/esm/vs/editor/editor.worker?worker";
 import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
-import { createApiClabUiHost, setClabUiHost } from "@webview/host";
+import { setClabUiHost } from "@webview/host";
 import { setHostContext } from "@webview/services/topologyHostClient";
 import { refreshTopologySnapshot } from "@webview/services/topologyHostCommands";
 import { useGraphStore, useTopoViewerStore } from "@webview/stores";
@@ -39,6 +39,7 @@ import type {
 } from "@srl-labs/clab-ui/explorer/snapshot";
 import { installInMemoryApi } from "./mock/inMemoryApi";
 import { loadDevSession, saveDevSession } from "./mock/devSession";
+import { createApiClabUiHost } from "../apps/standalone/src/clabUiHost";
 
 const monacoGlobal = self as typeof self & {
   MonacoEnvironment?: {

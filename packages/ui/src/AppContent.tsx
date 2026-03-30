@@ -78,6 +78,7 @@ import {
   getCustomIconMap,
   saveViewerSettings
 } from "./services";
+import { getConfiguredClabUiHost } from "./host";
 import {
   PENDING_NETEM_KEY,
   areNetemEquivalent,
@@ -283,7 +284,7 @@ function getInteractionLockState(isLocked: boolean, isProcessing: boolean): bool
 }
 
 function isDevMockWebview(): boolean {
-  return window.vscode?.__isDevMock__ === true;
+  return getConfiguredClabUiHost()?.meta?.isDevMock === true;
 }
 
 function isDevExplorerDisabledByUrl(): boolean {
@@ -309,8 +310,7 @@ function shouldCollectDevMockTrafficStats(
   if (!isDevMock || interactionMode !== "view") {
     return false;
   }
-  const vscodeApi = window.vscode as unknown;
-  if (isRecord(vscodeApi) && Reflect.get(vscodeApi, "__disableDevMockTraffic__") === true) {
+  if (getConfiguredClabUiHost()?.meta?.disableDevMockTraffic === true) {
     return false;
   }
   return true;

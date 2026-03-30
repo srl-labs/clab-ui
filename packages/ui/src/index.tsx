@@ -5,12 +5,10 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
-import { createWindowClabUiHost, setClabUiHost } from "./host";
+import { assertClabUiHostConfigured } from "./host";
 import { log } from "./utils/logger";
 import "./styles/global.css";
 import { subscribeToWebviewMessages } from "./messaging/webviewMessageBus";
-
-setClabUiHost(createWindowClabUiHost());
 
 // Get the initial data from the window object (injected by extension)
 const initialData = window.__INITIAL_DATA__ ?? {};
@@ -53,6 +51,8 @@ log.info(
  * Bootstrap the application.
  */
 function bootstrap(): void {
+  assertClabUiHostConfigured();
+
   // Find the root element
   const container = document.getElementById("root");
   if (!container) {

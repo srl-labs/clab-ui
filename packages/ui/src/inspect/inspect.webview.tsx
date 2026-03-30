@@ -439,7 +439,7 @@ function InspectGroupPanel({
   );
 }
 
-function InspectApp(): React.JSX.Element {
+export function InspectApp(): React.JSX.Element {
   const initialData = (window.__INITIAL_DATA__ ?? {}) as unknown as InspectWebviewInitialData;
   const containers = Array.isArray(initialData.containers) ? initialData.containers : [];
 
@@ -599,7 +599,7 @@ function InspectApp(): React.JSX.Element {
   );
 }
 
-function bootstrapInspectWebview(): void {
+export function bootstrapInspectWebview(): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Inspect webview root element not found");
@@ -612,5 +612,3 @@ function bootstrapInspectWebview(): void {
     </React.StrictMode>
   );
 }
-
-bootstrapInspectWebview();

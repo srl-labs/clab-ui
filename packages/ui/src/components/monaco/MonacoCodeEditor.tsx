@@ -1,12 +1,11 @@
 import React, { useEffect, useRef, useCallback } from "react";
 import * as monaco from "monaco-editor";
-import {
-  conf as yamlConf,
-  language as yamlLanguage
-} from "monaco-editor/esm/vs/basic-languages/yaml/yaml.js";
+// @ts-ignore Monaco's bundled YAML grammar module is untyped.
+import * as yamlMonaco from "monaco-editor/esm/vs/basic-languages/yaml/yaml.js";
 import * as YAML from "yaml";
 import Ajv from "ajv";
 
+import { getConfiguredClabUiHost } from "../../host";
 import { parseLuminance } from "../../utils/color";
 
 declare global {
@@ -25,7 +24,7 @@ function getCssVar(name: string, fallback: string): string {
 }
 
 function detectColorMode(): "light" | "dark" {
-  const isDevMock = Boolean(window.vscode && window.vscode.__isDevMock__);
+  const isDevMock = getConfiguredClabUiHost()?.meta?.isDevMock === true;
   if (isDevMock) {
     return document.documentElement.classList.contains("light") ? "light" : "dark";
   }
@@ -62,8 +61,14 @@ function ensureMonacoConfiguredOnce(): void {
   if (!yamlRegistered) {
     if (!monaco.languages.getLanguages().some((l) => l.id === "yaml")) {
       monaco.languages.register({ id: "yaml" });
-      monaco.languages.setMonarchTokensProvider("yaml", yamlLanguage);
-      monaco.languages.setLanguageConfiguration("yaml", yamlConf);
+      monaco.languages.setMonarchTokensProvider(
+        "yaml",
+        yamlMonaco.language as monaco.languages.IMonarchLanguage
+      );
+      monaco.languages.setLanguageConfiguration(
+        "yaml",
+        yamlMonaco.conf as monaco.languages.LanguageConfiguration
+      );
     }
     yamlRegistered = true;
   }

@@ -1,7 +1,10 @@
 import { useEffect, useRef } from "react";
 
+import { getClabUiHost } from "../../../host";
+
 interface WebviewMessage {
-  command: string;
+  command?: string;
+  type?: string;
 }
 
 export function useMessageListener<T extends WebviewMessage>(
@@ -14,10 +17,8 @@ export function useMessageListener<T extends WebviewMessage>(
   }, [handler]);
 
   useEffect(() => {
-    const listener = (event: MessageEvent<T>) => {
-      handlerRef.current(event.data);
-    };
-    window.addEventListener("message", listener);
-    return () => window.removeEventListener("message", listener);
+    return getClabUiHost().subscribe((event) => {
+      handlerRef.current(event.data as T);
+    });
   }, []);
 }

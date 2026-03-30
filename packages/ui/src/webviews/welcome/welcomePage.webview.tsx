@@ -83,7 +83,7 @@ const COMMUNITY_LINKS: ReadonlyArray<{ label: string; href: string }> = [
   { label: "Discord", href: "https://discord.gg/vAyddtaEV9" }
 ];
 
-function WelcomePageApp(): React.JSX.Element {
+export function WelcomePageApp(): React.JSX.Element {
   const initialData = (window.__INITIAL_DATA__ ?? {}) as WelcomeInitialData;
   const extensionVersion = initialData.extensionVersion ?? "unknown";
 
@@ -309,7 +309,7 @@ function WelcomePageApp(): React.JSX.Element {
   );
 }
 
-function bootstrapWelcomePage(): void {
+export function bootstrapWelcomePage(): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Welcome page root element not found");
@@ -322,5 +322,3 @@ function bootstrapWelcomePage(): void {
     </React.StrictMode>
   );
 }
-
-bootstrapWelcomePage();

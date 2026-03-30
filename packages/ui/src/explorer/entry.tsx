@@ -1,5 +1,6 @@
-import { createWindowClabUiHost, setClabUiHost } from "../host";
+import { assertClabUiHostConfigured } from "../host";
+import { bootstrapContainerlabExplorerView } from "./containerlabExplorerView.webview";
 
-setClabUiHost(createWindowClabUiHost());
+assertClabUiHostConfigured();
 
-void import("./containerlabExplorerView.webview");
+bootstrapContainerlabExplorerView();

@@ -1632,8 +1632,6 @@ function ExplorerSectionCard({
   );
 }
 
-const EXPLORER_WEBVIEW_KIND = "containerlab-explorer";
-
 export function ContainerlabExplorerView() {
   const [sections, setSections] = useState<ExplorerSectionSnapshot[]>([]);
   const [sectionOrder, setSectionOrder] = useState<ExplorerSectionId[]>(EXPLORER_SECTION_ORDER);
@@ -2056,10 +2054,10 @@ export function ContainerlabExplorerView() {
   );
 }
 
-function mount(): void {
+export function bootstrapContainerlabExplorerView(): void {
   const container = document.getElementById("root");
   if (!container) {
-    return;
+    throw new Error("Explorer root element not found");
   }
 
   const root = createRoot(container);
@@ -2068,8 +2066,4 @@ function mount(): void {
       <ContainerlabExplorerView />
     </MuiThemeProvider>
   );
-}
-
-if (document.body?.dataset.webviewKind === EXPLORER_WEBVIEW_KIND) {
-  mount();
 }

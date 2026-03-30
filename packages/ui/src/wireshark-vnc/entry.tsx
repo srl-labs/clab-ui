@@ -1,1 +1,3 @@
-import "../webviews/wiresharkVnc/wiresharkVnc.webview";
+import { bootstrapWiresharkVncWebview } from "./index";
+
+bootstrapWiresharkVncWebview();

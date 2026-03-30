@@ -1,1 +1,3 @@
-import "../webviews/welcome/welcomePage.webview";
+import { bootstrapWelcomePage } from "./index";
+
+bootstrapWelcomePage();

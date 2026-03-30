@@ -1,1 +1,3 @@
-import "../webviews/nodeImpairments/nodeImpairments.webview";
+import { bootstrapNodeImpairmentsWebview } from "./index";
+
+bootstrapNodeImpairmentsWebview();

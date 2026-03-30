@@ -1,1 +1,3 @@
-import "./inspect.webview";
+import { bootstrapInspectWebview } from "./inspect.webview";
+
+bootstrapInspectWebview();

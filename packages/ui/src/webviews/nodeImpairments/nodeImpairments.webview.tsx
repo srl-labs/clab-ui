@@ -78,7 +78,7 @@ function hasDelayValidationError(fields: NetemFields): boolean {
   return jitter > 0 && delay <= 0;
 }
 
-function NodeImpairmentsApp(): React.JSX.Element {
+export function NodeImpairmentsApp(): React.JSX.Element {
   const initialData = (window.__INITIAL_DATA__ ?? {}) as unknown as NodeImpairmentsInitialData;
   const nodeName = initialData.nodeName ?? "";
 
@@ -244,7 +244,7 @@ function NodeImpairmentsApp(): React.JSX.Element {
   );
 }
 
-function bootstrapNodeImpairmentsWebview(): void {
+export function bootstrapNodeImpairmentsWebview(): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Node impairments root element not found");
@@ -257,5 +257,3 @@ function bootstrapNodeImpairmentsWebview(): void {
     </React.StrictMode>
   );
 }
-
-bootstrapNodeImpairmentsWebview();

@@ -3,7 +3,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 
 import { MuiThemeProvider } from "@srl-labs/clab-ui/theme";
-import { usePostMessage } from "../shared/hooks";
+import { useMessageListener, usePostMessage } from "../shared/hooks";
 
 import type { WiresharkVncInitialData } from "./types";
 
@@ -32,7 +32,7 @@ function appendCacheBuster(url: string): string {
   return `${url}${separator}t=${Date.now()}`;
 }
 
-function WiresharkVncApp(): React.JSX.Element {
+export function WiresharkVncApp(): React.JSX.Element {
   const initialData = (window.__INITIAL_DATA__ ?? {}) as unknown as WiresharkVncInitialData;
   const fallbackUrl = initialData.iframeUrl || "";
   const showVolumeTip = Boolean(initialData.showVolumeTip);
@@ -63,47 +63,41 @@ function WiresharkVncApp(): React.JSX.Element {
     [fallbackUrl]
   );
 
-  React.useEffect(() => {
-    const listener = (event: MessageEvent<WiresharkVncIncomingMessage>) => {
-      const message = event.data;
-      if (!message || typeof message !== "object" || !("type" in message)) {
-        return;
+  useMessageListener<WiresharkVncIncomingMessage>((message) => {
+    if (!message || typeof message !== "object" || !("type" in message)) {
+      return;
+    }
+
+    switch (message.type) {
+      case "vnc-progress": {
+        pendingRetryRef.current = false;
+        const attempt = typeof message.attempt === "number" ? message.attempt : 0;
+        const maxAttempts = typeof message.maxAttempts === "number" ? message.maxAttempts : 0;
+
+        if (attempt <= 1) {
+          setRetryInfo("Waiting for VNC server...");
+        } else if (maxAttempts > 0) {
+          setRetryInfo(`Waiting for VNC server... (attempt ${attempt}/${maxAttempts})`);
+        } else {
+          setRetryInfo(`Waiting for VNC server... (attempt ${attempt})`);
+        }
+
+        break;
       }
-
-      switch (message.type) {
-        case "vnc-progress": {
-          pendingRetryRef.current = false;
-          const attempt = typeof message.attempt === "number" ? message.attempt : 0;
-          const maxAttempts = typeof message.maxAttempts === "number" ? message.maxAttempts : 0;
-
-          if (attempt <= 1) {
-            setRetryInfo("Waiting for VNC server...");
-          } else if (maxAttempts > 0) {
-            setRetryInfo(`Waiting for VNC server... (attempt ${attempt}/${maxAttempts})`);
-          } else {
-            setRetryInfo(`Waiting for VNC server... (attempt ${attempt})`);
-          }
-
-          break;
-        }
-        case "vnc-ready": {
-          pendingRetryRef.current = false;
-          setRetryInfo("VNC server ready, loading...");
-          loadVnc(message.url, false);
-          break;
-        }
-        case "vnc-timeout": {
-          pendingRetryRef.current = false;
-          setRetryInfo("Connection timeout - attempting to load anyway...");
-          loadVnc(message.url, true);
-          break;
-        }
+      case "vnc-ready": {
+        pendingRetryRef.current = false;
+        setRetryInfo("VNC server ready, loading...");
+        loadVnc(message.url, false);
+        break;
       }
-    };
-
-    window.addEventListener("message", listener);
-    return () => window.removeEventListener("message", listener);
-  }, [loadVnc]);
+      case "vnc-timeout": {
+        pendingRetryRef.current = false;
+        setRetryInfo("Connection timeout - attempting to load anyway...");
+        loadVnc(message.url, true);
+        break;
+      }
+    }
+  });
 
   React.useEffect(() => {
     postMessage({ type: "retry-check" });
@@ -184,7 +178,7 @@ function WiresharkVncApp(): React.JSX.Element {
   );
 }
 
-function bootstrapWiresharkVncWebview(): void {
+export function bootstrapWiresharkVncWebview(): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Wireshark VNC root element not found");
@@ -197,5 +191,3 @@ function bootstrapWiresharkVncWebview(): void {
     </React.StrictMode>
   );
 }
-
-bootstrapWiresharkVncWebview();

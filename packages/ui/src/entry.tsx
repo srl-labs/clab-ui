@@ -5,15 +5,13 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
-import { createWindowClabUiHost, setClabUiHost } from "./host";
+import { assertClabUiHostConfigured } from "./host";
 import { log } from "./utils/logger";
 import "./styles/global.css";
 import { subscribeToWebviewMessages } from "./messaging/webviewMessageBus";
 
-setClabUiHost(createWindowClabUiHost());
-
 // Get the initial data from the window object (injected by extension)
-const initialData = window.__INITIAL_DATA__ ?? {};
+const initialData = (window.__INITIAL_DATA__ ?? {}) as Record<string, unknown>;
 
 // Extract and store schema data on window for useSchema hook
 if (initialData.schemaData) {
@@ -23,7 +21,7 @@ if (initialData.schemaData) {
 
 // Extract and store docker images on window for useDockerImages hook
 if (initialData.dockerImages) {
-  window.__DOCKER_IMAGES__ = initialData.dockerImages;
+  window.__DOCKER_IMAGES__ = initialData.dockerImages as typeof window.__DOCKER_IMAGES__;
 }
 
 // Listen for docker images updates from extension
@@ -43,10 +41,10 @@ subscribeToWebviewMessages((event) => {
 });
 
 // Log bootstrap data
-const customNodeCount = Array.isArray(initialData?.customNodes)
+const customNodeCount = Array.isArray(initialData.customNodes)
   ? initialData.customNodes.length
   : 0;
-const iconCount = Array.isArray(initialData?.customIcons) ? initialData.customIcons.length : 0;
+const iconCount = Array.isArray(initialData.customIcons) ? initialData.customIcons.length : 0;
 log.info(
   `[ReactTopoViewer] Bootstrap data loaded (customNodes: ${customNodeCount}, customIcons: ${iconCount})`
 );
@@ -55,6 +53,8 @@ log.info(
  * Bootstrap the application.
  */
 function bootstrap(): void {
+  assertClabUiHostConfigured();
+
   // Find the root element
   const container = document.getElementById("root");
   if (!container) {

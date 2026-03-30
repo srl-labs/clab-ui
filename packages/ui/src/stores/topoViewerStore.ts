@@ -42,6 +42,7 @@ export interface TopoViewerState {
   yamlContent: string;
   /** Raw annotations JSON content from host snapshot (used by Monaco source editors). */
   annotationsContent: string;
+  documentRevision: string;
   selectedNode: string | null;
   selectedEdge: string | null;
   editingImpairment: string | null;
@@ -154,6 +155,7 @@ const initialState: TopoViewerState = {
   annotationsFileName: "topology.clab.yml.annotations.json",
   yamlContent: "",
   annotationsContent: "{}\n",
+  documentRevision: "",
   selectedNode: null,
   selectedEdge: null,
   editingImpairment: null,

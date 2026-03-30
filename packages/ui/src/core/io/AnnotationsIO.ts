@@ -124,17 +124,17 @@ export class AnnotationsIO {
     }
 
     try {
-      const exists = await this.fs.exists(annotationsPath);
-      if (exists) {
-        const content = await this.fs.readFile(annotationsPath);
-        const annotations = toTopologyAnnotations(JSON.parse(content) as unknown);
-        this.logger.info(`Loaded annotations from ${annotationsPath}`);
+      const content = await this.fs.readFile(annotationsPath);
+      const annotations = toTopologyAnnotations(JSON.parse(content) as unknown);
+      this.logger.info(`Loaded annotations from ${annotationsPath}`);
 
-        this.cache.set(annotationsPath, { data: annotations, timestamp: Date.now() });
-        return annotations;
-      }
+      this.cache.set(annotationsPath, { data: annotations, timestamp: Date.now() });
+      return annotations;
     } catch (error) {
-      this.logger.warn(`Failed to load annotations from ${annotationsPath}: ${error}`);
+      const code = (error as { code?: string } | undefined)?.code;
+      if (code !== "ENOENT") {
+        this.logger.warn(`Failed to load annotations from ${annotationsPath}: ${error}`);
+      }
     }
 
     const emptyAnnotations = createEmptyAnnotations();

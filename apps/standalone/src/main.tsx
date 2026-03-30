@@ -139,6 +139,15 @@ interface TopologyFileEntry {
   deploymentState?: string;
 }
 
+interface TopologyDocEventMessage {
+  type: "topology-doc";
+  labName: string;
+  path: string;
+  documentKind: "yaml" | "annotations";
+  action: "create" | "change" | "delete" | "rename";
+  revision: string;
+}
+
 class SimpleExplorerProvider {
   constructor(private readonly roots: ExplorerTreeItem[]) {}
   getChildren(element?: ExplorerTreeItem): ExplorerTreeItem[] {
@@ -160,6 +169,9 @@ let fileListInFlight: Promise<TopologyFileEntry[]> | null = null;
 let topologyRefreshTimer: number | null = null;
 let topologyRefreshInFlight = false;
 let topologyRefreshQueued = false;
+let topologyEventSource: EventSource | null = null;
+let topologyEventStreamPath: string | null = null;
+let standaloneAuthenticated = false;
 const LIFECYCLE_STATE_WAIT_TIMEOUT_MS = 120_000;
 const LIFECYCLE_STATE_WAIT_POLL_MS = 750;
 const LIFECYCLE_RESPONSE_LOG_LIMIT = 500;
@@ -891,6 +903,35 @@ function getRuntimeContainersForLab(
   return [...lab.containers.values()].map((container) => toRuntimeContainer(container));
 }
 
+function runtimeInterfacesEqual(
+  previous: HostRuntimeInterface[] | undefined,
+  next: HostRuntimeInterface[] | undefined
+): boolean {
+  const prevInterfaces = [...(previous ?? [])].sort((a, b) => a.name.localeCompare(b.name));
+  const nextInterfaces = [...(next ?? [])].sort((a, b) => a.name.localeCompare(b.name));
+  if (prevInterfaces.length !== nextInterfaces.length) {
+    return false;
+  }
+
+  for (let i = 0; i < prevInterfaces.length; i += 1) {
+    const prevIface = prevInterfaces[i];
+    const nextIface = nextInterfaces[i];
+    if (
+      prevIface.name !== nextIface.name ||
+      prevIface.alias !== nextIface.alias ||
+      prevIface.state !== nextIface.state ||
+      prevIface.type !== nextIface.type ||
+      prevIface.mac !== nextIface.mac ||
+      prevIface.mtu !== nextIface.mtu ||
+      prevIface.ifIndex !== nextIface.ifIndex
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 function runtimeContainersEqual(
   previous: HostRuntimeContainer[],
   next: HostRuntimeContainer[]
@@ -916,43 +957,65 @@ function runtimeContainersEqual(
     ) {
       return false;
     }
+    if (!runtimeInterfacesEqual(container.interfaces, candidate.interfaces)) {
+      return false;
+    }
+  }
 
-    const prevInterfaces = [...(container.interfaces ?? [])].sort((a, b) => a.name.localeCompare(b.name));
-    const nextInterfaces = [...(candidate.interfaces ?? [])].sort((a, b) => a.name.localeCompare(b.name));
-    if (prevInterfaces.length !== nextInterfaces.length) {
+  return true;
+}
+
+function labsEqualForExplorer(previousLabs: Map<string, LabState>, nextLabs: Map<string, LabState>): boolean {
+  if (previousLabs.size !== nextLabs.size) {
+    return false;
+  }
+
+  for (const [labName, previousLab] of previousLabs.entries()) {
+    const nextLab = nextLabs.get(labName);
+    if (!nextLab) {
+      return false;
+    }
+    if (previousLab.owner !== nextLab.owner || previousLab.containers.size !== nextLab.containers.size) {
       return false;
     }
 
-    for (let i = 0; i < prevInterfaces.length; i += 1) {
-      const prevIface = prevInterfaces[i];
-      const nextIface = nextInterfaces[i];
+    for (const [containerName, previousContainer] of previousLab.containers.entries()) {
+      const nextContainer = nextLab.containers.get(containerName);
+      if (!nextContainer) {
+        return false;
+      }
       if (
-        prevIface.name !== nextIface.name ||
-        prevIface.alias !== nextIface.alias ||
-        prevIface.state !== nextIface.state ||
-        prevIface.type !== nextIface.type ||
-        prevIface.mac !== nextIface.mac ||
-        prevIface.mtu !== nextIface.mtu ||
-        prevIface.ifIndex !== nextIface.ifIndex
+        previousContainer.nodeName !== nextContainer.nodeName ||
+        previousContainer.kind !== nextContainer.kind ||
+        previousContainer.image !== nextContainer.image ||
+        previousContainer.state !== nextContainer.state ||
+        previousContainer.status !== nextContainer.status ||
+        previousContainer.ipv4Address !== nextContainer.ipv4Address ||
+        previousContainer.ipv6Address !== nextContainer.ipv6Address ||
+        previousContainer.labPath !== nextContainer.labPath ||
+        previousContainer.interfaces.size !== nextContainer.interfaces.size
       ) {
         return false;
       }
 
-      const prevStats = prevIface.stats;
-      const nextStats = nextIface.stats;
-      const keys: Array<keyof HostRuntimeInterfaceStats> = [
-        "rxBps",
-        "txBps",
-        "rxPps",
-        "txPps",
-        "rxBytes",
-        "txBytes",
-        "rxPackets",
-        "txPackets",
-        "statsIntervalSeconds"
-      ];
-      for (const key of keys) {
-        if (prevStats?.[key] !== nextStats?.[key]) {
+      for (const [ifaceName, previousIface] of previousContainer.interfaces.entries()) {
+        const nextIface = nextContainer.interfaces.get(ifaceName);
+        if (!nextIface) {
+          return false;
+        }
+        if (
+          previousIface.alias !== nextIface.alias ||
+          previousIface.state !== nextIface.state ||
+          previousIface.type !== nextIface.type ||
+          previousIface.mac !== nextIface.mac ||
+          previousIface.mtu !== nextIface.mtu ||
+          previousIface.ifIndex !== nextIface.ifIndex ||
+          previousIface.netemDelay !== nextIface.netemDelay ||
+          previousIface.netemJitter !== nextIface.netemJitter ||
+          previousIface.netemLoss !== nextIface.netemLoss ||
+          previousIface.netemRate !== nextIface.netemRate ||
+          previousIface.netemCorruption !== nextIface.netemCorruption
+        ) {
           return false;
         }
       }
@@ -1271,6 +1334,56 @@ function scheduleTopologySnapshotRefresh(delay = TOPOLOGY_REFRESH_DEBOUNCE_MS): 
   }, delay);
 }
 
+function closeTopologyEventStream(): void {
+  topologyEventSource?.close();
+  topologyEventSource = null;
+  topologyEventStreamPath = null;
+}
+
+function handleTopologyDocumentEvent(event: TopologyDocEventMessage): void {
+  invalidateTopologyFileListCache();
+  scheduleExplorerSnapshot(0);
+
+  const currentRevision = useTopoViewerStore.getState().documentRevision;
+  if (event.revision && event.revision === currentRevision) {
+    return;
+  }
+  scheduleTopologySnapshotRefresh(0);
+}
+
+function ensureTopologyEventStream(): void {
+  const filePath = currentFilePath?.trim() ?? "";
+  if (!standaloneAuthenticated || filePath.length === 0) {
+    closeTopologyEventStream();
+    return;
+  }
+
+  if (topologyEventSource && topologyEventStreamPath === filePath) {
+    return;
+  }
+
+  closeTopologyEventStream();
+  const es = new EventSource(`/api/topology/events?path=${encodeURIComponent(filePath)}`);
+  topologyEventSource = es;
+  topologyEventStreamPath = filePath;
+
+  es.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data) as TopologyDocEventMessage;
+      if (data.type !== "topology-doc") {
+        return;
+      }
+      handleTopologyDocumentEvent(data);
+    } catch {
+      // Ignore malformed topology events
+    }
+  };
+
+  es.onerror = () => {
+    // EventSource reconnects automatically.
+  };
+}
+
 // Topology loading
 
 function syncHostContext(options: {
@@ -1298,6 +1411,7 @@ async function loadTopologyFile(
 ): Promise<void> {
   console.log(`[Standalone] Loading topology: ${filePath}`);
   currentFilePath = filePath;
+  ensureTopologyEventStream();
   syncHostContext(options);
   const snapshot = await refreshTopologySnapshot();
 
@@ -1764,7 +1878,9 @@ function StandaloneApp() {
       if (state.labs !== labsRef.current) {
         const previousLabs = labsRef.current;
         labsRef.current = state.labs;
-        scheduleExplorerSnapshot();
+        if (!labsEqualForExplorer(previousLabs, state.labs)) {
+          scheduleExplorerSnapshot();
+        }
 
         if (currentFilePath) {
           const activeLabName = stripTopologySuffix(safeFilename(currentFilePath));
@@ -1805,6 +1921,18 @@ function StandaloneApp() {
     void refreshApiConfig();
   }, [isAuthenticated, refreshApiConfig]);
 
+  useEffect(() => {
+    standaloneAuthenticated = isAuthenticated;
+    ensureTopologyEventStream();
+    if (!isAuthenticated) {
+      currentFilePath = null;
+    }
+    return () => {
+      standaloneAuthenticated = false;
+      closeTopologyEventStream();
+    };
+  }, [isAuthenticated]);
+
   const handleLogin = useCallback(
     async (username: string, password: string, selectedApiUrl: string) => {
       await login(username, password, selectedApiUrl);
@@ -1821,6 +1949,7 @@ function StandaloneApp() {
   }, []);
 
   const handleLogout = useCallback(() => {
+    closeTopologyEventStream();
     void logout();
   }, [logout]);
 

@@ -102,6 +102,10 @@ function hasSnapshotRevision(value: Record<string, unknown>): boolean {
   return typeof value.revision === "number" && Number.isFinite(value.revision);
 }
 
+function hasValidDocumentRevision(value: Record<string, unknown>): boolean {
+  return value.documentRevision === undefined || typeof value.documentRevision === "string";
+}
+
 function hasSnapshotCollections(value: Record<string, unknown>): boolean {
   return Array.isArray(value.nodes) && Array.isArray(value.edges) && isRecord(value.annotations);
 }
@@ -131,6 +135,7 @@ function isTopologySnapshot(value: unknown): value is TopologySnapshot {
   if (!isRecord(value)) return false;
   return (
     hasSnapshotRevision(value) &&
+    hasValidDocumentRevision(value) &&
     hasSnapshotCollections(value) &&
     hasSnapshotTextFields(value) &&
     hasSnapshotModeAndState(value) &&

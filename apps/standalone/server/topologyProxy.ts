@@ -289,6 +289,17 @@ async function getOrCreateHost(
   return host;
 }
 
+async function attachDocumentRevision(
+  client: ClabApiClient,
+  token: string,
+  filePath: string,
+  snapshot: TopologySnapshot
+): Promise<TopologySnapshot> {
+  const labName = extractLabName(filePath);
+  const documentRevision = await client.getTopologyDocumentRevision(token, labName, filePath);
+  return documentRevision ? { ...snapshot, documentRevision } : snapshot;
+}
+
 type ClientResolver = (request: FastifyRequest) => ClabApiClient;
 
 export function registerTopologyProxy(app: FastifyInstance, getClient: ClientResolver): void {
@@ -325,6 +336,7 @@ export function registerTopologyProxy(app: FastifyInstance, getClient: ClientRes
         } else {
           snapshot = await host.getSnapshot();
         }
+        snapshot = await attachDocumentRevision(client, token, body.path, snapshot);
 
         return reply.send({ snapshot });
       } catch (error) {
@@ -366,6 +378,12 @@ export function registerTopologyProxy(app: FastifyInstance, getClient: ClientRes
           body.command,
           body.baseRevision
         );
+        if (
+          (response.type === "topology-host:ack" || response.type === "topology-host:reject") &&
+          response.snapshot
+        ) {
+          response.snapshot = await attachDocumentRevision(client, token, body.path, response.snapshot);
+        }
         return reply.send(response);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

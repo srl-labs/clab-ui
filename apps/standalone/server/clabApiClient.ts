@@ -28,6 +28,15 @@ export interface LifecycleActionResult {
   logs?: string[];
 }
 
+export interface TopologyDocEvent {
+  type: "topology-doc";
+  labName: string;
+  path: string;
+  documentKind: "yaml" | "annotations";
+  action: "create" | "change" | "delete" | "rename";
+  revision: string;
+}
+
 type LifecycleEndpoint = "deploy" | "destroy" | "redeploy";
 
 export class ClabApiClient {
@@ -86,6 +95,24 @@ export class ClabApiClient {
       }
     );
     return res.ok;
+  }
+
+  async getTopologyDocumentRevision(
+    token: string,
+    labName: string,
+    filePath: string
+  ): Promise<string | undefined> {
+    const res = await fetch(
+      `${this.baseUrl}/api/v1/labs/${enc(labName)}/topology/file?path=${encodeURIComponent(filePath)}`,
+      {
+        method: "HEAD",
+        headers: { Authorization: `Bearer ${token}` }
+      }
+    );
+    if (!res.ok) {
+      return undefined;
+    }
+    return res.headers.get("x-topology-document-revision") ?? undefined;
   }
 
   async deleteFile(token: string, labName: string, filePath: string): Promise<void> {
@@ -264,6 +291,23 @@ export class ClabApiClient {
     });
     if (!res.ok) {
       throw new Error(`Failed to open event stream: ${res.status} ${res.statusText}`);
+    }
+    return res;
+  }
+
+  async openTopologyEventStream(
+    token: string,
+    labName: string,
+    filePath: string
+  ): Promise<Response> {
+    const url =
+      `${this.baseUrl}/api/v1/labs/${enc(labName)}/topology/events` +
+      `?path=${encodeURIComponent(filePath)}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to open topology event stream: ${res.status} ${res.statusText}`);
     }
     return res;
   }

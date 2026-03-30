@@ -57,7 +57,8 @@ async function handleHostResponse(
       yamlFileName: snapshot.yamlFileName,
       annotationsFileName: snapshot.annotationsFileName,
       yamlContent: snapshot.yamlContent,
-      annotationsContent: snapshot.annotationsContent
+      annotationsContent: snapshot.annotationsContent,
+      documentRevision: snapshot.documentRevision ?? ""
     });
   };
 

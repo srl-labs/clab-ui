@@ -609,6 +609,7 @@ function buildInitialTopoViewerData(
     annotationsFileName: snapshot.annotationsFileName,
     yamlContent: snapshot.yamlContent,
     annotationsContent: snapshot.annotationsContent,
+    documentRevision: snapshot.documentRevision ?? "",
     edgeAnnotations,
     ...(offset !== null ? { endpointLabelOffset: offset } : {}),
     ...(gridLineWidth !== null ? { gridLineWidth } : {}),

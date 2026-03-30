@@ -16,6 +16,7 @@ import { registerEventsProxy } from "./eventsProxy.js";
 import { registerTopologyProxy } from "./topologyProxy.js";
 import { registerFileProxy } from "./fileProxy.js";
 import { registerLabProxy } from "./labProxy.js";
+import { registerTopologyEventsProxy } from "./topologyEventsProxy.js";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const DEFAULT_CLAB_API_URL = process.env.CLAB_API_URL ?? "http://localhost:8080";
@@ -40,6 +41,7 @@ async function start(): Promise<void> {
   // Register routes
   registerAuthRoutes(app, getClient, DEFAULT_CLAB_API_URL);
   registerEventsProxy(app, getClient);
+  registerTopologyEventsProxy(app, getClient);
   registerTopologyProxy(app, getClient);
   registerFileProxy(app, getClient);
   registerLabProxy(app, getClient);

@@ -102,6 +102,7 @@ export type TopologyHostCommand =
 
 export interface TopologySnapshot {
   revision: number;
+  documentRevision?: string;
   nodes: TopoNode[];
   edges: TopoEdge[];
   annotations: TopologyAnnotations;

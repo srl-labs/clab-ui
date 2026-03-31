@@ -10,6 +10,7 @@ import type { Edge, Node } from "@xyflow/react";
 
 import type { NetemState } from "../../core/parsing";
 import type { TopologySnapshot } from "../../core/types/messages";
+import { useClabUiHost, useTopologySessionClient } from "../../host";
 import {
   subscribeToWebviewMessages,
   type TypedMessageEvent
@@ -228,9 +229,12 @@ function applyEdgeStatsToEdge(
   return buildEdgeWithExtraData(edge, mergedExtraData, update.classes);
 }
 
-function handleSnapshotMessage(msg: { snapshot?: TopologySnapshot }): void {
+function handleSnapshotMessage(
+  msg: { snapshot?: TopologySnapshot },
+  sessionClient: ReturnType<typeof useTopologySessionClient>
+): void {
   if (msg.snapshot) {
-    applySnapshotToStores(msg.snapshot);
+    applySnapshotToStores(msg.snapshot, {}, sessionClient);
   }
 }
 
@@ -372,6 +376,9 @@ function applyNodeRuntimeUpdate(
  * Should be called once at the app root.
  */
 export function useGraphMessageSubscription(): void {
+  const host = useClabUiHost();
+  const sessionClient = useTopologySessionClient();
+
   useEffect(() => {
     const handleMessage = (event: TypedMessageEvent) => {
       const data = event.data;
@@ -379,7 +386,7 @@ export function useGraphMessageSubscription(): void {
       const message: ExtensionMessage = data;
 
       if (isTopologySnapshotMessage(message)) {
-        handleSnapshotMessage(message);
+        handleSnapshotMessage(message, sessionClient);
         return;
       }
       if (isEdgeStatsMessage(message)) {
@@ -391,6 +398,6 @@ export function useGraphMessageSubscription(): void {
       }
     };
 
-    return subscribeToWebviewMessages(handleMessage);
-  }, []);
+    return subscribeToWebviewMessages(handleMessage, undefined, host);
+  }, [host, sessionClient]);
 }

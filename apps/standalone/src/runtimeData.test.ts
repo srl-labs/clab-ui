@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getRuntimeContainersForLab, runtimeContainersEqual } from "./runtimeData";
+import {
+  getRuntimeContainersForLab,
+  getRuntimeContainersForTopology,
+  runtimeContainersEqual
+} from "./runtimeData";
+import { buildStandaloneTopologyRefFromPath } from "./standaloneHostShared";
 import type { ContainerState, LabState } from "./stores/labStore";
 
 function buildContainer(rxBps: string): ContainerState {
@@ -44,6 +49,7 @@ function buildLabs(rxBps: string): Map<string, LabState> {
       {
         name: "demo",
         owner: "user",
+        topologyPath: "/tmp/demo.clab.yml",
         containers: new Map([["clab-demo-srl1", buildContainer(rxBps)]])
       }
     ]
@@ -62,4 +68,32 @@ test("runtimeContainersEqual treats identical stats as unchanged", () => {
   const next = getRuntimeContainersForLab("demo", buildLabs("1000"));
 
   assert.equal(runtimeContainersEqual(previous, next), true);
+});
+
+test("getRuntimeContainersForTopology prefers exact topology path over lab name", () => {
+  const labs = new Map<string, LabState>([
+    [
+      "demo",
+      {
+        name: "demo",
+        owner: "user",
+        topologyPath: "/labs/demo-a.clab.yml",
+        containers: new Map([
+          [
+            "clab-demo-srl1",
+            {
+              ...buildContainer("1000"),
+              labPath: "/labs/demo-a.clab.yml"
+            }
+          ]
+        ])
+      }
+    ]
+  ]);
+
+  const topologyRef = buildStandaloneTopologyRefFromPath("/labs/demo-a.clab.yml", "other-lab-name");
+  const runtimeContainers = getRuntimeContainersForTopology(topologyRef, labs);
+
+  assert.equal(runtimeContainers.length, 1);
+  assert.equal(runtimeContainers[0]?.name, "clab-demo-srl1");
 });

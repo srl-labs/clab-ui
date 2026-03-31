@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 import type { Node, ReactFlowInstance } from "@xyflow/react";
 
 import type { GroupStyleAnnotation } from "../../core/types/topology";
+import type { TopologySessionClient } from "../../session";
 import type { GroupNodeData } from "../../components/canvas/types";
 import type { AnnotationUIActions } from "../../stores/annotationUIStore";
 import { saveAnnotationNodesFromGraph, saveAnnotationNodesWithMemberships } from "../../services";
@@ -23,6 +24,7 @@ interface UseGroupAnnotationsParams {
   onLockedAction: () => void;
   rfInstance: ReactFlowInstance | null;
   derived: UseDerivedAnnotationsReturn;
+  sessionClient: TopologySessionClient;
   uiActions: Pick<AnnotationUIActions, "setEditingGroup" | "removeFromGroupSelection">;
 }
 
@@ -144,18 +146,18 @@ function reassignGroupMembers(
 }
 
 export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnnotationActions {
-  const { isLocked, onLockedAction, rfInstance, derived, uiActions } = params;
+  const { isLocked, onLockedAction, rfInstance, derived, sessionClient, uiActions } = params;
   const canEditAnnotations = !isLocked;
 
   const persist = useCallback(() => {
-    void saveAnnotationNodesFromGraph();
-  }, []);
+    void saveAnnotationNodesFromGraph(sessionClient);
+  }, [sessionClient]);
 
   /** Persist annotations + memberships as a single host command (one undo step). */
   const persistWithMemberships = useCallback(() => {
     const memberships = collectNodeGroupMemberships(useGraphStore.getState().nodes);
-    void saveAnnotationNodesWithMemberships(memberships);
-  }, []);
+    void saveAnnotationNodesWithMemberships(sessionClient, memberships);
+  }, [sessionClient]);
 
   const editGroup = useCallback(
     (id: string) => {
@@ -224,9 +226,9 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
       reassignGroupMembers(derived, memberIds, parentId, textIds, shapeIds, trafficRateIds);
 
       const memberships = collectNodeGroupMemberships(useGraphStore.getState().nodes);
-      void saveAnnotationNodesWithMemberships(memberships);
+      void saveAnnotationNodesWithMemberships(sessionClient, memberships);
     },
-    [derived, uiActions]
+    [derived, uiActions, sessionClient]
   );
 
   const handleAddGroup = useCallback(() => {

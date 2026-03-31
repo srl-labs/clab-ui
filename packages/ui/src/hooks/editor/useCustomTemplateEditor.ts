@@ -9,7 +9,7 @@ import {
   convertEditorDataToSaveData,
   convertEditorDataToTemplateData
 } from "../../core/utilities/customNodeConversions";
-import { sendSaveCustomNode } from "../../messaging/extensionMessaging";
+import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 
 export interface CustomTemplateEditorHandlers {
   handleClose: () => void;
@@ -33,6 +33,8 @@ export function useCustomTemplateEditor(
   editingCustomTemplate: CustomTemplateEditorData | null,
   editCustomTemplate: (data: CustomTemplateEditorData | null) => void
 ): CustomTemplateEditorResult {
+  const { sendSaveCustomNode } = useExtensionMessaging();
+
   const editorData = useMemo(() => {
     if (!editingCustomTemplate) return null;
     return convertCustomTemplateToEditorData(editingCustomTemplate);

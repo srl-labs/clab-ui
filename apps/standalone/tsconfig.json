@@ -3,11 +3,7 @@
   "compilerOptions": {
     "outDir": "dist/client",
     "rootDir": "src",
-    "jsx": "react-jsx",
-    "paths": {
-      "@srl-labs/clab-ui": ["../../packages/ui/src"],
-      "@srl-labs/clab-ui/*": ["../../packages/ui/src/*"]
-    }
+    "jsx": "react-jsx"
   },
   "include": ["src/**/*"]
 }

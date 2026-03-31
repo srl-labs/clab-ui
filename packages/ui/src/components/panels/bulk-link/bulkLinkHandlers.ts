@@ -3,6 +3,7 @@
  * Uses React Flow nodes/edges arrays for graph queries.
  */
 import type { TopoNode, TopoEdge } from "../../../core/types/graph";
+import type { TopologySessionClient } from "../../../session/client";
 import { executeTopologyCommand } from "../../../services";
 import { toLinkSaveData } from "../../../services/linkSaveData";
 
@@ -44,6 +45,7 @@ interface ConfirmCreateParams {
   pendingCandidates: LinkCandidate[] | null;
   canApply: boolean;
   addEdge?: (edge: TopoEdge) => void;
+  sessionClient: TopologySessionClient;
   setStatus: SetStatus;
   setPendingCandidates: SetCandidates;
   onClose: () => void;
@@ -55,6 +57,7 @@ export async function confirmAndCreateLinks({
   pendingCandidates,
   canApply,
   addEdge,
+  sessionClient,
   setStatus,
   setPendingCandidates,
   onClose
@@ -83,7 +86,7 @@ export async function confirmAndCreateLinks({
   }));
 
   if (commands.length > 0) {
-    await executeTopologyCommand({ command: "batch", payload: { commands } });
+    await executeTopologyCommand({ command: "batch", payload: { commands } }, {}, sessionClient);
   }
 
   setPendingCandidates(null);

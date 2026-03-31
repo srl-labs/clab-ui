@@ -9,10 +9,16 @@ import type {
   TopologyHostResponseMessage,
   TopologySnapshot
 } from "../core/types/messages";
+import type { TopologySessionClient } from "../session/client";
 import { getRecordUnknown } from "../core/utilities/typeHelpers";
 import { useTopoViewerStore } from "../stores/topoViewerStore";
 
-import { dispatchTopologyCommand, requestSnapshot, setHostRevision } from "./topologyHostClient";
+import {
+  dispatchTopologyCommand,
+  getHostCommandQueueScope,
+  requestSnapshot,
+  setHostRevision
+} from "./topologyHostClient";
 import { enqueueHostCommand } from "./topologyHostQueue";
 import { applySnapshotToStores } from "./topologyHostSync";
 
@@ -43,7 +49,8 @@ function notifyDevHostUpdate(): void {
 
 async function handleHostResponse(
   response: TopologyHostResponseMessage,
-  applySnapshot: boolean
+  applySnapshot: boolean,
+  client: TopologySessionClient
 ): Promise<TopologyHostResponseMessage> {
   const syncUndoRedo = (snapshot: TopologySnapshot) => {
     useTopoViewerStore.getState().setInitialData({
@@ -63,12 +70,12 @@ async function handleHostResponse(
   };
 
   const applySnapshotAndNotify = (snapshot: TopologySnapshot) => {
-    applySnapshotToStores(snapshot);
+    applySnapshotToStores(snapshot, {}, client);
     notifyDevHostUpdate();
   };
 
   const setRevisionAndNotify = (revision: number, snapshot?: TopologySnapshot) => {
-    setHostRevision(revision);
+    setHostRevision(revision, client);
     if (snapshot) {
       syncUndoRedo(snapshot);
       // Even when applySnapshot=false (quiet updates), keep source editors in sync.
@@ -83,14 +90,16 @@ async function handleHostResponse(
         response,
         applySnapshot,
         applySnapshotAndNotify,
-        setRevisionAndNotify
+        setRevisionAndNotify,
+        client
       );
     case HOST_REJECT:
       return handleRejectResponse(
         response,
         applySnapshot,
         applySnapshotAndNotify,
-        setRevisionAndNotify
+        setRevisionAndNotify,
+        client
       );
     case "topology-host:error":
       throw new Error(response.error);
@@ -103,7 +112,8 @@ async function handleAckResponse(
   response: TopologyHostResponseMessage,
   applySnapshot: boolean,
   applySnapshotAndNotify: (snapshot: TopologySnapshot) => void,
-  setRevisionAndNotify: (revision: number, snapshot?: TopologySnapshot) => void
+  setRevisionAndNotify: (revision: number, snapshot?: TopologySnapshot) => void,
+  client: TopologySessionClient
 ): Promise<TopologyHostResponseMessage> {
   if (response.type !== HOST_ACK) return response;
 
@@ -117,7 +127,7 @@ async function handleAckResponse(
   }
 
   if (applySnapshot) {
-    const snapshot = await requestSnapshot();
+    const snapshot = await requestSnapshot({}, client);
     applySnapshotAndNotify(snapshot);
     return response;
   }
@@ -130,7 +140,8 @@ function handleRejectResponse(
   response: TopologyHostResponseMessage,
   applySnapshot: boolean,
   applySnapshotAndNotify: (snapshot: TopologySnapshot) => void,
-  setRevisionAndNotify: (revision: number, snapshot?: TopologySnapshot) => void
+  setRevisionAndNotify: (revision: number, snapshot?: TopologySnapshot) => void,
+  _client: TopologySessionClient
 ): TopologyHostResponseMessage {
   if (response.type !== HOST_REJECT) return response;
 
@@ -144,22 +155,24 @@ function handleRejectResponse(
 
 export async function executeTopologyCommand(
   command: TopologyHostCommand,
-  options: ExecuteOptions = {}
+  options: ExecuteOptions = {},
+  client: TopologySessionClient
 ): Promise<TopologyHostResponseMessage> {
   if (useTopoViewerStore.getState().isProcessing) {
     throw new Error("TopoViewer is processing; edits are temporarily disabled.");
   }
   const run = async () => {
     const applySnapshot = options.applySnapshot ?? true;
-    const response = await dispatchTopologyCommand(command);
-    return handleHostResponse(response, applySnapshot);
+    const response = await dispatchTopologyCommand(command, client);
+    return handleHostResponse(response, applySnapshot, client);
   };
-  return enqueueHostCommand(run);
+  return enqueueHostCommand(run, getHostCommandQueueScope(client));
 }
 
 export async function executeTopologyCommands(
   commands: TopologyHostCommand[],
-  options: ExecuteOptions = {}
+  options: ExecuteOptions = {},
+  client: TopologySessionClient
 ): Promise<TopologyHostResponseMessage | null> {
   if (useTopoViewerStore.getState().isProcessing) {
     throw new Error("TopoViewer is processing; edits are temporarily disabled.");
@@ -169,12 +182,12 @@ export async function executeTopologyCommands(
     let lastResponse: TopologyHostResponseMessage | null = null;
 
     for (const command of commands) {
-      const response = await dispatchTopologyCommand(command);
-      lastResponse = await handleHostResponse(response, false);
+      const response = await dispatchTopologyCommand(command, client);
+      lastResponse = await handleHostResponse(response, false, client);
 
       if (response.type === HOST_REJECT) {
         if (applySnapshot) {
-          applySnapshotToStores(response.snapshot);
+          applySnapshotToStores(response.snapshot, {}, client);
         }
         return response;
       }
@@ -182,23 +195,24 @@ export async function executeTopologyCommands(
 
     if (applySnapshot) {
       if (lastResponse?.type === HOST_ACK && lastResponse.snapshot) {
-        applySnapshotToStores(lastResponse.snapshot);
+        applySnapshotToStores(lastResponse.snapshot, {}, client);
       } else {
-        const snapshot = await requestSnapshot();
-        applySnapshotToStores(snapshot);
+        const snapshot = await requestSnapshot({}, client);
+        applySnapshotToStores(snapshot, {}, client);
       }
     }
 
     return lastResponse;
   };
-  return enqueueHostCommand(run);
+  return enqueueHostCommand(run, getHostCommandQueueScope(client));
 }
 
 export async function refreshTopologySnapshot(
-  options: { externalChange?: boolean } = {}
+  options: { externalChange?: boolean } = {},
+  client: TopologySessionClient
 ): Promise<TopologySnapshot> {
-  const snapshot = await requestSnapshot(options);
-  applySnapshotToStores(snapshot);
+  const snapshot = await requestSnapshot(options, client);
+  applySnapshotToStores(snapshot, {}, client);
   notifyDevHostUpdate();
   return snapshot;
 }

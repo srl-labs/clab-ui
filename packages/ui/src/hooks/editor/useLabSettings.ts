@@ -11,6 +11,7 @@ import type {
   BasicSettingsState,
   MgmtSettingsState
 } from "../../components/panels/lab-settings/types";
+import { useTopologySessionClient } from "../../host";
 import { executeTopologyCommand } from "../../services";
 
 export interface UseLabSettingsStateResult {
@@ -218,6 +219,7 @@ function buildInitialMgmt(settings?: LabSettings): MgmtSettingsState {
 }
 
 export function useLabSettingsState(labSettings?: LabSettings): UseLabSettingsStateResult {
+  const sessionClient = useTopologySessionClient();
   const [basic, setBasicState] = useState<BasicSettingsState>(() => buildInitialBasic(labSettings));
   const [mgmt, setMgmtState] = useState<MgmtSettingsState>(() => buildInitialMgmt(labSettings));
 
@@ -277,8 +279,8 @@ export function useLabSettingsState(labSettings?: LabSettings): UseLabSettingsSt
       ...(mgmtSettings === null ? { mgmt: null } : { mgmt: mgmtSettings as LabSettings["mgmt"] })
     };
 
-    await executeTopologyCommand({ command: "setLabSettings", payload });
-  }, [basic, mgmt]);
+    await executeTopologyCommand({ command: "setLabSettings", payload }, {}, sessionClient);
+  }, [basic, mgmt, sessionClient]);
 
   return {
     basic,

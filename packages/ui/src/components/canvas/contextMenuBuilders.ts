@@ -26,10 +26,6 @@ import type { ContextMenuItem } from "../context-menu/ContextMenu";
 import { WiresharkIcon } from "../context-menu/WiresharkIcon";
 import { getViewportCenter } from "../../utils/viewportUtils";
 import {
-  sendInterfaceCapture,
-  sendNodeAction
-} from "../../messaging/extensionMessaging";
-import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
   TRAFFIC_RATE_NODE_TYPE,
@@ -45,6 +41,7 @@ interface MenuBuilderContext {
   targetNodeType?: string;
   isEditMode: boolean;
   isLocked: boolean;
+  onNodeAction: (action: "ssh" | "shell" | "logs", nodeName: string) => void;
   closeContextMenu: () => void;
   editNode: (id: string) => void;
   editNetwork?: (id: string) => void;
@@ -83,6 +80,7 @@ interface EdgeMenuBuilderContext {
   extraData?: Record<string, unknown>;
   isEditMode: boolean;
   isLocked: boolean;
+  onInterfaceCapture: (nodeName: string, interfaceName: string) => void;
   closeContextMenu: () => void;
   editEdge: (id: string) => void;
   handleDeleteEdge: (id: string) => void;
@@ -276,14 +274,14 @@ function buildTrafficRateContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
 }
 
 function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, closeContextMenu, showNodeInfo } = ctx;
+  const { targetId, closeContextMenu, onNodeAction, showNodeInfo } = ctx;
   return [
     {
       id: "ssh-node",
       label: "SSH",
       icon: React.createElement(TerminalIcon, { fontSize: "small" }),
       onClick: () => {
-        sendNodeAction("ssh", targetId);
+        onNodeAction("ssh", targetId);
         closeContextMenu();
       }
     },
@@ -292,7 +290,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       label: "Shell",
       icon: React.createElement(TerminalIcon, { fontSize: "small" }),
       onClick: () => {
-        sendNodeAction("shell", targetId);
+        onNodeAction("shell", targetId);
         closeContextMenu();
       }
     },
@@ -301,7 +299,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       label: "Logs",
       icon: React.createElement(ArticleIcon, { fontSize: "small" }),
       onClick: () => {
-        sendNodeAction("logs", targetId);
+        onNodeAction("logs", targetId);
         closeContextMenu();
       }
     },
@@ -430,6 +428,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
     extraData,
     isEditMode,
     isLocked,
+    onInterfaceCapture,
     closeContextMenu,
     editEdge,
     handleDeleteEdge,
@@ -447,7 +446,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
       label: `${srcName} - ${sourceEndpoint}`,
       icon: React.createElement(WiresharkIcon, { fontSize: "small" }),
       onClick: () => {
-        sendInterfaceCapture(srcName, sourceEndpoint);
+        onInterfaceCapture(srcName, sourceEndpoint);
         closeContextMenu();
       }
     });
@@ -458,7 +457,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
       label: `${dstName} - ${targetEndpoint}`,
       icon: React.createElement(WiresharkIcon, { fontSize: "small" }),
       onClick: () => {
-        sendInterfaceCapture(dstName, targetEndpoint);
+        onInterfaceCapture(dstName, targetEndpoint);
         closeContextMenu();
       }
     });

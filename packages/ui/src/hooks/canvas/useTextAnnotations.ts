@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 
 import type { FreeTextAnnotation } from "../../core/types/topology";
+import type { TopologySessionClient } from "../../session";
 import type { AnnotationUIActions, AnnotationUIState } from "../../stores/annotationUIStore";
 import { saveAnnotationNodesFromGraph } from "../../services";
 import { log } from "../../utils/logger";
@@ -12,6 +13,7 @@ interface UseTextAnnotationsParams {
   isLocked: boolean;
   onLockedAction: () => void;
   derived: UseDerivedAnnotationsReturn;
+  sessionClient: TopologySessionClient;
   uiState: Pick<AnnotationUIState, "isAddTextMode" | "selectedTextIds">;
   uiActions: Pick<
     AnnotationUIActions,
@@ -32,7 +34,7 @@ export interface TextAnnotationActions {
 }
 
 export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnotationActions {
-  const { isLocked, onLockedAction, derived, uiState, uiActions } = params;
+  const { isLocked, onLockedAction, derived, sessionClient, uiState, uiActions } = params;
   const canEditAnnotations = !isLocked;
 
   const lastTextStyleRef = useRef<Partial<FreeTextAnnotation>>({});
@@ -101,12 +103,12 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
   );
 
   const persist = useCallback(() => {
-    void saveAnnotationNodesFromGraph();
-  }, []);
+    void saveAnnotationNodesFromGraph(sessionClient);
+  }, [sessionClient]);
 
   const persistQuiet = useCallback(() => {
-    void saveAnnotationNodesFromGraph(undefined, { applySnapshot: false });
-  }, []);
+    void saveAnnotationNodesFromGraph(sessionClient, undefined, { applySnapshot: false });
+  }, [sessionClient]);
 
   const saveTextAnnotation = useCallback(
     (annotation: FreeTextAnnotation) => {

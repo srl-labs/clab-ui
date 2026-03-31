@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 
+import { useTopologySessionClient } from "../../host";
 import { saveAllNodeGroupMemberships, saveAnnotationNodesFromGraph } from "../../services";
 import {
   useAnnotationUIActions,
@@ -33,6 +34,7 @@ interface UseAnnotationsParams {
 export function useAnnotations(params?: UseAnnotationsParams): AnnotationContextValue {
   const rfInstance = params?.rfInstance ?? null;
   const onLockedAction = params?.onLockedAction ?? (() => {});
+  const sessionClient = useTopologySessionClient();
 
   const isLocked = useIsLocked();
   const uiState = useAnnotationUIState();
@@ -44,6 +46,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     onLockedAction,
     rfInstance,
     derived,
+    sessionClient,
     uiActions
   });
 
@@ -51,6 +54,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     isLocked,
     onLockedAction,
     derived,
+    sessionClient,
     uiState: {
       isAddTextMode: uiState.isAddTextMode,
       selectedTextIds: uiState.selectedTextIds
@@ -62,6 +66,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     isLocked,
     onLockedAction,
     derived,
+    sessionClient,
     uiState: {
       isAddShapeMode: uiState.isAddShapeMode,
       pendingShapeType: uiState.pendingShapeType,
@@ -74,6 +79,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     isLocked,
     onLockedAction,
     derived,
+    sessionClient,
     uiState: {
       selectedTrafficRateIds: uiState.selectedTrafficRateIds
     },
@@ -243,7 +249,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
 
         if (options.persist) {
           const memberships = collectNodeGroupMemberships(useGraphStore.getState().nodes);
-          saveAllNodeGroupMemberships(memberships).catch((err) => {
+          saveAllNodeGroupMemberships(sessionClient, memberships).catch((err) => {
             console.error("[Annotations] Failed to save group memberships", err);
           });
         }
@@ -252,14 +258,14 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
       uiActions.clearAllSelections();
 
       if (options.persist) {
-        saveAnnotationNodesFromGraph().catch((err) => {
+        saveAnnotationNodesFromGraph(sessionClient).catch((err) => {
           console.error("[Annotations] Failed to save annotations", err);
         });
       }
 
       return { didDelete: true, membersCleared: membersToClear.size > 0 };
     },
-    [derived, uiActions, saveAnnotationNodesFromGraph, saveAllNodeGroupMemberships]
+    [derived, uiActions, sessionClient]
   );
 
   const deleteAllSelected = useCallback(() => {
@@ -315,17 +321,17 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
   );
 
   const persistAnnotationNodes = useCallback(() => {
-    saveAnnotationNodesFromGraph().catch((err) => {
+    saveAnnotationNodesFromGraph(sessionClient).catch((err) => {
       console.error("[Annotations] Failed to save annotations", err);
     });
-  }, [saveAnnotationNodesFromGraph]);
+  }, [sessionClient]);
 
   // Persist without re-applying snapshot - use for continuous updates like handle dragging
   const persistAnnotationNodesQuiet = useCallback(() => {
-    saveAnnotationNodesFromGraph(undefined, { applySnapshot: false }).catch((err) => {
+    saveAnnotationNodesFromGraph(sessionClient, undefined, { applySnapshot: false }).catch((err) => {
       console.error("[Annotations] Failed to save annotations (quiet)", err);
     });
-  }, [saveAnnotationNodesFromGraph]);
+  }, [sessionClient]);
 
   return useMemo<AnnotationContextValue>(
     () => ({

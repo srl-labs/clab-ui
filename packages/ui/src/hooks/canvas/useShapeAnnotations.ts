@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 
 import type { FreeShapeAnnotation } from "../../core/types/topology";
+import type { TopologySessionClient } from "../../session";
 import type { AnnotationUIActions, AnnotationUIState } from "../../stores/annotationUIStore";
 import * as annotationServices from "../../services";
 import * as logger from "../../utils/logger";
@@ -12,6 +13,7 @@ interface UseShapeAnnotationsParams {
   isLocked: boolean;
   onLockedAction: () => void;
   derived: UseDerivedAnnotationsReturn;
+  sessionClient: TopologySessionClient;
   uiState: Pick<AnnotationUIState, "isAddShapeMode" | "pendingShapeType" | "selectedShapeIds">;
   uiActions: Pick<
     AnnotationUIActions,
@@ -35,15 +37,15 @@ export interface ShapeAnnotationActions {
 }
 
 export function useShapeAnnotations(params: UseShapeAnnotationsParams): ShapeAnnotationActions {
-  const { isLocked, onLockedAction, derived, uiState, uiActions } = params;
+  const { isLocked, onLockedAction, derived, sessionClient, uiState, uiActions } = params;
   const canEditAnnotations = !isLocked;
 
   const lastShapeStyleRef = useRef<Partial<FreeShapeAnnotation>>({});
   const pendingRotationRef = useRef<string | null>(null);
 
   const persist = useCallback(() => {
-    void annotationServices.saveAnnotationNodesFromGraph();
-  }, []);
+    void annotationServices.saveAnnotationNodesFromGraph(sessionClient);
+  }, [sessionClient]);
 
   const handleAddShapes = useCallback(
     (shapeType?: string) => {

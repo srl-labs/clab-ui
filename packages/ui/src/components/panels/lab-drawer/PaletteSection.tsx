@@ -43,6 +43,7 @@ import {
   useCustomNodes,
   useTopoViewerStore
 } from "../../../stores/topoViewerStore";
+import { useTopologySessionClient } from "../../../host";
 import { buildCustomIconMap } from "../../../utils/iconUtils";
 import type { TabDefinition } from "../../ui/editor";
 import { TabNavigation } from "../../ui/editor/TabNavigation";
@@ -399,6 +400,7 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
   showInfoTab = false,
   infoTabTitle
 }) => {
+  const sessionClient = useTopologySessionClient();
   const customNodes = useCustomNodes();
   const customIcons = useCustomIcons();
   const defaultNode = useTopoViewerStore((state) => state.defaultNode);
@@ -525,26 +527,34 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
 
   const handleSaveYaml = useCallback(async () => {
     try {
-      await executeTopologyCommand({ command: "setYamlContent", payload: { content: yamlDraft } });
+      await executeTopologyCommand(
+        { command: "setYamlContent", payload: { content: yamlDraft } },
+        {},
+        sessionClient
+      );
       setYamlDirty(false);
       setYamlError(null);
     } catch (err) {
       setYamlError(err instanceof Error ? err.message : String(err));
     }
-  }, [yamlDraft]);
+  }, [sessionClient, yamlDraft]);
 
   const handleSaveAnnotations = useCallback(async () => {
     try {
-      await executeTopologyCommand({
-        command: "setAnnotationsContent",
-        payload: { content: annotationsDraft }
-      });
+      await executeTopologyCommand(
+        {
+          command: "setAnnotationsContent",
+          payload: { content: annotationsDraft }
+        },
+        {},
+        sessionClient
+      );
       setAnnotationsDirty(false);
       setAnnotationsError(null);
     } catch (err) {
       setAnnotationsError(err instanceof Error ? err.message : String(err));
     }
-  }, [annotationsDraft]);
+  }, [annotationsDraft, sessionClient]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>

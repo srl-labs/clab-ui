@@ -5,10 +5,15 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
-import { assertClabUiHostConfigured } from "./host";
+import {
+  createClabUiRuntime,
+  createWindowClabUiHost
+} from "./host";
 import { log } from "./utils/logger";
 import "./styles/global.css";
 import { subscribeToWebviewMessages } from "./messaging/webviewMessageBus";
+
+const runtime = createClabUiRuntime({ host: createWindowClabUiHost() });
 
 // Get the initial data from the window object (injected by extension)
 const initialData = window.__INITIAL_DATA__ ?? {};
@@ -38,7 +43,7 @@ subscribeToWebviewMessages((event) => {
       })
     );
   }
-});
+}, undefined, runtime.host);
 
 // Log bootstrap data
 const customNodeCount = Array.isArray(initialData.customNodes) ? initialData.customNodes.length : 0;
@@ -51,8 +56,6 @@ log.info(
  * Bootstrap the application.
  */
 function bootstrap(): void {
-  assertClabUiHostConfigured();
-
   // Find the root element
   const container = document.getElementById("root");
   if (!container) {
@@ -63,7 +66,7 @@ function bootstrap(): void {
   const root = createRoot(container);
   root.render(
     <React.StrictMode>
-      <App initialData={initialData} />
+      <App initialData={initialData} runtime={runtime} />
     </React.StrictMode>
   );
 }

@@ -5,6 +5,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import type { ClabApiClient } from "./clabApiClient.js";
 import { getTokenFromRequest } from "./middleware.js";
+import { buildStandaloneTopologyRef } from "./topologyIdentity.js";
 
 type ClientResolver = (request: FastifyRequest) => ClabApiClient;
 
@@ -19,13 +20,17 @@ export function registerFileProxy(app: FastifyInstance, getClient: ClientResolve
       const client = getClient(request);
       const topologies = await client.listTopologies(token);
       // Transform to the format expected by the Explorer bridge.
-      return reply.send(topologies.map((topo) => ({
-        filename: topo.yamlFileName,
-        path: topo.yamlFileName,
-        hasAnnotations: topo.hasAnnotations,
-        labName: topo.labName,
-        deploymentState: topo.deploymentState || "unknown"
-      })));
+      return reply.send(topologies.map((topo) => {
+        const topologyRef = buildStandaloneTopologyRef(topo);
+        return {
+          filename: topo.yamlFileName,
+          path: topologyRef.yamlPath,
+          hasAnnotations: topo.hasAnnotations,
+          labName: topo.labName,
+          deploymentState: topo.deploymentState || "unknown",
+          topologyRef
+        };
+      }));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return reply.status(500).send({ error: message });

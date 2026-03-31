@@ -1,3 +1,9 @@
+import {
+  createClabUiRuntime,
+  createWindowClabUiHost
+} from "../host";
 import { bootstrapInspectWebview } from "./inspect.webview";
 
-bootstrapInspectWebview();
+const runtime = createClabUiRuntime({ host: createWindowClabUiHost() });
+
+bootstrapInspectWebview(runtime);

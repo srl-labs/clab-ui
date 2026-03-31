@@ -2,22 +2,19 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 import type { ClabApiClient } from "./clabApiClient.js";
 import { getTokenFromRequest } from "./middleware.js";
+import type { StandaloneTopologySessionManager } from "./topologySessionManager.js";
 
 type ClientResolver = (request: FastifyRequest) => ClabApiClient;
 
-function extractLabName(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/").replace(/^\.\//, "");
-  const basename = normalized.includes("/")
-    ? normalized.slice(normalized.lastIndexOf("/") + 1)
-    : normalized;
-  return basename.replace(/\.clab\.ya?ml$/i, "");
-}
-
-export function registerTopologyEventsProxy(app: FastifyInstance, getClient: ClientResolver): void {
-  app.get<{ Querystring: { path?: string } }>(
+export function registerTopologyEventsProxy(
+  app: FastifyInstance,
+  getClient: ClientResolver,
+  sessions: StandaloneTopologySessionManager
+): void {
+  app.get<{ Querystring: { sessionId?: string } }>(
     "/api/topology/events",
     async (
-      request: FastifyRequest<{ Querystring: { path?: string } }>,
+      request: FastifyRequest<{ Querystring: { sessionId?: string } }>,
       reply: FastifyReply
     ) => {
       const token = getTokenFromRequest(request);
@@ -25,17 +22,17 @@ export function registerTopologyEventsProxy(app: FastifyInstance, getClient: Cli
         return reply.status(401).send({ error: "Not authenticated" });
       }
 
-      const filePath = request.query.path?.trim() ?? "";
-      if (!filePath) {
-        return reply.status(400).send({ error: "Missing path" });
-      }
-
-      const labName = extractLabName(filePath);
-      if (!labName) {
-        return reply.status(400).send({ error: "Invalid topology path" });
+      const sessionId = request.query.sessionId?.trim() ?? "";
+      if (!sessionId) {
+        return reply.status(400).send({ error: "Missing sessionId" });
       }
 
       const client = getClient(request);
+      const session = sessions.getSession(sessionId, token, client.getBaseUrl());
+      if (!session) {
+        return reply.status(404).send({ error: "Topology session not found" });
+      }
+
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
@@ -51,7 +48,11 @@ export function registerTopologyEventsProxy(app: FastifyInstance, getClient: Cli
       });
 
       try {
-        const response = await client.openTopologyEventStream(token, labName, filePath);
+        const response = await client.openTopologyEventStream(
+          token,
+          session.topologyRef.labName,
+          session.topologyRef.yamlPath
+        );
         if (!response.body) {
           reply.raw.write("event: error\ndata: No topology event stream body\n\n");
           reply.raw.end();

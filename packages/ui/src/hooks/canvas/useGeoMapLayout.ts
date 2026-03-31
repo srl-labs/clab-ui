@@ -7,6 +7,7 @@ import type { Map as MapLibreMap, LngLatBounds, StyleSpecification } from "mapli
 import maplibregl from "maplibre-gl";
 import type { Node, ReactFlowInstance, XYPosition } from "@xyflow/react";
 
+import { useTopologySessionClient } from "../../host";
 import { log } from "../../utils/logger";
 import { FREE_SHAPE_NODE_TYPE } from "../../annotations/annotationNodeConverters";
 import { saveNodePositions } from "../../services";
@@ -574,6 +575,7 @@ export function useGeoMapLayout({
   canvasContainerRef,
   restoreOnExit
 }: GeoMapLayoutParams): GeoMapLayoutApi {
+  const sessionClient = useTopologySessionClient();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [isReady, setIsReady] = useState(false);
@@ -761,7 +763,7 @@ export function useGeoMapLayout({
     }
 
     if (assignments.length > 0) {
-      void saveNodePositions(assignments);
+      void saveNodePositions(sessionClient, assignments);
     }
 
     window.requestAnimationFrame(() => {
@@ -777,7 +779,7 @@ export function useGeoMapLayout({
         initialAssignmentRef.current = false;
       }, 0);
     }
-  }, [isGeoLayout, isReady]);
+  }, [isGeoLayout, isReady, sessionClient]);
 
   useEffect(() => {
     if (!isGeoLayout || !isReady) return;
@@ -798,9 +800,9 @@ export function useGeoMapLayout({
     }
 
     if (assigned.assignments.length > 0) {
-      void saveNodePositions(assigned.assignments);
+      void saveNodePositions(sessionClient, assigned.assignments);
     }
-  }, [isGeoLayout, isReady, nodes]);
+  }, [isGeoLayout, isReady, nodes, sessionClient]);
 
   useEffect(() => {
     if (!isGeoLayout) return;

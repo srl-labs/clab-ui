@@ -1,3 +1,9 @@
+import {
+  createClabUiRuntime,
+  createWindowClabUiHost
+} from "../host";
 import { bootstrapNodeImpairmentsWebview } from "./index";
 
-bootstrapNodeImpairmentsWebview();
+const runtime = createClabUiRuntime({ host: createWindowClabUiHost() });
+
+bootstrapNodeImpairmentsWebview(runtime);

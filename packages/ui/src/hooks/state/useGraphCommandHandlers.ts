@@ -14,6 +14,7 @@ import type {
 } from "../../core/types/graph";
 import type { NodeSaveData } from "../../core/io/NodePersistenceIO";
 import type { TopologyHostCommand } from "../../core/types/messages";
+import { useTopologySessionClient } from "../../host";
 import {
   createLink,
   createNode,
@@ -210,6 +211,7 @@ export function useGraphHandlersWithContext(
 ): GraphHandlersResult {
   const { getNodes, getEdges, addNode, addEdge, removeNodeAndEdges, removeEdge, menuHandlers } =
     params;
+  const sessionClient = useTopologySessionClient();
 
   const handleEdgeCreated = React.useCallback(
     (_sourceId: string, _targetId: string, edgeData: EdgeCreatedData) => {
@@ -240,7 +242,7 @@ export function useGraphHandlersWithContext(
         } as TopologyEdgeData
       };
       addEdge(edge);
-      void createLink(toLinkSaveData(edge));
+      void createLink(sessionClient, toLinkSaveData(edge));
 
       if (detection && VXLAN_NETWORK_TYPES.has(detection.linkType)) {
         const node = nodes.find((n) => n.id === detection.networkNodeId);
@@ -269,18 +271,18 @@ export function useGraphHandlersWithContext(
       addNode(nextNode);
 
       if (isAnnotationNodeType(nextNode.type)) {
-        void saveAnnotationNodesFromGraph();
+        void saveAnnotationNodesFromGraph(sessionClient);
         return;
       }
 
       if (isSpecialNetworkNode(nextNode) && !isBridgeNetworkNode(nextNode)) {
-        void saveNetworkNodesFromGraph();
+        void saveNetworkNodesFromGraph(sessionClient);
         return;
       }
 
-      void createNode(toNodeSaveData(nextNode));
+      void createNode(sessionClient, toNodeSaveData(nextNode));
     },
-    [addNode]
+    [addNode, sessionClient]
   );
 
   const handleBatchPaste = React.useCallback(
@@ -327,7 +329,8 @@ export function useGraphHandlersWithContext(
       if (commands.length === 0) return;
       void executeTopologyCommand(
         { command: "batch", payload: { commands } },
-        { applySnapshot: false }
+        { applySnapshot: false },
+        sessionClient
       );
     },
     [
@@ -338,7 +341,8 @@ export function useGraphHandlersWithContext(
       isSpecialNetworkNode,
       nodesToAnnotations,
       toLinkSaveData,
-      toNodeSaveData
+      toNodeSaveData,
+      sessionClient
     ]
   );
 
@@ -351,19 +355,19 @@ export function useGraphHandlersWithContext(
       menuHandlers.handleDeleteNode(nodeId);
 
       if (node && isAnnotationNodeType(node.type)) {
-        void saveAnnotationNodesFromGraph();
+        void saveAnnotationNodesFromGraph(sessionClient);
         return;
       }
 
       if (node && isSpecialNetworkNode(node) && !isBridgeNetworkNode(node)) {
         // Network nodes are stored in annotations, update from graph state
-        void saveNetworkNodesFromGraph();
+        void saveNetworkNodesFromGraph(sessionClient);
       }
 
       // Always let host handle YAML removal + link cleanup
-      void deleteNode(nodeId);
+      void deleteNode(sessionClient, nodeId);
     },
-    [getNodes, removeNodeAndEdges, menuHandlers]
+    [getNodes, removeNodeAndEdges, menuHandlers, sessionClient]
   );
 
   const handleDeleteLink = React.useCallback(
@@ -373,10 +377,10 @@ export function useGraphHandlersWithContext(
       removeEdge(edgeId);
       menuHandlers.handleDeleteLink(edgeId);
       if (edge) {
-        void deleteLink(toLinkSaveData(edge));
+        void deleteLink(sessionClient, toLinkSaveData(edge));
       }
     },
-    [getEdges, removeEdge, menuHandlers]
+    [getEdges, removeEdge, menuHandlers, sessionClient]
   );
 
   return {

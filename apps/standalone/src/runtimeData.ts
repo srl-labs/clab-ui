@@ -3,7 +3,9 @@ import type {
   HostRuntimeInterface,
   HostRuntimeInterfaceStats
 } from "@srl-labs/clab-ui/host";
+import type { TopologyRef } from "@srl-labs/clab-ui/session";
 import type { ContainerState, InterfaceState, LabState } from "./stores/labStore";
+import { findLabStateForTopology } from "./standaloneHostShared";
 
 function findLabState(
   labName: string | undefined,
@@ -14,12 +16,36 @@ function findLabState(
   }
 
   const target = labName.trim().toLowerCase();
-  for (const [key, lab] of labs.entries()) {
-    if (key.trim().toLowerCase() === target) {
+  for (const lab of labs.values()) {
+    if (lab.name.trim().toLowerCase() === target) {
       return lab;
     }
   }
   return undefined;
+}
+
+function getRuntimeContainers(lab: LabState | undefined): HostRuntimeContainer[] {
+  if (!lab) {
+    return [];
+  }
+
+  return [...lab.containers.values()].map((container) => {
+    const interfaces = [...container.interfaces.values()]
+      .map((iface) => toRuntimeInterface(iface))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    return {
+      name: container.name,
+      nodeName: container.nodeName,
+      labName: container.labName,
+      state: container.state,
+      kind: container.kind,
+      image: container.image,
+      ipv4Address: container.ipv4Address,
+      ipv6Address: container.ipv6Address,
+      interfaces
+    };
+  });
 }
 
 function toFiniteNumber(value: string | number | undefined): number | undefined {
@@ -97,28 +123,14 @@ export function getRuntimeContainersForLab(
   labName: string | undefined,
   labs: Map<string, LabState>
 ): HostRuntimeContainer[] {
-  const lab = findLabState(labName, labs);
-  if (!lab) {
-    return [];
-  }
+  return getRuntimeContainers(findLabState(labName, labs));
+}
 
-  return [...lab.containers.values()].map((container) => {
-    const interfaces = [...container.interfaces.values()]
-      .map((iface) => toRuntimeInterface(iface))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    return {
-      name: container.name,
-      nodeName: container.nodeName,
-      labName: container.labName,
-      state: container.state,
-      kind: container.kind,
-      image: container.image,
-      ipv4Address: container.ipv4Address,
-      ipv6Address: container.ipv6Address,
-      interfaces
-    };
-  });
+export function getRuntimeContainersForTopology(
+  topologyRef: Pick<TopologyRef, "labName" | "yamlPath"> | undefined,
+  labs: Map<string, LabState>
+): HostRuntimeContainer[] {
+  return getRuntimeContainers(findLabStateForTopology(topologyRef, labs));
 }
 
 export function runtimeContainersEqual(

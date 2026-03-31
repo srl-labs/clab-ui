@@ -1,4 +1,4 @@
-import { getClabUiHost } from "../../../host";
+import { resolveWindowVsCodeApi } from "../../../utils/vscodeApi";
 
 interface VsCodeApiLike {
   postMessage(message: unknown): void;
@@ -9,13 +9,15 @@ interface VsCodeApiLike {
 let fallbackState: unknown;
 
 export function getVSCodeApi(): VsCodeApiLike {
+  const vscodeApi = resolveWindowVsCodeApi(window);
   return {
     postMessage: (message: unknown) => {
-      getClabUiHost().postMessage(message);
+      vscodeApi?.postMessage(message);
     },
-    getState: () => fallbackState,
+    getState: () => vscodeApi?.getState?.() ?? fallbackState,
     setState: (state: unknown) => {
       fallbackState = state;
+      vscodeApi?.setState?.(state);
     }
   };
 }

@@ -17,6 +17,7 @@ import {
 import React from "react";
 import { createRoot } from "react-dom/client";
 
+import { ClabUiRuntimeProvider, type ClabUiRuntime } from "../../host";
 import { MuiThemeProvider } from "@srl-labs/clab-ui/theme";
 import { useMessageListener, usePostMessage } from "../shared/hooks";
 
@@ -244,7 +245,7 @@ export function NodeImpairmentsApp(): React.JSX.Element {
   );
 }
 
-export function bootstrapNodeImpairmentsWebview(): void {
+export function bootstrapNodeImpairmentsWebview(runtime: ClabUiRuntime): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Node impairments root element not found");
@@ -252,8 +253,10 @@ export function bootstrapNodeImpairmentsWebview(): void {
 
   const root = createRoot(container);
   root.render(
-    <React.StrictMode>
-      <NodeImpairmentsApp />
-    </React.StrictMode>
+    <ClabUiRuntimeProvider runtime={runtime}>
+      <React.StrictMode>
+        <NodeImpairmentsApp />
+      </React.StrictMode>
+    </ClabUiRuntimeProvider>
   );
 }

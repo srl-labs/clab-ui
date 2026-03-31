@@ -5,7 +5,7 @@ import * as yamlMonaco from "monaco-editor/esm/vs/basic-languages/yaml/yaml.js";
 import * as YAML from "yaml";
 import Ajv from "ajv";
 
-import { getConfiguredClabUiHost } from "../../host";
+import { useClabUiHost } from "../../host";
 import { parseLuminance } from "../../utils/color";
 
 declare global {
@@ -23,8 +23,7 @@ function getCssVar(name: string, fallback: string): string {
   return value || fallback;
 }
 
-function detectColorMode(): "light" | "dark" {
-  const isDevMock = getConfiguredClabUiHost()?.meta?.isDevMock === true;
+function detectColorMode(isDevMock: boolean): "light" | "dark" {
   if (isDevMock) {
     return document.documentElement.classList.contains("light") ? "light" : "dark";
   }
@@ -88,19 +87,15 @@ const DEV_MONACO_COLORS = {
   dark: { bg: "#1e1e1e", fg: "#cccccc", sel: "#264f78", inactiveSel: "#3a3d41" }
 } as const;
 
-function isDevMock(): boolean {
-  return getConfiguredClabUiHost()?.meta?.isDevMock === true;
-}
-
-function applyVscodeThemeToMonaco(): void {
-  const mode = detectColorMode();
+function applyVscodeThemeToMonaco(isDevMock: boolean): void {
+  const mode = detectColorMode(isDevMock);
   const themeName = mode === "light" ? "topoviewer-vscode-light" : "topoviewer-vscode-dark";
   const c = DEV_MONACO_COLORS[mode];
 
   // In dev mode, CssBaseline re-renders asynchronously so CSS variables still
   // hold the *previous* theme's values when the MutationObserver fires.
   // Use hardcoded colours keyed off the detected mode instead.
-  const dev = isDevMock();
+  const dev = isDevMock;
   const background = dev
     ? c.bg
     : getCssVar("--clab-ui-editor-background", getCssVar("--vscode-editor-background", c.bg));
@@ -657,12 +652,14 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
   jsonSchema,
   onChange
 }) => {
+  const host = useClabUiHost();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const modelRef = useRef<monaco.editor.ITextModel | null>(null);
   const applyingExternalRef = useRef(false);
   const lastExternalAppliedRef = useRef<string>(value);
   const validationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDevMock = host.meta?.isDevMock === true;
 
   const getEditorFontFamily = () => {
     const fallback = "Consolas, Monaco, 'Courier New', monospace";
@@ -678,10 +675,10 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
   useEffect(() => {
     ensureMonacoConfiguredOnce();
-    applyVscodeThemeToMonaco();
+    applyVscodeThemeToMonaco(isDevMock);
 
     const observer = new MutationObserver(() => {
-      applyVscodeThemeToMonaco();
+      applyVscodeThemeToMonaco(isDevMock);
       const editor = editorRef.current;
       if (editor) {
         editor.updateOptions({
@@ -696,7 +693,7 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       attributeFilter: ["class", "style"]
     });
     return () => observer.disconnect();
-  }, []);
+  }, [isDevMock]);
 
   // Keep hover provider's active schema in sync
   activeSchema = isObj(jsonSchema) ? jsonSchema : null;
@@ -726,7 +723,7 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
 
     ensureMonacoConfiguredOnce();
     ensureHoverProvider();
-    applyVscodeThemeToMonaco();
+    applyVscodeThemeToMonaco(isDevMock);
 
     modelRef.current = monaco.editor.createModel(value, language);
     lastExternalAppliedRef.current = value;
@@ -820,7 +817,7 @@ export const MonacoCodeEditor: React.FC<MonacoCodeEditorProps> = ({
       if (validationTimerRef.current) clearTimeout(validationTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isDevMock]);
 
   useEffect(() => {
     const editor = editorRef.current;

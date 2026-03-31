@@ -1,26 +1,26 @@
 import { useTopoViewerStore } from "@srl-labs/clab-ui";
 import { createTopologySyncController } from "@srl-labs/clab-ui/host";
-import { refreshTopologySnapshot, setHostContext } from "@srl-labs/clab-ui/services";
+import {
+  refreshTopologySnapshot,
+  setHostContext,
+  type TopologySessionClient,
+  type TopologyRef
+} from "@srl-labs/clab-ui/session";
 
 import type { LabState } from "./stores/labStore";
-import { getRuntimeContainersForLab, runtimeContainersEqual } from "./runtimeData";
+import { getRuntimeContainersForTopology, runtimeContainersEqual } from "./runtimeData";
 import {
   type DeploymentState,
   type TopologyDocEventMessage,
   type TopologyFileEntry,
-  firstArgAsTreeItem,
-  isAbsolutePath,
-  isLabRunning,
-  normalizePathValue,
-  resolveLabName,
-  resolveLabPath,
-  safeFilename,
-  stripTopologySuffix,
-  topologyEntryLabName
+  firstArgAsTopologyRef,
+  isTopologyRunning,
+  normalizePathValue
 } from "./standaloneHostShared";
 
 interface StandaloneTopologyManagerOptions {
   debounceMs: number;
+  getSessionClient: () => TopologySessionClient;
   getLabs: () => Map<string, LabState>;
   onTopologyFilesChanged: () => void;
 }
@@ -32,13 +32,20 @@ interface HostContextOptions {
 
 export interface StandaloneTopologyManager {
   closeEventStream(): void;
+  disposeCurrentSession(): Promise<void>;
   getCurrentFilePath(): string | null;
+  getCurrentSessionId(): string | null;
+  getCurrentTopologyRef(): TopologyRef | null;
   handleLabStateChange(previousLabs: Map<string, LabState>, nextLabs: Map<string, LabState>): void;
   invalidateTopologyFileListCache(): void;
   listTopologyFiles(): Promise<TopologyFileEntry[]>;
-  loadTopologyFile(filePath: string, options?: { deploymentState?: DeploymentState }): Promise<void>;
+  loadTopologyFile(
+    topologyRef: TopologyRef,
+    options?: { deploymentState?: DeploymentState }
+  ): Promise<void>;
   resolveApiTopologyPath(args: unknown[]): Promise<string | undefined>;
-  resolveDeploymentState(apiLabPath: string, labName: string | undefined): Promise<DeploymentState | undefined>;
+  resolveDeploymentState(topologyRef: TopologyRef): Promise<DeploymentState | undefined>;
+  resolveTopologyRef(args: unknown[]): Promise<TopologyRef | undefined>;
   scheduleSnapshotRefresh(delay?: number): void;
   setAuthenticated(isAuthenticated: boolean): void;
   syncHostContext(options?: HostContextOptions): void;
@@ -50,17 +57,19 @@ export function createStandaloneTopologyManager(
   options: StandaloneTopologyManagerOptions
 ): StandaloneTopologyManager {
   let currentFilePath: string | null = null;
+  let currentSessionId: string | null = null;
+  let currentTopologyRef: TopologyRef | null = null;
   let standaloneAuthenticated = false;
   let fileListCache: { fetchedAt: number; entries: TopologyFileEntry[] } | null = null;
   let fileListInFlight: Promise<TopologyFileEntry[]> | null = null;
   let topologyEventSource: EventSource | null = null;
-  let topologyEventStreamPath: string | null = null;
+  let topologyEventStreamSessionId: string | null = null;
 
   const topologySyncController = createTopologySyncController({
     debounceMs: options.debounceMs,
     async refresh(refreshOptions = {}) {
       try {
-        await refreshTopologySnapshot(refreshOptions);
+        await refreshTopologySnapshot(refreshOptions, options.getSessionClient());
       } catch {
         // Ignore transient refresh errors; event stream updates will retry.
       }
@@ -74,7 +83,7 @@ export function createStandaloneTopologyManager(
   function closeTopologyEventStream(): void {
     topologyEventSource?.close();
     topologyEventSource = null;
-    topologyEventStreamPath = null;
+    topologyEventStreamSessionId = null;
   }
 
   function normalizeDeploymentState(value: string | undefined): DeploymentState | undefined {
@@ -86,11 +95,88 @@ export function createStandaloneTopologyManager(
 
   function findEntryByPath(files: TopologyFileEntry[], pathValue: string): TopologyFileEntry | undefined {
     const normalized = normalizePathValue(pathValue);
-    return files.find((entry) => {
-      const entryPath = normalizePathValue(entry.path);
-      const entryFilename = normalizePathValue(entry.filename);
-      return entryPath === normalized || entryFilename === normalized;
+    return files.find((entry) => normalizePathValue(entry.path) === normalized);
+  }
+
+  async function destroyTopologySession(sessionId: string | null): Promise<void> {
+    if (!sessionId) {
+      return;
+    }
+    try {
+      await fetch(`/api/topology/sessions/${encodeURIComponent(sessionId)}`, {
+        method: "DELETE",
+        credentials: "include"
+      });
+    } catch {
+      // Ignore transient teardown failures; server-side TTL cleanup is a fallback.
+    }
+  }
+
+  async function disposeCurrentSession(): Promise<void> {
+    const sessionId = currentSessionId;
+    currentSessionId = null;
+    closeTopologyEventStream();
+    await destroyTopologySession(sessionId);
+  }
+
+  async function createTopologySession(
+    topologyRef: TopologyRef,
+    hostOptions: HostContextOptions = {}
+  ): Promise<{ sessionId: string; topologyRef: TopologyRef }> {
+    const deploymentState =
+      hostOptions.deploymentState ??
+      (isTopologyRunning(topologyRef, options.getLabs()) ? "deployed" : "undeployed");
+    const mode = hostOptions.mode ?? (deploymentState === "deployed" ? "view" : "edit");
+    const runtimeContainers = getRuntimeContainersForTopology(topologyRef, options.getLabs());
+
+    const response = await fetch("/api/topology/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        topologyRef,
+        mode,
+        deploymentState,
+        runtimeContainers
+      })
     });
+
+    if (!response.ok) {
+      throw new Error(`Failed to create topology session: ${response.status} ${response.statusText}`);
+    }
+
+    const payload = (await response.json()) as {
+      sessionId?: unknown;
+      topologyRef?: TopologyRef;
+    };
+    if (typeof payload.sessionId !== "string" || payload.sessionId.trim().length === 0) {
+      throw new Error("Topology session response is invalid");
+    }
+    const canonicalTopologyRef =
+      payload.topologyRef && typeof payload.topologyRef === "object"
+        ? payload.topologyRef
+        : topologyRef;
+
+    return {
+      sessionId: payload.sessionId,
+      topologyRef: canonicalTopologyRef
+    };
+  }
+
+  async function ensureTopologySession(
+    topologyRef: TopologyRef,
+    hostOptions: HostContextOptions = {}
+  ): Promise<string> {
+    if (currentSessionId && currentTopologyRef?.topologyId === topologyRef.topologyId) {
+      return currentSessionId;
+    }
+
+    await disposeCurrentSession();
+    const session = await createTopologySession(topologyRef, hostOptions);
+    currentSessionId = session.sessionId;
+    currentTopologyRef = session.topologyRef;
+    currentFilePath = session.topologyRef.yamlPath;
+    return currentSessionId;
   }
 
   async function listTopologyFiles(): Promise<TopologyFileEntry[]> {
@@ -132,20 +218,20 @@ export function createStandaloneTopologyManager(
   }
 
   function ensureTopologyEventStream(): void {
-    const filePath = currentFilePath?.trim() ?? "";
-    if (!standaloneAuthenticated || filePath.length === 0) {
+    const sessionId = currentSessionId?.trim() ?? "";
+    if (!standaloneAuthenticated || sessionId.length === 0) {
       closeTopologyEventStream();
       return;
     }
 
-    if (topologyEventSource && topologyEventStreamPath === filePath) {
+    if (topologyEventSource && topologyEventStreamSessionId === sessionId) {
       return;
     }
 
     closeTopologyEventStream();
-    const es = new EventSource(`/api/topology/events?path=${encodeURIComponent(filePath)}`);
+    const es = new EventSource(`/api/topology/events?sessionId=${encodeURIComponent(sessionId)}`);
     topologyEventSource = es;
-    topologyEventStreamPath = filePath;
+    topologyEventStreamSessionId = sessionId;
 
     es.onmessage = (event) => {
       try {
@@ -166,34 +252,27 @@ export function createStandaloneTopologyManager(
 
   function syncHostContext(hostOptions: HostContextOptions = {}): void {
     const labs = options.getLabs();
-    const labName = currentFilePath ? stripTopologySuffix(safeFilename(currentFilePath)) : "";
-    const isDeployed = isLabRunning(labName, labs);
+    const topologyRef = currentTopologyRef;
+    const isDeployed = isTopologyRunning(topologyRef ?? undefined, labs);
     const deploymentState = hostOptions.deploymentState ?? (isDeployed ? "deployed" : "undeployed");
     const mode = hostOptions.mode ?? (deploymentState === "deployed" ? "view" : "edit");
-    const runtimeContainers = getRuntimeContainersForLab(labName, labs);
+    const runtimeContainers = getRuntimeContainersForTopology(topologyRef ?? undefined, labs);
 
     setHostContext({
-      path: currentFilePath ?? "",
+      topologyRef: topologyRef ?? undefined,
+      sessionId: currentSessionId ?? undefined,
+      path: topologyRef?.yamlPath ?? currentFilePath ?? "",
       mode,
       deploymentState,
       runtimeContainers
-    });
+    }, options.getSessionClient());
   }
 
-  async function resolveDeploymentState(
-    apiLabPath: string,
-    labName: string | undefined
-  ): Promise<DeploymentState | undefined> {
-    const resolvedLabName = labName ?? stripTopologySuffix(safeFilename(apiLabPath));
+  async function resolveDeploymentState(topologyRef: TopologyRef): Promise<DeploymentState | undefined> {
     const files = await listTopologyFiles();
-    const exact = findEntryByPath(files, apiLabPath);
-    const byLab = resolvedLabName
-      ? files.find((entry) => topologyEntryLabName(entry) === resolvedLabName)
-      : undefined;
-    const fileState =
-      normalizeDeploymentState(exact?.deploymentState) ??
-      normalizeDeploymentState(byLab?.deploymentState);
-    if (resolvedLabName && isLabRunning(resolvedLabName, options.getLabs())) {
+    const exact = findEntryByPath(files, topologyRef.yamlPath);
+    const fileState = normalizeDeploymentState(exact?.deploymentState);
+    if (isTopologyRunning(topologyRef, options.getLabs())) {
       return "deployed";
     }
     if (fileState) {
@@ -203,17 +282,38 @@ export function createStandaloneTopologyManager(
   }
 
   async function loadTopologyFile(
-    filePath: string,
+    topologyRef: TopologyRef,
     loadOptions: { deploymentState?: DeploymentState } = {}
   ): Promise<void> {
-    currentFilePath = filePath;
+    const files = await listTopologyFiles();
+    const entry = findEntryByPath(files, topologyRef.yamlPath);
+    if (!entry?.topologyRef) {
+      throw new Error(
+        `No API-backed topology file found for "${topologyRef.yamlPath}". Standalone mode only opens topologies exposed by /files.`
+      );
+    }
+    const canonicalTopologyRef = entry.topologyRef;
+    currentTopologyRef = canonicalTopologyRef;
+    currentFilePath = canonicalTopologyRef.yamlPath;
+    const initialDeploymentState =
+      loadOptions.deploymentState ??
+      (isTopologyRunning(canonicalTopologyRef, options.getLabs()) ? "deployed" : "undeployed");
+    const initialMode = initialDeploymentState === "deployed" ? "view" : "edit";
+    await ensureTopologySession(canonicalTopologyRef, {
+      deploymentState: initialDeploymentState,
+      mode: initialMode
+    });
     ensureTopologyEventStream();
-    syncHostContext(loadOptions);
-    const snapshot = await refreshTopologySnapshot();
+    syncHostContext({
+      deploymentState: initialDeploymentState,
+      mode: initialMode
+    });
+    const snapshot = await refreshTopologySnapshot({}, options.getSessionClient());
 
-    const activeLabName = stripTopologySuffix(safeFilename(filePath));
-    const stateFromApi = await resolveDeploymentState(filePath, activeLabName);
-    const stateFromRunningLabs = isLabRunning(activeLabName, options.getLabs()) ? "deployed" : undefined;
+    const stateFromApi = await resolveDeploymentState(canonicalTopologyRef);
+    const stateFromRunningLabs = isTopologyRunning(canonicalTopologyRef, options.getLabs())
+      ? "deployed"
+      : undefined;
     const resolvedState =
       loadOptions.deploymentState ??
       stateFromApi ??
@@ -230,56 +330,36 @@ export function createStandaloneTopologyManager(
     }
   }
 
-  async function resolveApiTopologyPath(args: unknown[]): Promise<string | undefined> {
-    const requestedPath = resolveLabPath(args);
-    const requestedLabName = resolveLabName(args, requestedPath);
+  async function resolveTopologyRef(args: unknown[]): Promise<TopologyRef | undefined> {
     const files = await listTopologyFiles();
-
-    if (requestedPath) {
-      const exactMatch = findEntryByPath(files, requestedPath);
-      if (exactMatch) {
-        return exactMatch.path;
-      }
-
-      const filenameMatch = findEntryByPath(files, safeFilename(requestedPath));
-      if (filenameMatch) {
-        return filenameMatch.path;
-      }
+    const requestedTopologyRef = firstArgAsTopologyRef(args);
+    if (!requestedTopologyRef?.yamlPath) {
+      return undefined;
     }
 
-    if (requestedLabName) {
-      const labMatch = files.find((entry) => topologyEntryLabName(entry) === requestedLabName);
-      if (labMatch) {
-        return labMatch.path;
-      }
+    const exactMatch = findEntryByPath(files, requestedTopologyRef.yamlPath);
+    return exactMatch?.topologyRef;
+  }
 
-      const item = firstArgAsTreeItem(args);
-      if (item?.contextValue === "containerlabLabDeployed") {
-        return `${requestedLabName}.clab.yml`;
-      }
+  async function resolveApiTopologyPath(args: unknown[]): Promise<string | undefined> {
+    const files = await listTopologyFiles();
+    const requestedTopologyRef = firstArgAsTopologyRef(args);
+    if (!requestedTopologyRef?.yamlPath) {
+      return undefined;
     }
-
-    if (requestedPath && !isAbsolutePath(requestedPath)) {
-      const derivedLabName = stripTopologySuffix(safeFilename(requestedPath));
-      const labMatch = files.find((entry) => topologyEntryLabName(entry) === derivedLabName);
-      if (labMatch) {
-        return labMatch.path;
-      }
-    }
-
-    return undefined;
+    const exactMatch = findEntryByPath(files, requestedTopologyRef.yamlPath);
+    return exactMatch?.path;
   }
 
   function handleLabStateChange(previousLabs: Map<string, LabState>, nextLabs: Map<string, LabState>): void {
-    if (!currentFilePath) {
+    if (!currentTopologyRef) {
       return;
     }
 
-    const activeLabName = stripTopologySuffix(safeFilename(currentFilePath));
-    const wasDeployed = isLabRunning(activeLabName, previousLabs);
-    const isDeployed = isLabRunning(activeLabName, nextLabs);
-    const previousRuntimeContainers = getRuntimeContainersForLab(activeLabName, previousLabs);
-    const nextRuntimeContainers = getRuntimeContainersForLab(activeLabName, nextLabs);
+    const wasDeployed = isTopologyRunning(currentTopologyRef, previousLabs);
+    const isDeployed = isTopologyRunning(currentTopologyRef, nextLabs);
+    const previousRuntimeContainers = getRuntimeContainersForTopology(currentTopologyRef, previousLabs);
+    const nextRuntimeContainers = getRuntimeContainersForTopology(currentTopologyRef, nextLabs);
     const runtimeChanged = !runtimeContainersEqual(previousRuntimeContainers, nextRuntimeContainers);
 
     if (wasDeployed !== isDeployed || (isDeployed && runtimeChanged)) {
@@ -290,20 +370,26 @@ export function createStandaloneTopologyManager(
 
   return {
     closeEventStream: closeTopologyEventStream,
+    disposeCurrentSession,
     getCurrentFilePath: () => currentFilePath,
+    getCurrentSessionId: () => currentSessionId,
+    getCurrentTopologyRef: () => currentTopologyRef,
     handleLabStateChange,
     invalidateTopologyFileListCache,
     listTopologyFiles,
     loadTopologyFile,
     resolveApiTopologyPath,
     resolveDeploymentState,
+    resolveTopologyRef,
     scheduleSnapshotRefresh(delay = options.debounceMs) {
       topologySyncController.schedule(delay);
     },
     setAuthenticated(isAuthenticated) {
       standaloneAuthenticated = isAuthenticated;
       if (!isAuthenticated) {
+        currentTopologyRef = null;
         currentFilePath = null;
+        void disposeCurrentSession();
       }
       ensureTopologyEventStream();
     },

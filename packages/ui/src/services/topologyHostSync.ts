@@ -5,6 +5,7 @@
 import type { Node } from "@xyflow/react";
 
 import type { TopologySnapshot } from "../core/types/messages";
+import type { TopologySessionClient } from "../session/client";
 import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
@@ -40,7 +41,11 @@ import {
   clampTelemetryNodeSizePx
 } from "../utils/telemetryInterfaceLabels";
 
-import { dispatchTopologyCommand, setHostRevision } from "./topologyHostClient";
+import {
+  dispatchTopologyCommand,
+  getHostCommandQueueScope,
+  setHostRevision
+} from "./topologyHostClient";
 import { enqueueHostCommand } from "./topologyHostQueue";
 
 export interface ApplySnapshotOptions {
@@ -352,7 +357,8 @@ function snapLayoutPositions(nodes: Node[]): {
 }
 
 async function persistLayoutPositions(
-  positions: Array<{ id: string; position: { x: number; y: number } }>
+  positions: Array<{ id: string; position: { x: number; y: number } }>,
+  client: TopologySessionClient
 ): Promise<void> {
   if (positions.length === 0) return;
   try {
@@ -361,19 +367,20 @@ async function persistLayoutPositions(
         command: "savePositions",
         payload: positions,
         skipHistory: true
-      })
+      }, client),
+      getHostCommandQueueScope(client)
     );
     if (response.type === "topology-host:ack") {
       if (response.snapshot) {
-        setHostRevision(response.snapshot.revision);
+        setHostRevision(response.snapshot.revision, client);
         syncUndoRedo(response.snapshot);
       } else if (typeof response.revision === "number") {
-        setHostRevision(response.revision);
+        setHostRevision(response.revision, client);
       }
       return;
     }
     if (response.type === "topology-host:reject") {
-      setHostRevision(response.snapshot.revision);
+      setHostRevision(response.snapshot.revision, client);
       syncUndoRedo(response.snapshot);
       return;
     }
@@ -629,9 +636,10 @@ function buildInitialTopoViewerData(
 
 export function applySnapshotToStores(
   snapshot: TopologySnapshot,
-  options: ApplySnapshotOptions = {}
+  options: ApplySnapshotOptions = {},
+  client: TopologySessionClient
 ): void {
-  setHostRevision(snapshot.revision);
+  setHostRevision(snapshot.revision, client);
 
   const annotations = normalizeAnnotations(snapshot.annotations);
   const edges = snapshot.edges;
@@ -653,7 +661,7 @@ export function applySnapshotToStores(
     const layoutNodes = applyForceLayout(mergedNodes, edges);
     const { nodes: snappedNodes, positions } = snapLayoutPositions(layoutNodes);
     mergedNodes = snappedNodes;
-    void persistLayoutPositions(positions);
+    void persistLayoutPositions(positions, client);
   }
 
   const cleanedEdgeAnnotations = pruneEdgeAnnotations(annotations.edgeAnnotations, edges);

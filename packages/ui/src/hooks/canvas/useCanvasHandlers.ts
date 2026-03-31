@@ -20,6 +20,8 @@ import {
 } from "@xyflow/react";
 
 import type { TopoNode, TopoEdge, FreeShapeNodeData } from "../../core/types/graph";
+import { useTopologySessionClient } from "../../host";
+import type { TopologySessionClient } from "../../session";
 import { log } from "../../utils/logger";
 import { isLineHandleActive } from "../../components/canvas/nodes/AnnotationHandles";
 import {
@@ -336,6 +338,7 @@ function applyGeoUpdateToNodeList(
 }
 
 function saveGeoUpdate(
+  sessionClient: TopologySessionClient,
   currentNodes: Node[],
   nodeId: string,
   update: {
@@ -348,16 +351,17 @@ function saveGeoUpdate(
 
   if (isAnnotation) {
     const nodesForSave = applyGeoUpdateToNodeList(currentNodes, nodeId, update);
-    void saveAnnotationNodesFromGraph(nodesForSave);
+    void saveAnnotationNodesFromGraph(sessionClient, nodesForSave);
     return;
   }
 
   if (update.geoCoordinates) {
-    void saveNodePositions([{ id: nodeId, geoCoordinates: update.geoCoordinates }]);
+    void saveNodePositions(sessionClient, [{ id: nodeId, geoCoordinates: update.geoCoordinates }]);
   }
 }
 
 function handleGeoDragStop(
+  sessionClient: TopologySessionClient,
   node: Node,
   onNodesChangeBase: OnNodesChange,
   setNodes: React.Dispatch<React.SetStateAction<Node[]>> | undefined,
@@ -385,7 +389,7 @@ function handleGeoDragStop(
   if (!update?.geoCoordinates && !update?.endGeoCoordinates) return true;
 
   updateNodeWithGeoData(setNodes, node.id, update);
-  saveGeoUpdate(currentNodes, node.id, update);
+  saveGeoUpdate(sessionClient, currentNodes, node.id, update);
   return true;
 }
 
@@ -413,7 +417,10 @@ function flushScheduledGroupMove(
   flushPendingGroupMove();
 }
 
-function persistPositionChanges(changes: NodeChange[]) {
+function persistPositionChanges(
+  sessionClient: TopologySessionClient,
+  changes: NodeChange[]
+) {
   const currentNodes = useGraphStore.getState().nodes;
   const nodeTypeMap = new Map(currentNodes.map((n) => [n.id, n.type]));
   const movedPositions = changes
@@ -430,25 +437,26 @@ function persistPositionChanges(changes: NodeChange[]) {
   // When both topology positions and annotations are moved together (e.g., group with members),
   // save them in a single command to create one undo entry
   if (topoPositions.length > 0 && movedAnnotations) {
-    void saveNodePositionsWithAnnotations(topoPositions, currentNodes);
+    void saveNodePositionsWithAnnotations(sessionClient, topoPositions, currentNodes);
     return;
   }
 
   if (topoPositions.length > 0) {
     // Include memberships so position + membership changes are a single undo entry
     // (e.g., dragging a node into/out of a group).
-    void saveNodePositionsWithMemberships(topoPositions);
+    void saveNodePositionsWithMemberships(sessionClient, topoPositions);
     return;
   }
 
   if (movedAnnotations) {
     // Use applySnapshot: false to prevent snapshot re-apply from reverting local changes
-    void saveAnnotationNodesFromGraph(currentNodes, { applySnapshot: false });
+    void saveAnnotationNodesFromGraph(sessionClient, currentNodes, { applySnapshot: false });
   }
 }
 
 /** Hook for node drag handlers with group member movement */
 function useNodeDragHandlers(
+  sessionClient: TopologySessionClient,
   isLockedRef: React.RefObject<boolean>,
   nodes: Node[] | undefined,
   onNodesChangeBase: OnNodesChange,
@@ -568,7 +576,7 @@ function useNodeDragHandlers(
         return;
       }
 
-      if (handleGeoDragStop(node, onNodesChangeBase, setNodes, geoLayout)) {
+      if (handleGeoDragStop(sessionClient, node, onNodesChangeBase, setNodes, geoLayout)) {
         lineDragStartRef.current.clear();
         return;
       }
@@ -622,9 +630,10 @@ function useNodeDragHandlers(
       }
 
       applyLineDragSnapshots(lineDragStartRef.current);
-      persistPositionChanges(changes);
+      persistPositionChanges(sessionClient, changes);
     },
     [
+      sessionClient,
       isLockedRef,
       nodes,
       onNodesChangeBase,
@@ -922,6 +931,7 @@ function useSelectionChangeHandler(
  * Hook for canvas event handlers
  */
 export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers {
+  const sessionClient = useTopologySessionClient();
   const {
     selectNode,
     selectEdge,
@@ -1005,6 +1015,7 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
 
   // Drag handlers (extracted hook)
   const { onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDragHandlers(
+    sessionClient,
     isLockedRef,
     nodes,
     onNodesChangeBase,

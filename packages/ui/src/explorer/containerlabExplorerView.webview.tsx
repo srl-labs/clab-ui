@@ -62,7 +62,11 @@ import {
   useState
 } from "react";
 
-import { getClabUiHost } from "../host";
+import {
+  ClabUiRuntimeProvider,
+  useClabUiHost,
+  type ClabUiRuntime
+} from "../host";
 import { MuiThemeProvider } from "../theme/index";
 import {
   ContextMenu,
@@ -1633,6 +1637,7 @@ function ExplorerSectionCard({
 }
 
 export function ContainerlabExplorerView() {
+  const host = useClabUiHost();
   const [sections, setSections] = useState<ExplorerSectionSnapshot[]>([]);
   const [sectionOrder, setSectionOrder] = useState<ExplorerSectionId[]>(EXPLORER_SECTION_ORDER);
   const [collapsedBySection, setCollapsedBySection] = useState<
@@ -1766,9 +1771,9 @@ export function ContainerlabExplorerView() {
 
   const invokeAction = useCallback(
     (action: ExplorerAction) => {
-      void Promise.resolve(getClabUiHost().explorer.invokeAction(action.actionRef));
+      void Promise.resolve(host.explorer.invokeAction(action.actionRef));
     },
-    []
+    [host]
   );
 
   const handleFilterChange = useCallback(
@@ -1782,16 +1787,16 @@ export function ContainerlabExplorerView() {
       }
 
       if (value.trim().length === 0) {
-        void Promise.resolve(getClabUiHost().explorer.setFilter(""));
+        void Promise.resolve(host.explorer.setFilter(""));
         return;
       }
 
       filterTimeoutRef.current = window.setTimeout(() => {
         filterTimeoutRef.current = null;
-        void Promise.resolve(getClabUiHost().explorer.setFilter(value));
+        void Promise.resolve(host.explorer.setFilter(value));
       }, FILTER_UPDATE_DEBOUNCE_MS);
     },
-    []
+    [host]
   );
 
   const handleExpandedItemsChange = useCallback((sectionId: ExplorerSectionId, itemIds: string[]) => {
@@ -1939,9 +1944,9 @@ export function ContainerlabExplorerView() {
     }
     uiStateTimeoutRef.current = window.setTimeout(() => {
       uiStateTimeoutRef.current = null;
-      void Promise.resolve(getClabUiHost().explorer.persistUiState(uiState));
+      void Promise.resolve(host.explorer.persistUiState(uiState));
     }, UI_STATE_UPDATE_DEBOUNCE_MS);
-  }, [sectionOrder, collapsedBySection, expandedBySection, heightRatioBySection, uiStateHydrated]);
+  }, [sectionOrder, collapsedBySection, expandedBySection, heightRatioBySection, host, uiStateHydrated]);
 
   return (
     <Box
@@ -2054,7 +2059,7 @@ export function ContainerlabExplorerView() {
   );
 }
 
-export function bootstrapContainerlabExplorerView(): void {
+export function bootstrapContainerlabExplorerView(runtime: ClabUiRuntime): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Explorer root element not found");
@@ -2062,8 +2067,10 @@ export function bootstrapContainerlabExplorerView(): void {
 
   const root = createRoot(container);
   root.render(
-    <MuiThemeProvider>
-      <ContainerlabExplorerView />
-    </MuiThemeProvider>
+    <ClabUiRuntimeProvider runtime={runtime}>
+      <MuiThemeProvider>
+        <ContainerlabExplorerView />
+      </MuiThemeProvider>
+    </ClabUiRuntimeProvider>
   );
 }

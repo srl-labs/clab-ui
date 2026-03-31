@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 
 import type { TrafficRateAnnotation } from "../../core/types/topology";
+import type { TopologySessionClient } from "../../session";
 import type { AnnotationUIActions, AnnotationUIState } from "../../stores/annotationUIStore";
 import { saveAnnotationNodesFromGraph } from "../../services";
 import { useGraphStore } from "../../stores/graphStore";
@@ -13,6 +14,7 @@ interface UseTrafficRateAnnotationsParams {
   isLocked: boolean;
   onLockedAction: () => void;
   derived: UseDerivedAnnotationsReturn;
+  sessionClient: TopologySessionClient;
   uiState: Pick<AnnotationUIState, "selectedTrafficRateIds">;
   uiActions: Pick<
     AnnotationUIActions,
@@ -54,12 +56,12 @@ function createTrafficRateAnnotationId(existingIds: Iterable<string>): string {
 export function useTrafficRateAnnotations(
   params: UseTrafficRateAnnotationsParams
 ): TrafficRateAnnotationActions {
-  const { isLocked, onLockedAction, derived, uiState, uiActions } = params;
+  const { isLocked, onLockedAction, derived, sessionClient, uiState, uiActions } = params;
   const canEditAnnotations = !isLocked;
 
   const persist = useCallback(() => {
-    void saveAnnotationNodesFromGraph();
-  }, []);
+    void saveAnnotationNodesFromGraph(sessionClient);
+  }, [sessionClient]);
 
   const createTrafficRateAtPosition = useCallback(
     (position: { x: number; y: number }) => {

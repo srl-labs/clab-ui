@@ -4,7 +4,7 @@
  * The webview previously registered multiple `window.addEventListener('message', ...)` listeners
  * across hooks and services. This module centralizes the listener and allows scoped subscriptions.
  */
-import { getClabUiHost } from "../host";
+import type { ClabUiHost } from "../host";
 
 /**
  * Base webview message structure from the extension.
@@ -28,45 +28,62 @@ interface Subscriber {
   predicate?: WebviewMessagePredicate;
 }
 
-let started = false;
-let windowListener: ((event: TypedMessageEvent) => void) | null = null;
-let unsubscribeFromHost: (() => void) | null = null;
-const subscribers = new Set<Subscriber>();
-
-function ensureStarted(): void {
-  if (started) return;
-  windowListener = (event: TypedMessageEvent) => {
-    for (const sub of Array.from(subscribers)) {
-      if (!sub.predicate || sub.predicate(event)) {
-        sub.handler(event);
-      }
-    }
-  };
-
-  unsubscribeFromHost = getClabUiHost().subscribe((event) => {
-    windowListener?.(event as TypedMessageEvent);
-  });
-  started = true;
+interface HostSubscriptionState {
+  subscribers: Set<Subscriber>;
+  unsubscribeFromHost: (() => void) | null;
 }
 
-function maybeStop(): void {
-  if (!started) return;
-  if (subscribers.size > 0) return;
-  unsubscribeFromHost?.();
-  unsubscribeFromHost = null;
-  windowListener = null;
-  started = false;
+const hostStates = new WeakMap<ClabUiHost, HostSubscriptionState>();
+
+function getHostState(host: ClabUiHost): HostSubscriptionState {
+  let state = hostStates.get(host);
+  if (!state) {
+    state = {
+      subscribers: new Set(),
+      unsubscribeFromHost: null
+    };
+    hostStates.set(host, state);
+  }
+  return state;
+}
+
+function ensureStarted(host: ClabUiHost): HostSubscriptionState {
+  const state = getHostState(host);
+  if (state.unsubscribeFromHost) {
+    return state;
+  }
+
+  state.unsubscribeFromHost = host.subscribe((event) => {
+    const typedEvent = event as TypedMessageEvent;
+    for (const sub of Array.from(state.subscribers)) {
+      if (!sub.predicate || sub.predicate(typedEvent)) {
+        sub.handler(typedEvent);
+      }
+    }
+  });
+
+  return state;
+}
+
+function maybeStop(host: ClabUiHost): void {
+  const state = hostStates.get(host);
+  if (!state || state.subscribers.size > 0) {
+    return;
+  }
+  state.unsubscribeFromHost?.();
+  hostStates.delete(host);
 }
 
 export function subscribeToWebviewMessages(
   handler: WebviewMessageHandler,
-  predicate?: WebviewMessagePredicate
+  predicate: WebviewMessagePredicate | undefined,
+  host: ClabUiHost
 ): () => void {
-  ensureStarted();
+  const state = ensureStarted(host);
   const sub: Subscriber = { handler, predicate };
-  subscribers.add(sub);
+  state.subscribers.add(sub);
   return () => {
-    subscribers.delete(sub);
-    maybeStop();
+    state.subscribers.delete(sub);
+    maybeStop(host);
   };
 }

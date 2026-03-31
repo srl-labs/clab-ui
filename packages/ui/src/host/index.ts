@@ -3,174 +3,28 @@ import type {
   TopologyHostResponseMessage,
   TopologySnapshot
 } from "../core/types/messages";
-import type { DeploymentState } from "../core/types/topology";
-import type {
-  ExplorerIncomingMessage,
-  ExplorerUiState
-} from "../explorer/shared/explorer/types";
+import type { ExplorerIncomingMessage, ExplorerUiState } from "../explorer/shared/explorer/types";
 import { TOPOLOGY_HOST_PROTOCOL_VERSION } from "../core/types/messages";
+import {
+  createTopologySessionClient,
+  type TopologySessionClient
+} from "../session/client";
+import { resolveWindowVsCodeApi, type WindowVsCodeApiLike } from "../utils/vscodeApi";
+import type {
+  ClabUiExplorerHost,
+  ClabUiHost,
+  ClabUiTopoViewerEvent,
+  ClabUiTopoViewerHost,
+  TopologyUiContext,
+  TopologyUiRequestOptions,
+  TopoViewerLifecycleAction,
+  TopoViewerNodeAction,
+  TopoViewerSvgExportPayload
+} from "./contracts";
+import type { ClabUiRuntime } from "./runtimeContext";
 export * from "./controllers";
-
-export type TopoViewerLifecycleAction =
-  | "deployLab"
-  | "deployLabCleanup"
-  | "destroyLab"
-  | "destroyLabCleanup"
-  | "redeployLab"
-  | "redeployLabCleanup";
-
-export type TopoViewerNodeAction = "ssh" | "shell" | "logs";
-
-export interface TopoViewerSvgExportPayload {
-  requestId: string;
-  baseName: string;
-  svgContent: string;
-  dashboardJson: string;
-  panelYaml: string;
-}
-
-export type ClabUiTopoViewerEvent =
-  | {
-      type: "modeChanged";
-      mode: "editor" | "viewer";
-      deploymentState: DeploymentState;
-    }
-  | {
-      type: "panelAction";
-      action: string;
-      nodeId?: string;
-      edgeId?: string;
-    }
-  | {
-      type: "customNodesUpdated";
-      customNodes: unknown[];
-      defaultNode: string;
-    }
-  | {
-      type: "customNodeError";
-      error: string;
-    }
-  | {
-      type: "iconList";
-      icons: unknown[];
-    }
-  | {
-      type: "lifecycleLog";
-      line: string;
-      stream: "stdout" | "stderr";
-    }
-  | {
-      type: "lifecycleStatus";
-      status: "success" | "error";
-      errorMessage?: string;
-    }
-  | {
-      type: "fitViewport";
-    }
-  | {
-      type: "svgExportResult";
-      requestId: string;
-      success: boolean;
-      error?: string;
-      files?: string[];
-    };
-
-export interface HostRuntimeInterfaceStats {
-  rxBps?: number;
-  txBps?: number;
-  rxPps?: number;
-  txPps?: number;
-  rxBytes?: number;
-  txBytes?: number;
-  rxPackets?: number;
-  txPackets?: number;
-  statsIntervalSeconds?: number;
-}
-
-export interface HostRuntimeInterface {
-  name: string;
-  alias: string;
-  mac: string;
-  mtu: number;
-  state: string;
-  type: string;
-  ifIndex?: number;
-  stats?: HostRuntimeInterfaceStats;
-}
-
-export interface HostRuntimeContainer {
-  name: string;
-  nodeName: string;
-  labName: string;
-  state: string;
-  kind: string;
-  image: string;
-  ipv4Address: string;
-  ipv6Address: string;
-  interfaces?: HostRuntimeInterface[];
-}
-
-export interface TopologyUiContext {
-  path?: string;
-  mode?: "edit" | "view";
-  deploymentState?: DeploymentState;
-  sessionId?: string;
-  runtimeContainers?: HostRuntimeContainer[];
-}
-
-export interface TopologyUiRequestOptions {
-  externalChange?: boolean;
-}
-
-export interface ClabUiExplorerHost {
-  connect(): void;
-  setFilter(filterText: string): void | Promise<void>;
-  invokeAction(actionRef: string): void | Promise<void>;
-  persistUiState(state: ExplorerUiState): void | Promise<void>;
-  subscribe(handler: (message: ExplorerIncomingMessage) => void): () => void;
-}
-
-export interface ClabUiTopoViewerHost {
-  runLifecycle(action: TopoViewerLifecycleAction): void;
-  cancelLifecycle(): void;
-  toggleSplitView(): void;
-  runNodeAction(action: TopoViewerNodeAction, nodeName: string): void;
-  captureInterface(nodeName: string, interfaceName: string): void;
-  setLinkImpairment(nodeName: string, interfaceName: string, data: unknown): void;
-  saveCustomNode(data: Record<string, unknown>): void;
-  deleteCustomNode(nodeName: string): void;
-  setDefaultCustomNode(nodeName: string): void;
-  requestIconList(): void;
-  uploadIcon(): void;
-  deleteIcon(iconName: string): void;
-  reconcileIcons(usedIcons: string[]): void;
-  exportGrafanaBundle(payload: TopoViewerSvgExportPayload): void;
-  dumpCssVars(vars: Record<string, string>): void;
-  subscribe(handler: (event: ClabUiTopoViewerEvent) => void): () => void;
-}
-
-export interface ClabUiHost {
-  postMessage(message: unknown): void;
-  subscribe(handler: (event: MessageEvent<unknown>) => void): () => void;
-  meta?: {
-    isDevMock?: boolean;
-    disableDevMockTraffic?: boolean;
-  };
-  explorer: ClabUiExplorerHost;
-  topoViewer: ClabUiTopoViewerHost;
-  topology: {
-    requestSnapshot(
-      context: TopologyUiContext,
-      options?: TopologyUiRequestOptions
-    ): Promise<TopologySnapshot>;
-    dispatchCommand(
-      context: TopologyUiContext,
-      revision: number,
-      command: TopologyHostCommand
-    ): Promise<TopologyHostResponseMessage>;
-  };
-}
-
+export * from "./contracts";
+export * from "./runtimeContext";
 type FetchLike = typeof fetch;
 type TopologyHostMessageType =
   | "topology-host:snapshot"
@@ -183,14 +37,6 @@ interface PendingTopologyRequest {
   reject: (err: Error) => void;
   expectedType: "snapshot" | "command";
   timeoutId: ReturnType<typeof setTimeout>;
-}
-
-interface WindowVsCodeApiLike {
-  postMessage(message: unknown): void;
-  getState?(): unknown;
-  setState?(state: unknown): void;
-  __isDevMock__?: boolean;
-  __disableDevMockTraffic__?: boolean;
 }
 
 declare global {
@@ -217,8 +63,6 @@ interface ApiHostOptions extends WindowHostOptions {
   baseUrl?: string;
   fetchImpl?: FetchLike;
 }
-
-let currentHost: ClabUiHost | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -369,20 +213,8 @@ function appendSessionId(path: string, sessionId?: string): string {
   return `${path}${delimiter}sessionId=${encodeURIComponent(sessionId)}`;
 }
 
-function resolveVsCodeApi(targetWindow: Window): WindowVsCodeApiLike | undefined {
-  const windowWithVsCode = targetWindow as Window & { vscode?: WindowVsCodeApiLike };
-
-  if (windowWithVsCode.vscode) {
-    return windowWithVsCode.vscode;
-  }
-
-  if (typeof targetWindow.acquireVsCodeApi === "function") {
-    const api = targetWindow.acquireVsCodeApi();
-    windowWithVsCode.vscode = api;
-    return api;
-  }
-
-  return undefined;
+function resolveTopologyPath(context: TopologyUiContext): string | undefined {
+  return context.path ?? context.topologyRef?.yamlPath;
 }
 
 function createMessageSubscription(targetWindow: Window) {
@@ -399,7 +231,7 @@ function createMessageSubscription(targetWindow: Window) {
 
 export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiHost {
   const targetWindow = options.targetWindow ?? window;
-  const resolvedVsCodeApi = options.vscodeApi ?? resolveVsCodeApi(targetWindow);
+  const resolvedVsCodeApi = options.vscodeApi ?? resolveWindowVsCodeApi(targetWindow);
   const postMessage =
     options.postMessage ?? ((message: unknown) => resolvedVsCodeApi?.postMessage(message));
   const subscribe = createMessageSubscription(targetWindow);
@@ -651,7 +483,9 @@ export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
         const payload = await postJson<{ snapshot?: TopologySnapshot }>(
           appendSessionId("/api/topology/snapshot", context.sessionId),
           {
-            path: context.path,
+            sessionId: context.sessionId,
+            topologyRef: context.topologyRef,
+            path: resolveTopologyPath(context),
             mode: context.mode,
             deploymentState: context.deploymentState,
             runtimeContainers: context.runtimeContainers,
@@ -674,7 +508,9 @@ export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
         const payload = await postJson<TopologyHostResponseMessage>(
           appendSessionId("/api/topology/command", context.sessionId),
           {
-            path: context.path,
+            sessionId: context.sessionId,
+            topologyRef: context.topologyRef,
+            path: resolveTopologyPath(context),
             baseRevision: revision,
             command,
             mode: context.mode,
@@ -693,23 +529,22 @@ export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
   };
 }
 
-export function setClabUiHost(host: ClabUiHost | null): void {
-  currentHost = host;
+export interface CreateClabUiRuntimeOptions {
+  host: ClabUiHost;
+  session?: TopologySessionClient;
+  initialContext?: TopologyUiContext;
 }
 
-export function getClabUiHost(): ClabUiHost {
-  if (!currentHost) {
-    throw new Error(
-      "clab-ui host is not configured. The product entrypoint must call setClabUiHost() before rendering."
-    );
-  }
-  return currentHost;
-}
+export function createClabUiRuntime(options: CreateClabUiRuntimeOptions): ClabUiRuntime {
+  const session =
+    options.session ??
+    createTopologySessionClient({
+      host: options.host,
+      initialContext: options.initialContext
+    });
 
-export function getConfiguredClabUiHost(): ClabUiHost | null {
-  return currentHost;
-}
-
-export function assertClabUiHostConfigured(): ClabUiHost {
-  return getClabUiHost();
+  return {
+    host: options.host,
+    session
+  };
 }

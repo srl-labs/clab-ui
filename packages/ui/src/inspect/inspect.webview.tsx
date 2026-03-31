@@ -21,6 +21,7 @@ import {
 import React from "react";
 import { createRoot } from "react-dom/client";
 
+import { ClabUiRuntimeProvider, type ClabUiRuntime } from "../host";
 import { MuiThemeProvider } from "../theme/index";
 import { usePostMessage } from "./shared/hooks";
 
@@ -599,7 +600,7 @@ export function InspectApp(): React.JSX.Element {
   );
 }
 
-export function bootstrapInspectWebview(): void {
+export function bootstrapInspectWebview(runtime: ClabUiRuntime): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Inspect webview root element not found");
@@ -607,8 +608,10 @@ export function bootstrapInspectWebview(): void {
 
   const root = createRoot(container);
   root.render(
-    <React.StrictMode>
-      <InspectApp />
-    </React.StrictMode>
+    <ClabUiRuntimeProvider runtime={runtime}>
+      <React.StrictMode>
+        <InspectApp />
+      </React.StrictMode>
+    </ClabUiRuntimeProvider>
   );
 }

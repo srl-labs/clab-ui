@@ -21,6 +21,7 @@ import {
 import React from "react";
 import { createRoot } from "react-dom/client";
 
+import { ClabUiRuntimeProvider, type ClabUiRuntime } from "../../host";
 import { MuiThemeProvider } from "@srl-labs/clab-ui/theme";
 import { useMessageListener, usePostMessage } from "../shared/hooks";
 import containerlabLogo from "../../assets/images/containerlab.svg";
@@ -309,7 +310,7 @@ export function WelcomePageApp(): React.JSX.Element {
   );
 }
 
-export function bootstrapWelcomePage(): void {
+export function bootstrapWelcomePage(runtime: ClabUiRuntime): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Welcome page root element not found");
@@ -317,8 +318,10 @@ export function bootstrapWelcomePage(): void {
 
   const root = createRoot(container);
   root.render(
-    <React.StrictMode>
-      <WelcomePageApp />
-    </React.StrictMode>
+    <ClabUiRuntimeProvider runtime={runtime}>
+      <React.StrictMode>
+        <WelcomePageApp />
+      </React.StrictMode>
+    </ClabUiRuntimeProvider>
   );
 }

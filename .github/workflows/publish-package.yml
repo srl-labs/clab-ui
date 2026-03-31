@@ -41,6 +41,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Pack preview
+        run: npm run pack:preview
+
       - name: Publish to GitHub Packages
         run: npm publish --workspace=@srl-labs/clab-ui
         env:

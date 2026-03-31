@@ -5,7 +5,7 @@ import { useEffect } from "react";
 
 import type { CustomNodeTemplate } from "../../core/types/editors";
 import type { CustomIconInfo } from "../../core/types/icons";
-import { getClabUiHost, type ClabUiTopoViewerEvent } from "../../host";
+import { type ClabUiTopoViewerEvent, useClabUiHost } from "../../host";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { useTopoViewerStore, type DeploymentState } from "../../stores/topoViewerStore";
 
@@ -129,8 +129,10 @@ function handleFitViewport(): void {
 }
 
 export function useTopoViewerMessageSubscription(): void {
+  const host = useClabUiHost();
+
   useEffect(() => {
-    return getClabUiHost().topoViewer.subscribe((event) => {
+    return host.topoViewer.subscribe((event) => {
       switch (event.type) {
         case "modeChanged":
           handleTopoModeChanged(event);
@@ -160,5 +162,5 @@ export function useTopoViewerMessageSubscription(): void {
           return;
       }
     });
-  }, []);
+  }, [host]);
 }

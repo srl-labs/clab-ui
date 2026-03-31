@@ -1,9 +1,11 @@
 import { useCallback } from "react";
 
-import { getClabUiHost } from "../../../host";
+import { useClabUiHost } from "../../../host";
 
 export function usePostMessage<T = unknown>(): (message: T) => void {
+  const host = useClabUiHost();
+
   return useCallback((message: T) => {
-    getClabUiHost().postMessage(message);
-  }, []);
+    host.postMessage(message);
+  }, [host]);
 }

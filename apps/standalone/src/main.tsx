@@ -14,21 +14,20 @@ import JsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 
 import {
   createApiClabUiHost,
-  setClabUiHost
+  createClabUiRuntime
 } from "@srl-labs/clab-ui/host";
 import { applyThemeVars, MuiThemeProvider } from "@srl-labs/clab-ui/theme";
-import { parseSchemaData } from "@srl-labs/clab-ui/core/schema";
 import {
   EXPORT_COMMANDS,
-  MSG_CANCEL_LAB_LIFECYCLE
-} from "@srl-labs/clab-ui/core/messages/extension";
-import {
-  MSG_SVG_EXPORT_RESULT
-} from "@srl-labs/clab-ui/core/messages/webview";
+  MSG_CANCEL_LAB_LIFECYCLE,
+  MSG_SVG_EXPORT_RESULT,
+  parseSchemaData,
+  type TopologyRef
+} from "@srl-labs/clab-ui/session";
 import type {
   ExplorerIncomingMessage,
   ExplorerUiState
-} from "@srl-labs/clab-ui/explorer/snapshot";
+} from "@srl-labs/clab-ui/explorer";
 
 import clabSchema from "../../../schema/clab.schema.json";
 import { useLabStore, type LabState } from "./stores/labStore";
@@ -43,7 +42,7 @@ import {
 } from "./standaloneLifecycle";
 import {
   labsEqualForExplorer,
-  normalizeLabIdentity
+  normalizePathValue
 } from "./standaloneHostShared";
 import { createStandaloneTopologyManager } from "./standaloneTopology";
 
@@ -98,12 +97,19 @@ currentTheme = loadPersistedTheme();
 
 const EXPLORER_REFRESH_DEBOUNCE_MS = 90;
 const TOPOLOGY_REFRESH_DEBOUNCE_MS = 120;
-function removeLabFromRuntimeStore(labName: string): void {
+function removeLabFromRuntimeStore(topologyRef: Pick<TopologyRef, "yamlPath">): void {
   useLabStore.setState((state) => {
     let changed = false;
     const nextLabs = new Map(state.labs);
-    for (const key of nextLabs.keys()) {
-      if (normalizeLabIdentity(key) === normalizeLabIdentity(labName)) {
+    const normalizedPath = normalizePathValue(topologyRef.yamlPath ?? "");
+    for (const [key, lab] of nextLabs.entries()) {
+      const matchesPath =
+        normalizedPath.length > 0 &&
+        (normalizePathValue(lab.topologyPath) === normalizedPath ||
+          [...lab.containers.values()].some(
+            (container) => normalizePathValue(container.labPath) === normalizedPath
+          ));
+      if (matchesPath) {
         nextLabs.delete(key);
         changed = true;
       }
@@ -113,9 +119,16 @@ function removeLabFromRuntimeStore(labName: string): void {
 }
 
 let scheduleExplorerSnapshot = (_delay?: number) => {};
+let standaloneRuntime: ReturnType<typeof createClabUiRuntime> | null = null;
 
 const topologyManager = createStandaloneTopologyManager({
   debounceMs: TOPOLOGY_REFRESH_DEBOUNCE_MS,
+  getSessionClient: () => {
+    if (!standaloneRuntime) {
+      throw new Error("Standalone runtime is not initialized.");
+    }
+    return standaloneRuntime.session;
+  },
   getLabs: () => useLabStore.getState().labs,
   onTopologyFilesChanged: () => {
     scheduleExplorerSnapshot(0);
@@ -123,7 +136,8 @@ const topologyManager = createStandaloneTopologyManager({
 });
 
 const lifecycleManager = createStandaloneLifecycleManager({
-  getCurrentFilePath: topologyManager.getCurrentFilePath,
+  getCurrentSessionId: topologyManager.getCurrentSessionId,
+  getCurrentTopologyRef: topologyManager.getCurrentTopologyRef,
   invalidateTopologyFileListCache: topologyManager.invalidateTopologyFileListCache,
   removeLabFromRuntimeStore,
   scheduleExplorerSnapshot: (delay) => scheduleExplorerSnapshot(delay),
@@ -139,7 +153,8 @@ const explorerBridge = createStandaloneExplorerBridge({
   listTopologyFiles: topologyManager.listTopologyFiles,
   loadTopologyFile: topologyManager.loadTopologyFile,
   resolveApiTopologyPath: topologyManager.resolveApiTopologyPath,
-  resolveDeploymentState: topologyManager.resolveDeploymentState
+  resolveDeploymentState: topologyManager.resolveDeploymentState,
+  resolveTopologyRef: topologyManager.resolveTopologyRef
 });
 
 scheduleExplorerSnapshot = explorerBridge.scheduleSnapshot;
@@ -216,8 +231,8 @@ function setupStandaloneUiHost(): void {
     }
   };
 
-  setClabUiHost(
-    createApiClabUiHost({
+  standaloneRuntime = createClabUiRuntime({
+    host: createApiClabUiHost({
       explorer: explorerBridge.explorer,
       postMessage,
       targetWindow: window,
@@ -226,7 +241,7 @@ function setupStandaloneUiHost(): void {
         disableDevMockTraffic: true
       }
     })
-  );
+  });
 }
 
 // Render
@@ -249,6 +264,10 @@ function renderApp(): void {
   if (!reactRoot) {
     reactRoot = createRoot(container);
     standaloneWindowState.__clabStandaloneReactRoot = reactRoot;
+  }
+
+  if (!standaloneRuntime) {
+    throw new Error("Standalone runtime not configured");
   }
 
   reactRoot.render(<StandaloneApp />);
@@ -326,6 +345,7 @@ function StandaloneApp() {
 
   const handleLogout = useCallback(() => {
     topologyManager.closeEventStream();
+    void topologyManager.disposeCurrentSession();
     void logout();
   }, [logout]);
 
@@ -355,7 +375,7 @@ function StandaloneApp() {
 
   return (
     <>
-      <App initialData={initialData} />
+      <App initialData={initialData} runtime={standaloneRuntime!} />
       <SettingsOverlayMounted
         currentTheme={currentTheme}
         onToggleTheme={handleToggleTheme}

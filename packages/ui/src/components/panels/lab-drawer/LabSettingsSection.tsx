@@ -5,6 +5,7 @@ import Divider from "@mui/material/Divider";
 import Tabs from "@mui/material/Tabs";
 import Tab from "@mui/material/Tab";
 
+import { useTopologySessionClient } from "../../../host";
 import { useLabSettingsState } from "../../../hooks/editor";
 import { saveViewerSettings } from "../../../services";
 import { useTopoViewerStore } from "../../../stores/topoViewerStore";
@@ -43,6 +44,7 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
   const isAppearanceReadOnly = isLocked;
 
   const state = useLabSettingsState(labSettings);
+  const sessionClient = useTopologySessionClient();
   const linkLabelMode = useTopoViewerStore((store) => store.linkLabelMode);
   const lastNonTelemetryLinkLabelMode = useTopoViewerStore(
     (store) => store.lastNonTelemetryLinkLabelMode
@@ -59,7 +61,7 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
     const style = linkLabelMode === "telemetry-style" ? "telemetry-style" : "default";
     const nextLastNonTelemetryLinkLabelMode =
       linkLabelMode === "telemetry-style" ? lastNonTelemetryLinkLabelMode : linkLabelMode;
-    await saveViewerSettings({
+    await saveViewerSettings(sessionClient, {
       style,
       linkLabelMode,
       lastNonTelemetryLinkLabelMode: nextLastNonTelemetryLinkLabelMode,

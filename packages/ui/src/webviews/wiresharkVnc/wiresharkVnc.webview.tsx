@@ -2,6 +2,7 @@ import { Alert, Box, CircularProgress, Paper, Stack, Typography } from "@mui/mat
 import React from "react";
 import { createRoot } from "react-dom/client";
 
+import { ClabUiRuntimeProvider, type ClabUiRuntime } from "../../host";
 import { MuiThemeProvider } from "@srl-labs/clab-ui/theme";
 import { useMessageListener, usePostMessage } from "../shared/hooks";
 
@@ -178,7 +179,7 @@ export function WiresharkVncApp(): React.JSX.Element {
   );
 }
 
-export function bootstrapWiresharkVncWebview(): void {
+export function bootstrapWiresharkVncWebview(runtime: ClabUiRuntime): void {
   const container = document.getElementById("root");
   if (!container) {
     throw new Error("Wireshark VNC root element not found");
@@ -186,8 +187,10 @@ export function bootstrapWiresharkVncWebview(): void {
 
   const root = createRoot(container);
   root.render(
-    <React.StrictMode>
-      <WiresharkVncApp />
-    </React.StrictMode>
+    <ClabUiRuntimeProvider runtime={runtime}>
+      <React.StrictMode>
+        <WiresharkVncApp />
+      </React.StrictMode>
+    </ClabUiRuntimeProvider>
   );
 }

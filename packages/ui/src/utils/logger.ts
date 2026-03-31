@@ -9,7 +9,7 @@ import {
   getCallerFileLine,
   createLogger
 } from "../core/utilities/loggerUtils";
-import { getConfiguredClabUiHost } from "../host";
+import { resolveWindowVsCodeApi } from "./vscodeApi";
 
 /**
  * Send log message to extension host
@@ -17,16 +17,13 @@ import { getConfiguredClabUiHost } from "../host";
 function logMessage(level: LogLevel, message: unknown): void {
   const formatted = formatMessage(message);
   const fileLine = getCallerFileLine(1);
-
-  const host = getConfiguredClabUiHost();
-  if (host) {
-    host.postMessage({
-      command: "reactTopoViewerLog",
-      level,
-      message: formatted,
-      fileLine
-    });
-  }
+  const vscodeApi = typeof window !== "undefined" ? resolveWindowVsCodeApi(window) : undefined;
+  vscodeApi?.postMessage({
+    command: "reactTopoViewerLog",
+    level,
+    message: formatted,
+    fileLine
+  });
 }
 
 /**

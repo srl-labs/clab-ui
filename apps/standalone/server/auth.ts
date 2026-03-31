@@ -18,7 +18,8 @@ type ClientResolver = (request: FastifyRequest) => ClabApiClient;
 export function registerAuthRoutes(
   app: FastifyInstance,
   getClient: ClientResolver,
-  defaultApiUrl: string
+  defaultApiUrl: string,
+  onLogout?: (request: FastifyRequest) => void
 ): void {
   app.post<{
     Body: { username: string; password: string; apiUrl?: string };
@@ -50,7 +51,8 @@ export function registerAuthRoutes(
     }
   });
 
-  app.post("/auth/logout", async (_request, reply) => {
+  app.post("/auth/logout", async (request, reply) => {
+    onLogout?.(request);
     clearTokenCookie(reply);
     return reply.send({ success: true });
   });

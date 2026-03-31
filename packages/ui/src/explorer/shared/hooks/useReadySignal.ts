@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 
-import { getClabUiHost } from "../../../host";
+import { useClabUiHost } from "../../../host";
 
 export function useReadySignal(): void {
+  const host = useClabUiHost();
   const sentRef = useRef(false);
 
   useEffect(() => {
@@ -11,6 +12,6 @@ export function useReadySignal(): void {
     }
 
     sentRef.current = true;
-    getClabUiHost().explorer.connect();
-  }, []);
+    host.explorer.connect();
+  }, [host]);
 }

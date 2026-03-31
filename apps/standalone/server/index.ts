@@ -10,13 +10,14 @@ import type { FastifyRequest } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyCors from "@fastify/cors";
 import { ClabApiClient } from "./clabApiClient.js";
-import { getApiUrlFromRequest } from "./middleware.js";
+import { getApiUrlFromRequest, getTokenFromRequest } from "./middleware.js";
 import { registerAuthRoutes } from "./auth.js";
 import { registerEventsProxy } from "./eventsProxy.js";
 import { registerTopologyProxy } from "./topologyProxy.js";
 import { registerFileProxy } from "./fileProxy.js";
 import { registerLabProxy } from "./labProxy.js";
 import { registerTopologyEventsProxy } from "./topologyEventsProxy.js";
+import { createStandaloneTopologySessionManager } from "./topologySessionManager.js";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const DEFAULT_CLAB_API_URL = process.env.CLAB_API_URL ?? "http://localhost:8080";
@@ -33,18 +34,29 @@ async function start(): Promise<void> {
     credentials: true
   });
 
+  const topologySessions = createStandaloneTopologySessionManager();
+
   const getClient = (request: FastifyRequest): ClabApiClient =>
     new ClabApiClient({
       baseUrl: getApiUrlFromRequest(request, DEFAULT_CLAB_API_URL)
     });
 
   // Register routes
-  registerAuthRoutes(app, getClient, DEFAULT_CLAB_API_URL);
+  registerAuthRoutes(app, getClient, DEFAULT_CLAB_API_URL, (request) => {
+    const token = getTokenFromRequest(request);
+    if (!token) {
+      return;
+    }
+    topologySessions.disposeSessionsForToken(
+      token,
+      getApiUrlFromRequest(request, DEFAULT_CLAB_API_URL)
+    );
+  });
   registerEventsProxy(app, getClient);
-  registerTopologyEventsProxy(app, getClient);
-  registerTopologyProxy(app, getClient);
+  registerTopologyEventsProxy(app, getClient, topologySessions);
+  registerTopologyProxy(app, getClient, topologySessions);
   registerFileProxy(app, getClient);
-  registerLabProxy(app, getClient);
+  registerLabProxy(app, getClient, topologySessions);
   app.get("/api/config", async (request, reply) => {
     const clabApiUrl = getApiUrlFromRequest(request, DEFAULT_CLAB_API_URL);
     return reply.send({ clabApiUrl, defaultClabApiUrl: DEFAULT_CLAB_API_URL });
@@ -106,6 +118,10 @@ async function start(): Promise<void> {
       return reply.sendFile("index.html");
     });
   }
+
+  app.addHook("onClose", async () => {
+    topologySessions.disposeAll();
+  });
 
   await app.listen({ port: PORT, host: "0.0.0.0" });
   console.log(`Standalone app server running at http://localhost:${PORT}`);

@@ -153,6 +153,7 @@ test("createApiClabUiHost posts topology requests to the standalone backend", as
     {
       url: "http://localhost:3000/api/topology/snapshot?sessionId=session-1",
       body: {
+        sessionId: "session-1",
         path: "labs/demo.clab.yml",
         mode: "edit",
         deploymentState: "undeployed",

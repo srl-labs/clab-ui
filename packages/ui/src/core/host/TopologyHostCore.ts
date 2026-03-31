@@ -25,7 +25,9 @@ import type { ContainerDataProvider, ParserLogger } from "../parsing/types";
 import { TopologyParser } from "../parsing/TopologyParser";
 import { applyInterfacePatternMigrations } from "../utilities";
 import type { FileSystemAdapter, IOLogger } from "../io/types";
-import { AnnotationsIO, TopologyIO, TransactionalFileSystemAdapter } from "../io";
+import { AnnotationsIO } from "../io/AnnotationsIO";
+import { TopologyIO } from "../io/TopologyIO";
+import { TransactionalFileSystemAdapter } from "../io/TransactionalFileSystemAdapter";
 import { createEmptyAnnotations } from "../annotations/types";
 
 interface TopologyHostCoreOptions {

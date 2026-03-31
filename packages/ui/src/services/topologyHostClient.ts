@@ -13,37 +13,39 @@ import type {
   HostRuntimeInterfaceStats,
   TopologyUiContext
 } from "../host";
-import { getClabUiHost } from "../host";
+import type { TopologySessionClient } from "../session/client";
 
-let revision = 1;
-let hostContext: TopologyUiContext = {};
-
-export function setHostContext(update: Partial<TopologyUiContext>): void {
-  hostContext = { ...hostContext, ...update };
+export function setHostContext(
+  update: Partial<TopologyUiContext>,
+  client: TopologySessionClient
+): void {
+  client.setContext(update);
 }
 
-export function getHostContext(): TopologyUiContext {
-  return hostContext;
+export function getHostContext(client: TopologySessionClient): TopologyUiContext {
+  return client.getContext();
 }
 
-export function getHostRevision(): number {
-  return revision;
+export function getHostRevision(client: TopologySessionClient): number {
+  return client.getRevision();
 }
 
-export function setHostRevision(nextRevision: number): void {
-  revision = nextRevision;
+export function setHostRevision(nextRevision: number, client: TopologySessionClient): void {
+  client.setRevision(nextRevision);
 }
 
 export async function requestSnapshot(
-  options: { externalChange?: boolean } = {}
+  options: { externalChange?: boolean } = {},
+  client: TopologySessionClient
 ): Promise<TopologySnapshot> {
-  return getClabUiHost().topology.requestSnapshot(hostContext, options);
+  return client.requestSnapshot(options);
 }
 
 export async function dispatchTopologyCommand(
-  command: TopologyHostCommand
+  command: TopologyHostCommand,
+  client: TopologySessionClient
 ): Promise<TopologyHostResponseMessage> {
-  return getClabUiHost().topology.dispatchCommand(hostContext, revision, command);
+  return client.dispatchCommand(command);
 }
 
 export type {
@@ -52,3 +54,7 @@ export type {
   HostRuntimeInterfaceStats,
   TopologyUiContext as HostContext
 };
+
+export function getHostCommandQueueScope(client: TopologySessionClient): object {
+  return client as object;
+}

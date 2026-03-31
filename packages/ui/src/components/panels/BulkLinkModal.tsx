@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { Close as CloseIcon } from "@mui/icons-material";
 
+import { useTopologySessionClient } from "../../host";
 import { useGraphActions, useGraphStore } from "../../stores/graphStore";
 import { isTopoEdgeLike, isTopoNodeLike } from "../../utils/graphQueryUtils";
 
@@ -108,6 +109,7 @@ export const BulkLinkModal: React.FC<BulkLinkModalProps> = ({
   isLocked,
   onClose
 }) => {
+  const sessionClient = useTopologySessionClient();
   const { addEdge } = useGraphActions();
   const getCurrentNodes = React.useCallback(
     () => useGraphStore.getState().nodes.filter((node) => isTopoNodeLike(node)),
@@ -162,11 +164,12 @@ export const BulkLinkModal: React.FC<BulkLinkModalProps> = ({
       pendingCandidates,
       canApply,
       addEdge,
+      sessionClient,
       setStatus,
       setPendingCandidates,
       onClose
     });
-  }, [getCurrentNodes, getCurrentEdges, pendingCandidates, canApply, addEdge, onClose]);
+  }, [addEdge, canApply, getCurrentEdges, getCurrentNodes, onClose, pendingCandidates, sessionClient]);
 
   return (
     <>

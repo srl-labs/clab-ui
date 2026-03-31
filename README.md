@@ -71,7 +71,7 @@ Local dev runtime model:
 
 - Browser frontend served by the standalone Vite app
 - Fastify backend proxy for auth, topology snapshot/command, files, and lifecycle actions
-- Shared `ClabUiHost` runtime used by both standalone and VS Code webviews
+- Shared `ClabUiHost` contract used by both standalone and VS Code webviews through explicit per-viewer runtimes
 
 ---
 
@@ -127,30 +127,36 @@ Published package: `@srl-labs/clab-ui`
 Frequently used exports:
 
 - `@srl-labs/clab-ui`
-- `@srl-labs/clab-ui/core`
+- `@srl-labs/clab-ui/host`
+- `@srl-labs/clab-ui/session`
 - `@srl-labs/clab-ui/theme`
 - `@srl-labs/clab-ui/explorer`
 - `@srl-labs/clab-ui/inspect`
-- `@srl-labs/clab-ui/core/parsing`
-- `@srl-labs/clab-ui/core/schema`
-- `@srl-labs/clab-ui/core/types`
-- `@srl-labs/clab-ui/core/utilities`
+- `@srl-labs/clab-ui/welcome`
+- `@srl-labs/clab-ui/node-impairments`
+- `@srl-labs/clab-ui/wireshark-vnc`
+- `@srl-labs/clab-ui/styles/global.css`
 
 Notes:
 
 - Browser runtime integration is exposed from `@srl-labs/clab-ui/host`.
-- Current UI host context APIs are still imported from service subpaths (for example `@srl-labs/clab-ui/services/topologyHostClient`).
+- Deep `core/*`, `services/*`, and `src/*` imports are no longer part of the supported public surface.
 
 ---
 
-## Host Integration (Current)
+## Host Integration
 
-The UI currently uses host messaging via `services/topologyHostClient`:
+The UI is mounted with an explicit runtime object instead of a process-global host singleton:
 
 ```ts
-import { createWindowClabUiHost, setClabUiHost } from "@srl-labs/clab-ui/host";
+import { App } from "@srl-labs/clab-ui";
+import { createClabUiRuntime, createWindowClabUiHost } from "@srl-labs/clab-ui/host";
 
-setClabUiHost(createWindowClabUiHost());
+const runtime = createClabUiRuntime({
+  host: createWindowClabUiHost()
+});
+
+<App initialData={initialData} runtime={runtime} />;
 ```
 
 ---

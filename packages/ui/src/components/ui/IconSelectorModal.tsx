@@ -18,10 +18,7 @@ import type { NodeType } from "../../icons/SvgGenerator";
 import { generateEncodedSVG } from "../../icons/SvgGenerator";
 import { useEscapeKey } from "../../hooks/ui/useDomInteractions";
 import { useCustomIcons } from "../../stores/topoViewerStore";
-import {
-  sendDeleteIcon,
-  sendUploadIcon
-} from "../../messaging/extensionMessaging";
+import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 import { isBuiltInIcon } from "../../core/types/icons";
 
 import { DialogCancelSaveActions, DialogTitleWithClose } from "./dialog/DialogChrome";
@@ -299,6 +296,7 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
   initialCornerRadius = 0
 }) => {
   const customIcons = useCustomIcons();
+  const { sendDeleteIcon, sendUploadIcon } = useExtensionMessaging();
 
   const { icon, setIcon, color, setColor, radius, setRadius, resultColor } = useIconSelectorState(
     isOpen,
@@ -345,11 +343,11 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
 
   const handleUploadIcon = useCallback(() => {
     sendUploadIcon();
-  }, []);
+  }, [sendUploadIcon]);
 
   const handleDeleteIcon = useCallback((iconName: string) => {
     sendDeleteIcon(iconName);
-  }, []);
+  }, [sendDeleteIcon]);
 
   // Get preview icon source
   const previewIconSrc = useMemo(() => {

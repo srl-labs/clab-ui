@@ -1,41 +1,56 @@
 {
   "name": "@srl-labs/clab-ui",
-  "version": "0.0.16",
+  "version": "0.0.18",
   "private": false,
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "exports": {
-    ".": "./src/index.ts",
-    "./host": "./src/host/index.ts",
-    "./core": "./src/core/index.ts",
-    "./core/host/TopologyHostCore": "./src/core/host/TopologyHostCore.ts",
-    "./core/messages/extension": "./src/core/messages/extension.ts",
-    "./core/messages/webview": "./src/core/messages/webview.ts",
-    "./theme": "./src/theme/index.ts",
-    "./explorer": "./src/explorer/index.ts",
-    "./explorer/snapshot": "./src/explorer/snapshot.ts",
-    "./topology/runtime": "./src/topology/runtime.ts",
-    "./topology/host-protocol": "./src/topology/hostProtocol.ts",
-    "./inspect": "./src/inspect/index.ts",
-    "./inspect/types": "./src/inspect/types.ts",
-    "./welcome": "./src/welcome/index.ts",
-    "./node-impairments": "./src/node-impairments/index.ts",
-    "./node-impairments/types": "./src/node-impairments/types.ts",
-    "./wireshark-vnc": "./src/wireshark-vnc/index.ts",
-    "./wireshark-vnc/types": "./src/wireshark-vnc/types.ts",
-    "./core/parsing": "./src/core/parsing/index.ts",
-    "./core/schema": "./src/core/schema/index.ts",
-    "./core/types": "./src/core/types/index.ts",
-    "./core/types/messages": "./src/core/types/messages.ts",
-    "./core/utilities": "./src/core/utilities/index.ts",
-    "./core/*": "./src/core/*.ts",
-    "./messaging/webviewMessageBus": "./src/messaging/webviewMessageBus.ts",
-    "./styles/global.css": "./src/styles/global.css",
-    "./utils/logger": "./src/utils/logger.ts",
-    "./assets/images/wireshark_bold.svg": "./src/assets/images/wireshark_bold.svg",
-    "./components/context-menu/ContextMenu": "./src/components/context-menu/ContextMenu.tsx",
-    "./services": "./src/services/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "import": "./dist/host/index.js"
+    },
+    "./session": {
+      "types": "./dist/session/index.d.ts",
+      "import": "./dist/session/index.js"
+    },
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "import": "./dist/theme/index.js"
+    },
+    "./explorer": {
+      "types": "./dist/explorer/index.d.ts",
+      "import": "./dist/explorer/index.js"
+    },
+    "./inspect": {
+      "types": "./dist/inspect/index.d.ts",
+      "import": "./dist/inspect/index.js"
+    },
+    "./welcome": {
+      "types": "./dist/welcome/index.d.ts",
+      "import": "./dist/welcome/index.js"
+    },
+    "./node-impairments": {
+      "types": "./dist/node-impairments/index.d.ts",
+      "import": "./dist/node-impairments/index.js"
+    },
+    "./wireshark-vnc": {
+      "types": "./dist/wireshark-vnc/index.d.ts",
+      "import": "./dist/wireshark-vnc/index.js"
+    },
+    "./styles/global.css": "./dist/styles/global.css"
+  },
+  "scripts": {
+    "build": "node ./build.mjs",
+    "prepack": "npm run build"
   },
   "peerDependencies": {
     "react": "^19.2.4",

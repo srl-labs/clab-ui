@@ -6,7 +6,8 @@ import type { TabConfig } from "../../../ui/editor/EditorPanel";
 import { useFooterControlsRef } from "../../../../hooks/ui";
 import { useLinkImpairmentForm } from "../../../../hooks/editor/useLinkImpairmentForm";
 import type { LinkImpairmentData, LinkImpairmentTabId } from "../../link-impairment/types";
-import { applyNetemSettings } from "../../link-impairment/LinkImpairmentUtils";
+import { useExtensionMessaging } from "../../../../messaging/extensionMessaging";
+import { applyNetemSettingsWithMessaging } from "../../link-impairment/LinkImpairmentUtils";
 import {
   LinkImpairmentTab,
   type LinkImpairmentTabProps
@@ -43,6 +44,7 @@ export const LinkImpairmentView: React.FC<LinkImpairmentViewProps> = ({
   readOnly = false,
   onFooterRef
 }) => {
+  const messaging = useExtensionMessaging();
   const {
     activeTab,
     setActiveTab,
@@ -61,10 +63,10 @@ export const LinkImpairmentView: React.FC<LinkImpairmentViewProps> = ({
       validationErrors.forEach(onError);
       return;
     }
-    applyNetemSettings(formData);
+    applyNetemSettingsWithMessaging(messaging, formData);
     onSave(formData);
     onClose();
-  }, [formData, onClose, onError, onSave, readOnly, validationErrors]);
+  }, [formData, messaging, onClose, onError, onSave, readOnly, validationErrors]);
 
   const handleApply = useCallback(() => {
     if (readOnly) return;
@@ -73,10 +75,10 @@ export const LinkImpairmentView: React.FC<LinkImpairmentViewProps> = ({
       validationErrors.forEach(onError);
       return;
     }
-    applyNetemSettings(formData);
+    applyNetemSettingsWithMessaging(messaging, formData);
     onApply(formData);
     resetAfterApply();
-  }, [formData, onApply, onError, readOnly, resetAfterApply, validationErrors]);
+  }, [formData, messaging, onApply, onError, readOnly, resetAfterApply, validationErrors]);
 
   // Dynamic tabs based on endpoint names
   const tabs: Array<TabConfig<LinkImpairmentTabProps>> = useMemo(

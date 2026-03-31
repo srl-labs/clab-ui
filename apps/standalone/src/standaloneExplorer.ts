@@ -3,7 +3,8 @@ import type {
   ExplorerIncomingMessage,
   ExplorerSnapshotProviders,
   ExplorerUiState
-} from "@srl-labs/clab-ui/explorer/snapshot";
+} from "@srl-labs/clab-ui/explorer";
+import type { TopologyRef } from "@srl-labs/clab-ui/session";
 
 import type { LabState } from "./stores/labStore";
 import type { LifecycleApiCallResult } from "./standaloneLifecycle";
@@ -17,10 +18,10 @@ import {
   TREE_ITEM_COLLAPSED,
   TREE_ITEM_NONE,
   SimpleExplorerProvider,
+  firstArgAsTopologyRef,
   firstArgAsTreeItem,
-  isLabRunning,
-  resolveLabName,
-  resolveLabPath,
+  isTopologyRunning,
+  normalizePathValue,
   safeFilename,
   topologyEntryLabName
 } from "./standaloneHostShared";
@@ -31,20 +32,18 @@ interface StandaloneExplorerBridgeOptions {
   invalidateTopologyFileListCache: () => void;
   invokeLifecycleApi: (
     endpoint: LifecycleCommandEndpoint,
-    labName: string,
+    topologyRef: TopologyRef,
     cleanup: boolean,
-    options?: { path?: string; signal?: AbortSignal }
+    options?: { sessionId?: string; signal?: AbortSignal }
   ) => Promise<LifecycleApiCallResult>;
   listTopologyFiles: () => Promise<TopologyFileEntry[]>;
   loadTopologyFile: (
-    filePath: string,
+    topologyRef: TopologyRef,
     options?: { deploymentState?: DeploymentState }
   ) => Promise<void>;
   resolveApiTopologyPath: (args: unknown[]) => Promise<string | undefined>;
-  resolveDeploymentState: (
-    apiLabPath: string,
-    labName: string | undefined
-  ) => Promise<DeploymentState | undefined>;
+  resolveDeploymentState: (topologyRef: TopologyRef) => Promise<DeploymentState | undefined>;
+  resolveTopologyRef: (args: unknown[]) => Promise<TopologyRef | undefined>;
 }
 
 export interface StandaloneExplorerBridge {
@@ -138,6 +137,20 @@ const HELP_LINKS = [
   { label: "Join our Discord server", url: "https://discord.gg/vAyddtaEV9" }
 ] as const;
 
+function findTopologyEntryForRunningLab(lab: LabState, files: TopologyFileEntry[]): TopologyFileEntry | undefined {
+  for (const container of lab.containers.values()) {
+    const containerPath = normalizePathValue(container.labPath);
+    if (!containerPath) {
+      continue;
+    }
+    const exact = files.find((entry) => normalizePathValue(entry.path) === containerPath);
+    if (exact) {
+      return exact;
+    }
+  }
+  return undefined;
+}
+
 export function createStandaloneExplorerBridge(
   options: StandaloneExplorerBridgeOptions
 ): StandaloneExplorerBridge {
@@ -159,11 +172,9 @@ export function createStandaloneExplorerBridge(
   function buildRunningLabItems(filterText: string, files: TopologyFileEntry[]): ExplorerTreeItem[] {
     const labs = options.getLabs();
     const items: ExplorerTreeItem[] = [];
-    const topologyByLab = new Map<string, TopologyFileEntry>(
-      files.map((entry) => [topologyEntryLabName(entry), entry])
-    );
 
-    for (const [labName, lab] of labs.entries()) {
+    for (const lab of labs.values()) {
+      const labName = lab.name;
       const containers: ExplorerTreeItem[] = [];
 
       for (const [, container] of lab.containers) {
@@ -233,9 +244,10 @@ export function createStandaloneExplorerBridge(
         });
       }
 
-      const topologyEntry = topologyByLab.get(labName);
+      const topologyEntry = findTopologyEntryForRunningLab(lab, files);
       const labPath = topologyEntry?.path;
-      const fallbackPathHint = lab.containers.values().next().value?.labPath as string | undefined;
+      const fallbackPathHint =
+        lab.topologyPath || (lab.containers.values().next().value?.labPath as string | undefined);
       const pathHint = labPath ?? fallbackPathHint;
       const fallbackOwner = lab.containers.values().next().value?.owner as string | undefined;
       const owner = (lab.owner || fallbackOwner || "").trim();
@@ -248,15 +260,15 @@ export function createStandaloneExplorerBridge(
         contextValue: "containerlabLabDeployed",
         collapsibleState: containers.length > 0 ? TREE_ITEM_COLLAPSED : TREE_ITEM_NONE,
         labName,
+        topologyRef: topologyEntry?.topologyRef,
         children: containers
       };
 
-      if (labPath) {
-        labItem.labPath = { absolute: labPath, relative: labPath };
+      if (topologyEntry?.topologyRef) {
         labItem.command = {
           command: "containerlab.lab.graph.topoViewer",
           title: "Open TopoViewer",
-          arguments: [{ labName, labPath: { absolute: labPath, relative: labPath } }]
+          arguments: [labItem]
         };
       }
 
@@ -273,8 +285,7 @@ export function createStandaloneExplorerBridge(
     const runningLabs = options.getLabs();
     const items = files
       .filter((file) => {
-        const name = topologyEntryLabName(file);
-        return !isLabRunning(name, runningLabs);
+        return !isTopologyRunning(file.topologyRef, runningLabs);
       })
       .map((file) => {
         const labName = topologyEntryLabName(file);
@@ -286,7 +297,7 @@ export function createStandaloneExplorerBridge(
           contextValue: "containerlabLabUndeployed",
           collapsibleState: TREE_ITEM_NONE,
           labName,
-          labPath: { absolute: file.path, relative: file.path },
+          topologyRef: file.topologyRef,
           children: []
         };
         item.command = {
@@ -331,9 +342,13 @@ export function createStandaloneExplorerBridge(
   }
 
   async function executeExplorerCommand(commandId: string, args: unknown[]): Promise<void> {
-    const commandLabPath = resolveLabPath(args);
-    const labName = resolveLabName(args, commandLabPath);
+    const requestedTopologyRef = firstArgAsTopologyRef(args);
     const item = firstArgAsTreeItem(args);
+    const actionTopologyRef = requestedTopologyRef ?? (await options.resolveTopologyRef(args));
+    const targetLabel =
+      actionTopologyRef?.labName ??
+      item?.labName ??
+      (typeof item?.label === "string" ? item.label : undefined);
 
     switch (commandId) {
       case "containerlab.openLink": {
@@ -344,12 +359,11 @@ export function createStandaloneExplorerBridge(
       case "containerlab.lab.graph.topoViewer":
       case "containerlab.lab.openFile":
       case "containerlab.editor.topoViewerEditor.open": {
-        const apiLabPath = await options.resolveApiTopologyPath(args);
-        if (!apiLabPath) {
+        if (!actionTopologyRef) {
           postExplorerError(
-            labName
-              ? `No API-backed topology file found for running lab "${labName}".`
-              : "No API-backed topology file found for this item. Standalone mode only opens topologies exposed by /api/v1/labs/topology/files."
+            targetLabel
+              ? `No canonical topology reference is available for running lab "${targetLabel}".`
+              : "No canonical topology reference is available for this item."
           );
           return;
         }
@@ -359,47 +373,54 @@ export function createStandaloneExplorerBridge(
             : item?.contextValue === "containerlabLabUndeployed"
               ? "undeployed"
               : undefined;
-        const resolvedState = await options.resolveDeploymentState(apiLabPath, labName);
+        const resolvedState = actionTopologyRef
+          ? await options.resolveDeploymentState(actionTopologyRef)
+          : undefined;
         const deploymentState = resolvedState ?? itemState;
-        await options.loadTopologyFile(apiLabPath, { deploymentState });
+        await options.loadTopologyFile(actionTopologyRef, { deploymentState });
         return;
       }
       case "containerlab.lab.deploy":
       case "containerlab.lab.deploy.specificFile": {
-        if (labName) {
-          try {
-            const apiLabPath = await options.resolveApiTopologyPath(args);
-            await options.invokeLifecycleApi("deploy", labName, false, { path: apiLabPath });
-            options.invalidateTopologyFileListCache();
-          } catch (error) {
-            console.error("[Standalone] Deploy failed:", error);
-          }
+        if (!actionTopologyRef) {
+          postExplorerError("No canonical topology reference is available for this item.");
+          return;
+        }
+        try {
+          await options.invokeLifecycleApi("deploy", actionTopologyRef, false);
+          options.invalidateTopologyFileListCache();
+        } catch (error) {
+          console.error("[Standalone] Deploy failed:", error);
         }
         return;
       }
       case "containerlab.lab.destroy":
       case "containerlab.lab.destroy.cleanup": {
-        if (labName) {
-          try {
-            const cleanup = commandId === "containerlab.lab.destroy.cleanup";
-            await options.invokeLifecycleApi("destroy", labName, cleanup);
-            options.invalidateTopologyFileListCache();
-          } catch (error) {
-            console.error("[Standalone] Destroy failed:", error);
-          }
+        if (!actionTopologyRef) {
+          postExplorerError("No canonical topology reference is available for this item.");
+          return;
+        }
+        try {
+          const cleanup = commandId === "containerlab.lab.destroy.cleanup";
+          await options.invokeLifecycleApi("destroy", actionTopologyRef, cleanup);
+          options.invalidateTopologyFileListCache();
+        } catch (error) {
+          console.error("[Standalone] Destroy failed:", error);
         }
         return;
       }
       case "containerlab.lab.redeploy":
       case "containerlab.lab.redeploy.cleanup": {
-        if (labName) {
-          try {
-            const cleanup = commandId === "containerlab.lab.redeploy.cleanup";
-            await options.invokeLifecycleApi("redeploy", labName, cleanup);
-            options.invalidateTopologyFileListCache();
-          } catch (error) {
-            console.error("[Standalone] Redeploy failed:", error);
-          }
+        if (!actionTopologyRef) {
+          postExplorerError("No canonical topology reference is available for this item.");
+          return;
+        }
+        try {
+          const cleanup = commandId === "containerlab.lab.redeploy.cleanup";
+          await options.invokeLifecycleApi("redeploy", actionTopologyRef, cleanup);
+          options.invalidateTopologyFileListCache();
+        } catch (error) {
+          console.error("[Standalone] Redeploy failed:", error);
         }
         return;
       }
@@ -439,7 +460,7 @@ export function createStandaloneExplorerBridge(
         return;
       }
       case "containerlab.lab.copyPath": {
-        const apiLabPath = await options.resolveApiTopologyPath(args);
+        const apiLabPath = actionTopologyRef?.yamlPath ?? (await options.resolveApiTopologyPath(args));
         if (apiLabPath) await navigator.clipboard.writeText(apiLabPath).catch(() => {});
         return;
       }

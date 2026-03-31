@@ -2,6 +2,7 @@ import { useMemo, type RefObject } from "react";
 import type { Edge, Node } from "@xyflow/react";
 
 import type { useCanvasHandlers } from "../../hooks/canvas";
+import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
 
 import {
@@ -40,6 +41,8 @@ interface ContextMenuItemsParams {
 }
 
 interface ResolveContextMenuItemsParams extends ContextMenuItemsParams {
+  onInterfaceCapture: (nodeName: string, interfaceName: string) => void;
+  onNodeAction: (action: "ssh" | "shell" | "logs", nodeName: string) => void;
   type: "node" | "edge" | "pane" | null;
   targetId: string | null;
   menuPosition: { x: number; y: number };
@@ -60,6 +63,7 @@ function buildNodeItems(
     targetNodeType,
     isEditMode: params.isEditMode,
     isLocked: params.isLocked,
+    onNodeAction: params.onNodeAction,
     closeContextMenu: params.handlers.closeContextMenu,
     editNode: params.editNode,
     editNetwork: params.editNetwork,
@@ -96,6 +100,7 @@ function buildEdgeItems(
     extraData: edgeData?.extraData,
     isEditMode: params.isEditMode,
     isLocked: params.isLocked,
+    onInterfaceCapture: params.onInterfaceCapture,
     closeContextMenu: params.handlers.closeContextMenu,
     editEdge: params.editEdge,
     handleDeleteEdge: params.handleDeleteEdge,
@@ -142,6 +147,7 @@ function resolveContextMenuItems(params: ResolveContextMenuItemsParams): Context
  * Hook for building context menu items.
  */
 export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenuItem[] {
+  const { sendInterfaceCapture, sendNodeAction } = useExtensionMessaging();
   const {
     handlers,
     state,
@@ -173,6 +179,8 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
   return useMemo(() => {
     return resolveContextMenuItems({
       ...params,
+      onInterfaceCapture: sendInterfaceCapture,
+      onNodeAction: sendNodeAction,
       type,
       targetId,
       menuPosition,
@@ -202,6 +210,8 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
     linkSourceNode,
     startLinkCreation,
     cancelLinkCreation,
+    sendInterfaceCapture,
+    sendNodeAction,
     annotationHandlers,
     onOpenNodePalette,
     onAddDefaultNode,

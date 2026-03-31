@@ -1,3 +1,5 @@
+import type { TopologyRef } from "@srl-labs/clab-ui/session";
+
 import type { LabState } from "./stores/labStore";
 
 export const TREE_ITEM_NONE = 0;
@@ -19,7 +21,6 @@ export interface ExplorerTreeItem {
   state?: string;
   status?: string;
   link?: string;
-  labPath?: { absolute: string; relative: string };
   labName?: string;
   name?: string;
   cID?: string;
@@ -28,6 +29,7 @@ export interface ExplorerTreeItem {
   mac?: string;
   v4Address?: string;
   v6Address?: string;
+  topologyRef?: TopologyRef;
   children?: ExplorerTreeItem[];
 }
 
@@ -37,6 +39,7 @@ export interface TopologyFileEntry {
   hasAnnotations: boolean;
   labName?: string;
   deploymentState?: string;
+  topologyRef: TopologyRef;
 }
 
 export interface TopologyDocEventMessage {
@@ -67,7 +70,7 @@ export function safeFilename(pathValue: string): string {
 }
 
 export function normalizePathValue(pathValue: string): string {
-  return pathValue.trim().replace(/\\/g, "/");
+  return pathValue.trim().replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\.\//, "");
 }
 
 export function isAbsolutePath(pathValue: string): boolean {
@@ -76,14 +79,57 @@ export function isAbsolutePath(pathValue: string): boolean {
 }
 
 export function topologyEntryLabName(entry: TopologyFileEntry): string {
+  if (entry.topologyRef?.labName) {
+    return entry.topologyRef.labName;
+  }
   if (entry.labName && entry.labName.length > 0) {
     return entry.labName;
   }
   return stripTopologySuffix(entry.filename || safeFilename(entry.path));
 }
 
-export function normalizeLabIdentity(value: string): string {
-  return stripTopologySuffix(safeFilename(normalizePathValue(value))).trim().toLowerCase();
+function isTopologyRefLike(value: unknown): value is TopologyRef {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as TopologyRef).topologyId === "string" &&
+    typeof (value as TopologyRef).labName === "string" &&
+    typeof (value as TopologyRef).yamlPath === "string"
+  );
+}
+
+export function normalizeStandaloneTopologyRef(topologyRef: TopologyRef): TopologyRef {
+  const yamlPath = normalizePathValue(topologyRef.yamlPath);
+  const labName = topologyRef.labName.trim();
+  const source = topologyRef.source === "vscode" ? "vscode" : "standalone";
+
+  return {
+    ...topologyRef,
+    topologyId: source === "standalone" ? `standalone:${yamlPath}` : topologyRef.topologyId,
+    labName,
+    yamlPath,
+    annotationsPath: topologyRef.annotationsPath
+      ? normalizePathValue(topologyRef.annotationsPath)
+      : source === "standalone"
+        ? `${yamlPath}.annotations.json`
+        : topologyRef.annotationsPath,
+    source
+  };
+}
+
+export function buildStandaloneTopologyRefFromPath(
+  pathValue: string,
+  labName?: string
+): TopologyRef {
+  const normalizedPath = normalizePathValue(pathValue);
+  const resolvedLabName = (labName ?? stripTopologySuffix(safeFilename(normalizedPath))).trim();
+  return normalizeStandaloneTopologyRef({
+    topologyId: `standalone:${normalizedPath}`,
+    labName: resolvedLabName,
+    yamlPath: normalizedPath,
+    annotationsPath: `${normalizedPath}.annotations.json`,
+    source: "standalone"
+  });
 }
 
 export function firstArgAsTreeItem(args: unknown[]): ExplorerTreeItem | undefined {
@@ -92,55 +138,46 @@ export function firstArgAsTreeItem(args: unknown[]): ExplorerTreeItem | undefine
   return first as ExplorerTreeItem;
 }
 
-export function resolveLabPath(args: unknown[]): string | undefined {
+export function firstArgAsTopologyRef(args: unknown[]): TopologyRef | undefined {
   const first = args[0];
-  if (typeof first === "string" && first.length > 0) {
-    return normalizePathValue(first);
+  if (isTopologyRefLike(first)) {
+    return normalizeStandaloneTopologyRef(first);
   }
   const item = firstArgAsTreeItem(args);
-  if (item?.labPath?.absolute) {
-    return normalizePathValue(item.labPath.absolute);
+  if (item?.topologyRef) {
+    return normalizeStandaloneTopologyRef(item.topologyRef);
   }
   return undefined;
 }
 
-export function resolveLabName(args: unknown[], labPath?: string): string | undefined {
-  if (labPath) {
-    return stripTopologySuffix(safeFilename(labPath));
+export function findLabStateForTopology(
+  topologyRef: Pick<TopologyRef, "yamlPath"> | undefined,
+  labs: Map<string, LabState>
+): LabState | undefined {
+  const normalizedPath = topologyRef?.yamlPath ? normalizePathValue(topologyRef.yamlPath) : "";
+  if (!normalizedPath) {
+    return undefined;
   }
 
-  const first = args[0];
-  if (first && typeof first === "object") {
-    const item = first as ExplorerTreeItem;
-    if (item.labName && item.labName.length > 0) {
-      return item.labName;
+  for (const lab of labs.values()) {
+    if (normalizePathValue(lab.topologyPath) === normalizedPath) {
+      return lab;
     }
-    if (typeof item.id === "string" && item.id.startsWith("running-lab:")) {
-      return item.id.slice("running-lab:".length);
-    }
-    if (typeof item.label === "string" && item.label.length > 0) {
-      return item.label;
+    for (const container of lab.containers.values()) {
+      if (normalizePathValue(container.labPath) === normalizedPath) {
+        return lab;
+      }
     }
   }
 
   return undefined;
 }
 
-export function isLabRunning(
-  labName: string | undefined,
+export function isTopologyRunning(
+  topologyRef: Pick<TopologyRef, "yamlPath"> | undefined,
   labs: Map<string, LabState>
 ): boolean {
-  if (!labName || labName.trim().length === 0) {
-    return false;
-  }
-
-  const target = normalizeLabIdentity(labName);
-  for (const key of labs.keys()) {
-    if (normalizeLabIdentity(key) === target) {
-      return true;
-    }
-  }
-  return false;
+  return findLabStateForTopology(topologyRef, labs) !== undefined;
 }
 
 export function labsEqualForExplorer(
@@ -156,7 +193,11 @@ export function labsEqualForExplorer(
     if (!nextLab) {
       return false;
     }
-    if (previousLab.owner !== nextLab.owner || previousLab.containers.size !== nextLab.containers.size) {
+    if (
+      previousLab.owner !== nextLab.owner ||
+      previousLab.topologyPath !== nextLab.topologyPath ||
+      previousLab.containers.size !== nextLab.containers.size
+    ) {
       return false;
     }
 

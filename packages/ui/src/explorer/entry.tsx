@@ -1,6 +1,9 @@
-import { assertClabUiHostConfigured } from "../host";
+import {
+  createClabUiRuntime,
+  createWindowClabUiHost
+} from "../host";
 import { bootstrapContainerlabExplorerView } from "./containerlabExplorerView.webview";
 
-assertClabUiHostConfigured();
+const runtime = createClabUiRuntime({ host: createWindowClabUiHost() });
 
-bootstrapContainerlabExplorerView();
+bootstrapContainerlabExplorerView(runtime);

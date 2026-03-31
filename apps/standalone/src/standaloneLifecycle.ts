@@ -1,16 +1,15 @@
 import { useTopoViewerStore } from "@srl-labs/clab-ui";
 import { createLifecycleCommandController } from "@srl-labs/clab-ui/host";
 import {
-  MSG_CANCEL_LAB_LIFECYCLE,
-  type LifecycleCommand as ExtensionLifecycleCommand
-} from "@srl-labs/clab-ui/core/messages/extension";
-import {
   MSG_LAB_LIFECYCLE_LOG,
-  MSG_LAB_LIFECYCLE_STATUS
-} from "@srl-labs/clab-ui/core/messages/webview";
+  MSG_LAB_LIFECYCLE_STATUS,
+  MSG_CANCEL_LAB_LIFECYCLE,
+  type LifecycleCommand as ExtensionLifecycleCommand,
+  type TopologyRef
+} from "@srl-labs/clab-ui/session";
 
 import type { DeploymentState, LifecycleCommandEndpoint, LifecycleCommandStream, LifecycleCommandType } from "./standaloneHostShared";
-import { normalizeLabIdentity, safeFilename, stripTopologySuffix } from "./standaloneHostShared";
+import { normalizeLabIdentity } from "./standaloneHostShared";
 
 const LIFECYCLE_STATE_WAIT_TIMEOUT_MS = 120_000;
 const LIFECYCLE_STATE_WAIT_POLL_MS = 750;
@@ -40,16 +39,18 @@ interface LifecycleCommandConfig {
 
 interface ActiveLifecycleRequest {
   commandType: LifecycleCommandType;
-  labName: string;
+  sessionId?: string;
   signal: AbortSignal;
+  topologyRef: TopologyRef;
   isCurrent(): boolean;
   isCancelled(): boolean;
 }
 
 interface StandaloneLifecycleManagerOptions {
-  getCurrentFilePath: () => string | null;
+  getCurrentSessionId: () => string | null;
+  getCurrentTopologyRef: () => TopologyRef | null;
   invalidateTopologyFileListCache: () => void;
-  removeLabFromRuntimeStore: (labName: string) => void;
+  removeLabFromRuntimeStore: (topologyRef: Pick<TopologyRef, "yamlPath">) => void;
   scheduleExplorerSnapshot: (delay?: number) => void;
   scheduleTopologySnapshotRefresh: (delay?: number) => void;
   syncHostContext: (options?: {
@@ -62,9 +63,9 @@ export interface StandaloneLifecycleManager {
   cancel(): boolean;
   invokeLifecycleApi(
     endpoint: LifecycleCommandEndpoint,
-    labName: string,
+    topologyRef: TopologyRef,
     cleanup: boolean,
-    options?: { path?: string; signal?: AbortSignal }
+    options?: { sessionId?: string; signal?: AbortSignal }
   ): Promise<LifecycleApiCallResult>;
   run(command: ExtensionLifecycleCommand): Promise<void>;
 }
@@ -138,33 +139,6 @@ function postLifecycleStatusMessage(
   });
 }
 
-function getActiveLabName(currentFilePath: string | null): string | undefined {
-  const fromStore = useTopoViewerStore.getState().labName?.trim();
-  if (fromStore && fromStore.length > 0) {
-    return fromStore;
-  }
-
-  if (currentFilePath) {
-    const fromPath = stripTopologySuffix(safeFilename(currentFilePath)).trim();
-    if (fromPath.length > 0) {
-      return fromPath;
-    }
-  }
-  return undefined;
-}
-
-function getActiveTopologyRelativePath(currentFilePath: string | null): string | undefined {
-  if (!currentFilePath) {
-    return undefined;
-  }
-
-  const filename = safeFilename(currentFilePath);
-  if (!filename || filename.startsWith(".")) {
-    return undefined;
-  }
-  return filename;
-}
-
 async function readLifecycleError(response: Response): Promise<string> {
   const body = await response.text().catch(() => "");
   if (body.trim().length === 0) {
@@ -234,15 +208,27 @@ function normalizeLifecycleResponseLogs(lines: string[]): string[] {
   return normalized;
 }
 
-async function queryLabRunningState(labName: string): Promise<boolean> {
-  const response = await fetch(`/api/lab/status?labName=${encodeURIComponent(labName)}`, {
-    credentials: "include"
+async function queryLabRunningState(target: {
+  sessionId?: string;
+  topologyRef: TopologyRef;
+}): Promise<boolean> {
+  const payload: { sessionId?: string; topologyRef: TopologyRef } = {
+    topologyRef: target.topologyRef
+  };
+  if (target.sessionId) {
+    payload.sessionId = target.sessionId;
+  }
+  const response = await fetch("/api/lab/status", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload)
   });
   if (!response.ok) {
     throw new Error(await readLifecycleError(response));
   }
-  const payload = (await response.json()) as { running?: unknown };
-  return payload.running === true;
+  const body = (await response.json()) as { running?: unknown };
+  return body.running === true;
 }
 
 async function waitForExpectedLabRunningState(
@@ -259,7 +245,10 @@ async function waitForExpectedLabRunningState(
 
     let running: boolean;
     try {
-      running = await queryLabRunningState(request.labName);
+      running = await queryLabRunningState({
+        sessionId: request.sessionId,
+        topologyRef: request.topologyRef
+      });
     } catch (error) {
       if (!request.isCurrent() || request.isCancelled()) {
         return false;
@@ -322,16 +311,18 @@ export function createStandaloneLifecycleManager(
 
   async function invokeLifecycleApi(
     endpoint: LifecycleCommandEndpoint,
-    labName: string,
+    topologyRef: TopologyRef,
     cleanup: boolean,
-    invokeOptions: { path?: string; signal?: AbortSignal } = {}
+    invokeOptions: { sessionId?: string; signal?: AbortSignal } = {}
   ): Promise<LifecycleApiCallResult> {
-    const payload: { labName: string; cleanup?: boolean; path?: string } = { labName };
+    const payload: { cleanup?: boolean; sessionId?: string; topologyRef: TopologyRef } = {
+      topologyRef
+    };
     if (cleanup) {
       payload.cleanup = true;
     }
-    if (invokeOptions.path) {
-      payload.path = invokeOptions.path;
+    if (invokeOptions.sessionId) {
+      payload.sessionId = invokeOptions.sessionId;
     }
 
     const response = await fetch(`/api/lab/${endpoint}`, {
@@ -359,20 +350,22 @@ export function createStandaloneLifecycleManager(
 
   async function invokeLifecycleApiStream(
     endpoint: LifecycleCommandEndpoint,
-    labName: string,
+    topologyRef: TopologyRef,
     cleanup: boolean,
     invokeOptions: {
-      path?: string;
+      sessionId?: string;
       signal?: AbortSignal;
       onLog: (line: string, stream: LifecycleCommandStream) => void;
     }
   ): Promise<{ message?: string }> {
-    const payload: { labName: string; cleanup?: boolean; path?: string } = { labName };
+    const payload: { cleanup?: boolean; sessionId?: string; topologyRef: TopologyRef } = {
+      topologyRef
+    };
     if (cleanup) {
       payload.cleanup = true;
     }
-    if (invokeOptions.path) {
-      payload.path = invokeOptions.path;
+    if (invokeOptions.sessionId) {
+      payload.sessionId = invokeOptions.sessionId;
     }
 
     const response = await fetch(`/api/lab/${endpoint}/stream`, {
@@ -462,13 +455,15 @@ export function createStandaloneLifecycleManager(
     return { message: completionMessage };
   }
 
-  function syncActiveTopologyAfterLifecycle(commandType: LifecycleCommandType, labName: string): void {
-    const currentFilePath = options.getCurrentFilePath();
-    if (!currentFilePath) {
+  function syncActiveTopologyAfterLifecycle(
+    commandType: LifecycleCommandType,
+    topologyRef: TopologyRef
+  ): void {
+    const currentTopologyRef = options.getCurrentTopologyRef();
+    if (!currentTopologyRef) {
       return;
     }
-    const activeLabName = stripTopologySuffix(safeFilename(currentFilePath));
-    if (normalizeLabIdentity(activeLabName) !== normalizeLabIdentity(labName)) {
+    if (currentTopologyRef.topologyId !== topologyRef.topologyId) {
       return;
     }
 
@@ -487,26 +482,32 @@ export function createStandaloneLifecycleManager(
     }
   ): Promise<void> {
     const config = LIFECYCLE_COMMAND_CONFIG[command];
-    const currentFilePath = options.getCurrentFilePath();
-    const labName = getActiveLabName(currentFilePath);
-    if (!labName) {
+    const currentTopologyRef = options.getCurrentTopologyRef();
+    if (!currentTopologyRef) {
       postLifecycleStatusMessage(
         getLifecycleTypeFromProcessingMode(),
         "error",
-        "No active lab selected for lifecycle command."
+        "No active topology selected for lifecycle command."
       );
       return;
     }
+    const sessionId = options.getCurrentSessionId() ?? undefined;
+    const label = currentTopologyRef.labName || currentTopologyRef.yamlPath;
 
     const request: ActiveLifecycleRequest = {
       commandType: config.commandType,
-      labName,
+      sessionId,
       signal: execution.signal,
+      topologyRef: currentTopologyRef,
       isCurrent: execution.isCurrent,
       isCancelled: execution.isCancelled
     };
 
-    postLifecycleLogMessage(config.commandType, `Starting ${config.label} for "${labName}"...`, "stdout");
+    postLifecycleLogMessage(
+      config.commandType,
+      `Starting ${config.label} for "${label}"...`,
+      "stdout"
+    );
     if (config.endpoint === "deploy" && config.cleanup) {
       postLifecycleLogMessage(
         config.commandType,
@@ -516,16 +517,19 @@ export function createStandaloneLifecycleManager(
     }
 
     try {
-      const deployPath =
-        config.endpoint === "deploy" ? getActiveTopologyRelativePath(currentFilePath) : undefined;
       postLifecycleLogMessage(config.commandType, `Sending ${config.label} request to API...`, "stdout");
-      const lifecycleResponse = await invokeLifecycleApiStream(config.endpoint, labName, config.cleanup, {
-        path: deployPath,
+      const lifecycleResponse = await invokeLifecycleApiStream(
+        config.endpoint,
+        currentTopologyRef,
+        config.cleanup,
+        {
+          sessionId,
         signal: request.signal,
         onLog: (line, stream) => {
           postLifecycleLogMessage(config.commandType, line, stream);
         }
-      });
+        }
+      );
       if (!request.isCurrent() || request.isCancelled()) {
         return;
       }
@@ -549,25 +553,25 @@ export function createStandaloneLifecycleManager(
       }
       if (!reachedExpectedState) {
         if (config.commandType === "destroy") {
-          options.removeLabFromRuntimeStore(labName);
+          options.removeLabFromRuntimeStore(currentTopologyRef);
           options.invalidateTopologyFileListCache();
           options.scheduleExplorerSnapshot(0);
         }
         postLifecycleStatusMessage(
           config.commandType,
           "error",
-          `Timed out waiting for lab "${labName}" to become ${expectedRunning ? "deployed" : "undeployed"}.`
+          `Timed out waiting for topology "${label}" to become ${expectedRunning ? "deployed" : "undeployed"}.`
         );
         return;
       }
 
       if (config.commandType === "destroy") {
-        options.removeLabFromRuntimeStore(labName);
+        options.removeLabFromRuntimeStore(currentTopologyRef);
       }
 
       options.invalidateTopologyFileListCache();
       options.scheduleExplorerSnapshot(0);
-      syncActiveTopologyAfterLifecycle(config.commandType, labName);
+      syncActiveTopologyAfterLifecycle(config.commandType, currentTopologyRef);
       postLifecycleLogMessage(config.commandType, `${config.label} completed.`, "stdout");
       postLifecycleStatusMessage(config.commandType, "success");
     } catch (error) {

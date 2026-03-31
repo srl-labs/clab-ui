@@ -9,13 +9,23 @@
 
 The `publish-package.yml` workflow publishes `@srl-labs/clab-ui` to GitHub Packages.
 
-No wrapper packages are published separately; consume browser runtime, core, explorer, and inspect APIs from
-`@srl-labs/clab-ui` subpath exports.
+No wrapper packages are published separately. Consumers should stay on the explicit public surface:
+
+- `@srl-labs/clab-ui`
+- `@srl-labs/clab-ui/host`
+- `@srl-labs/clab-ui/session`
+- `@srl-labs/clab-ui/theme`
+- `@srl-labs/clab-ui/explorer`
+- `@srl-labs/clab-ui/inspect`
+- `@srl-labs/clab-ui/welcome`
+- `@srl-labs/clab-ui/node-impairments`
+- `@srl-labs/clab-ui/wireshark-vnc`
+- `@srl-labs/clab-ui/styles/global.css`
 
 ## Local publish (manual)
 
 ```bash
-cd /home/clab/projects/clab/containerlab-gui
+cd /home/flschwar/projects/clab/containerlab-gui
 npm install
 npm run typecheck
 npm run publish:ui
@@ -24,8 +34,7 @@ npm run publish:ui
 ## Consume from `vscode-containerlab`
 
 ```bash
-cd /home/clab/projects/clab/vscode-containerlab
-npm run deps:source:github
+cd /home/flschwar/projects/clab/vscode-containerlab
 npm install
 ```
 

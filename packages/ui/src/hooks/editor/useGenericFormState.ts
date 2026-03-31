@@ -87,7 +87,7 @@ interface UseEditorHandlersOptions<T> {
   canSave?: (data: T) => boolean;
 }
 
-interface UseEditorHandlersReturn {
+export interface UseEditorHandlersReturn {
   handleApply: () => void;
   handleSaveAndClose: () => void;
   handleDelete: () => void;

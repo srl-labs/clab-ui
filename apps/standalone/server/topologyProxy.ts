@@ -2,23 +2,22 @@
  * Topology host protocol endpoints.
  *
  * Exposes /api/topology/snapshot and /api/topology/command so the shared
- * UI topologyHostClient.ts works unchanged across standalone and VS Code hosts.
- *
- * Each lab gets a TopologyHostCore backed by ClabApiFileSystemAdapter.
+ * UI topology session client works unchanged across standalone and VS Code hosts.
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import type { ClabApiClient } from "./clabApiClient.js";
-import { ClabApiFileSystemAdapter } from "./clabApiFileSystem.js";
 import { getTokenFromRequest } from "./middleware.js";
-import { TopologyHostCore } from "@srl-labs/clab-ui/core/host/TopologyHostCore";
 import type {
+  TopologyRef,
   TopologyHostCommand,
   TopologyHostResponseMessage,
   TopologySnapshot
-} from "@srl-labs/clab-ui/core/types/messages";
-import { createRuntimeContainerDataProvider } from "@srl-labs/clab-ui/topology/runtime";
+} from "@srl-labs/clab-ui/session";
+import { createRuntimeContainerDataProvider } from "@srl-labs/clab-ui/session";
 import type { HostRuntimeContainer, HostRuntimeInterface } from "@srl-labs/clab-ui/host";
+import type { StandaloneTopologySessionManager } from "./topologySessionManager.js";
+import { resolveCanonicalStandaloneTopologyRef } from "./topologyIdentity.js";
 
 interface RuntimeContainerPayload {
   name: string;
@@ -106,7 +105,8 @@ function toRuntimeContainers(containers: RuntimeContainerPayload[]): HostRuntime
 }
 
 interface SnapshotRequest {
-  path: string;
+  sessionId?: string;
+  topologyRef?: TopologyRef;
   mode?: "edit" | "view";
   deploymentState?: DeploymentState;
   runtimeContainers?: RuntimeContainerPayload[];
@@ -114,7 +114,8 @@ interface SnapshotRequest {
 }
 
 interface CommandRequest {
-  path: string;
+  sessionId?: string;
+  topologyRef?: TopologyRef;
   mode?: "edit" | "view";
   deploymentState?: DeploymentState;
   runtimeContainers?: RuntimeContainerPayload[];
@@ -122,111 +123,108 @@ interface CommandRequest {
   command: TopologyHostCommand;
 }
 
-// Cache TopologyHostCore instances per token+lab combination
 type DeploymentState = "deployed" | "undeployed" | "unknown";
-
-const hostCache = new Map<string, {
-  host: TopologyHostCore;
-  lastAccess: number;
-  path: string;
-}>();
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 function isMissingTopologyError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes("ENOENT") || message.includes("(404)");
 }
 
-function normalizeCachePath(filePath: string): string {
-  return filePath.replace(/\\/g, "/").replace(/^\.\//, "");
-}
-
-function cleanupCache(): void {
-  const now = Date.now();
-  for (const [key, entry] of hostCache.entries()) {
-    if (now - entry.lastAccess > CACHE_TTL_MS) {
-      entry.host.dispose();
-      hostCache.delete(key);
-    }
-  }
-}
-
-// Run cleanup every minute
-setInterval(cleanupCache, 60_000);
-
-function extractLabName(filePath: string): string {
-  // The path comes as "labName.clab.yml" or similar
-  // The clab-api-server expects just the lab name (without .clab.yml)
-  const normalized = filePath.replace(/\\/g, "/").replace(/^\.\//, "");
-  const basename = normalized.includes("/")
-    ? normalized.slice(normalized.lastIndexOf("/") + 1)
-    : normalized;
-  // Strip .clab.yml/.clab.yaml suffix to get lab name
-  return basename.replace(/\.clab\.ya?ml$/i, "");
-}
-
-async function getOrCreateHost(
-  client: ClabApiClient,
-  token: string,
-  filePath: string,
-  mode: "edit" | "view",
-  deploymentState: DeploymentState,
-  containerDataProvider: ContainerDataProvider
-): Promise<TopologyHostCore> {
-  const labName = extractLabName(filePath);
-  const normalizedPath = normalizeCachePath(filePath);
-  const cacheKey = `${client.getBaseUrl()}:${token}:${labName}`;
-
-  const cached = hostCache.get(cacheKey);
-  if (cached) {
-    if (cached.path !== normalizedPath) {
-      cached.host.dispose();
-      hostCache.delete(cacheKey);
-    } else {
-      cached.lastAccess = Date.now();
-      cached.host.updateContext({ mode, deploymentState, containerDataProvider });
-      return cached.host;
-    }
-  }
-
-  const fs = new ClabApiFileSystemAdapter({
-    client,
-    token,
-    labName
-  });
-
-  const host = new TopologyHostCore({
-    fs,
-    yamlFilePath: filePath,
-    mode,
-    deploymentState,
-    containerDataProvider,
-    logger: {
-      debug: () => {},
-      info: () => {},
-      warn: () => {},
-      error: console.error
-    }
-  });
-
-  hostCache.set(cacheKey, { host, lastAccess: Date.now(), path: normalizedPath });
-  return host;
+function isTopologyRef(value: unknown): value is TopologyRef {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as TopologyRef).topologyId === "string" &&
+    (value as TopologyRef).topologyId.trim().length > 0 &&
+    typeof (value as TopologyRef).labName === "string" &&
+    (value as TopologyRef).labName.trim().length > 0 &&
+    typeof (value as TopologyRef).yamlPath === "string" &&
+    (value as TopologyRef).yamlPath.trim().length > 0 &&
+    ((value as TopologyRef).source === "standalone" || (value as TopologyRef).source === "vscode")
+  );
 }
 
 async function attachDocumentRevision(
   client: ClabApiClient,
   token: string,
-  filePath: string,
+  topologyRef: TopologyRef,
   snapshot: TopologySnapshot
 ): Promise<TopologySnapshot> {
-  const labName = extractLabName(filePath);
-  const documentRevision = await client.getTopologyDocumentRevision(token, labName, filePath);
+  const documentRevision = await client.getTopologyDocumentRevision(
+    token,
+    topologyRef.labName,
+    topologyRef.yamlPath
+  );
   return documentRevision ? { ...snapshot, documentRevision } : snapshot;
 }
 
 type ClientResolver = (request: FastifyRequest) => ClabApiClient;
 
-export function registerTopologyProxy(app: FastifyInstance, getClient: ClientResolver): void {
+export function registerTopologyProxy(
+  app: FastifyInstance,
+  getClient: ClientResolver,
+  sessions: StandaloneTopologySessionManager
+): void {
+  app.post<{ Body: SnapshotRequest }>(
+    "/api/topology/sessions",
+    async (request: FastifyRequest<{ Body: SnapshotRequest }>, reply: FastifyReply) => {
+      const token = getTokenFromRequest(request);
+      if (!token) {
+        return reply.status(401).send({ error: "Not authenticated" });
+      }
+
+      const topologyRef = request.body.topologyRef;
+      if (!isTopologyRef(topologyRef)) {
+        return reply.status(400).send({ error: "Missing topologyRef" });
+      }
+
+      const client = getClient(request);
+      const canonicalTopologyRef = await resolveCanonicalStandaloneTopologyRef(
+        client,
+        token,
+        topologyRef
+      );
+      const deploymentState = request.body.deploymentState ?? "undeployed";
+      const mode = request.body.mode ?? (deploymentState === "deployed" ? "view" : "edit");
+      const containerDataProvider = createRuntimeContainerDataProvider(
+        toRuntimeContainers(request.body.runtimeContainers ?? [])
+      );
+
+      const session = sessions.createSession({
+        client,
+        token,
+        topologyRef: canonicalTopologyRef,
+        mode,
+        deploymentState,
+        containerDataProvider
+      });
+
+      return reply.send({
+        sessionId: session.sessionId,
+        topologyRef: session.topologyRef
+      });
+    }
+  );
+
+  app.delete<{ Params: { sessionId: string } }>(
+    "/api/topology/sessions/:sessionId",
+    async (request, reply) => {
+      const token = getTokenFromRequest(request);
+      if (!token) {
+        return reply.status(401).send({ error: "Not authenticated" });
+      }
+
+      const client = getClient(request);
+      const session = sessions.getSession(request.params.sessionId, token, client.getBaseUrl());
+      if (!session) {
+        return reply.status(404).send({ error: "Topology session not found" });
+      }
+
+      sessions.disposeSession(session.sessionId);
+      return reply.send({ success: true });
+    }
+  );
+
   app.post<{ Body: SnapshotRequest }>(
     "/api/topology/snapshot",
     async (request: FastifyRequest<{ Body: SnapshotRequest }>, reply: FastifyReply) => {
@@ -237,8 +235,14 @@ export function registerTopologyProxy(app: FastifyInstance, getClient: ClientRes
       const client = getClient(request);
 
       const body = request.body;
-      if (!body.path) {
-        return reply.status(400).send({ error: "Missing path" });
+      const sessionId = body.sessionId?.trim() ?? "";
+      if (!sessionId) {
+        return reply.status(400).send({ error: "Missing sessionId" });
+      }
+
+      const session = sessions.getSession(sessionId, token, client.getBaseUrl());
+      if (!session) {
+        return reply.status(404).send({ error: "Topology session not found" });
       }
 
       try {
@@ -247,22 +251,15 @@ export function registerTopologyProxy(app: FastifyInstance, getClient: ClientRes
         const containerDataProvider = createRuntimeContainerDataProvider(
           toRuntimeContainers(body.runtimeContainers ?? [])
         );
-        const host = await getOrCreateHost(
-          client,
-          token,
-          body.path,
-          mode,
-          deploymentState,
-          containerDataProvider
-        );
+        session.host.updateContext({ mode, deploymentState, containerDataProvider });
 
         let snapshot: TopologySnapshot;
         if (body.externalChange) {
-          snapshot = await host.onExternalChange();
+          snapshot = await session.host.onExternalChange();
         } else {
-          snapshot = await host.getSnapshot();
+          snapshot = await session.host.getSnapshot();
         }
-        snapshot = await attachDocumentRevision(client, token, body.path, snapshot);
+        snapshot = await attachDocumentRevision(client, token, session.topologyRef, snapshot);
 
         return reply.send({ snapshot });
       } catch (error) {
@@ -283,8 +280,14 @@ export function registerTopologyProxy(app: FastifyInstance, getClient: ClientRes
       const client = getClient(request);
 
       const body = request.body;
-      if (!body.path || !body.command) {
-        return reply.status(400).send({ error: "Missing path or command" });
+      const sessionId = body.sessionId?.trim() ?? "";
+      if (!sessionId || !body.command) {
+        return reply.status(400).send({ error: "Missing sessionId or command" });
+      }
+
+      const session = sessions.getSession(sessionId, token, client.getBaseUrl());
+      if (!session) {
+        return reply.status(404).send({ error: "Topology session not found" });
       }
 
       try {
@@ -293,16 +296,9 @@ export function registerTopologyProxy(app: FastifyInstance, getClient: ClientRes
         const containerDataProvider = createRuntimeContainerDataProvider(
           toRuntimeContainers(body.runtimeContainers ?? [])
         );
-        const host = await getOrCreateHost(
-          client,
-          token,
-          body.path,
-          mode,
-          deploymentState,
-          containerDataProvider
-        );
+        session.host.updateContext({ mode, deploymentState, containerDataProvider });
 
-        const response: TopologyHostResponseMessage = await host.applyCommand(
+        const response: TopologyHostResponseMessage = await session.host.applyCommand(
           body.command,
           body.baseRevision
         );
@@ -310,7 +306,12 @@ export function registerTopologyProxy(app: FastifyInstance, getClient: ClientRes
           (response.type === "topology-host:ack" || response.type === "topology-host:reject") &&
           response.snapshot
         ) {
-          response.snapshot = await attachDocumentRevision(client, token, body.path, response.snapshot);
+          response.snapshot = await attachDocumentRevision(
+            client,
+            token,
+            session.topologyRef,
+            response.snapshot
+          );
         }
         return reply.send(response);
       } catch (error) {

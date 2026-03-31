@@ -6,7 +6,7 @@ import { useEffect, useRef } from "react";
 
 import { extractUsedCustomIcons } from "../../core/types/icons";
 import { getRecordUnknown } from "../../core/utilities/typeHelpers";
-import { sendIconReconcile } from "../../messaging/extensionMessaging";
+import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 import { useGraphStore } from "../../stores/graphStore";
 
 interface IconUsageEntry {
@@ -52,6 +52,7 @@ function areIconUsageEntriesEqual(left: IconUsageEntry[], right: IconUsageEntry[
  * Subscribes only to icon-relevant node fields so drag position updates do not trigger work.
  */
 export function useIconReconciliation(): void {
+  const { sendIconReconcile } = useExtensionMessaging();
   const iconUsageEntries = useGraphStore(selectIconUsageEntries, areIconUsageEntriesEqual);
   const prevUsedIconsRef = useRef<string[]>([]);
 
@@ -76,5 +77,5 @@ export function useIconReconciliation(): void {
       // Trigger icon reconciliation on extension side
       sendIconReconcile(usedIcons);
     }
-  }, [iconUsageEntries]);
+  }, [iconUsageEntries, sendIconReconcile]);
 }

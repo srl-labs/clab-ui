@@ -21,6 +21,7 @@ import {
   saveEdgeAnnotations,
   buildNetworkNodeAnnotations
 } from "../../services";
+import { useTopologySessionClient } from "../../host";
 import { requestSnapshot } from "../../services/topologyHostClient";
 import { useGraphStore } from "../../stores/graphStore";
 import {
@@ -431,6 +432,7 @@ export function useNodeEditorHandlers(
   updateNodeData?: UpdateNodeDataCallback,
   refreshEditorData?: () => void
 ) {
+  const sessionClient = useTopologySessionClient();
   const initialDataRef = React.useRef<NodeEditorData | null>(null);
 
   React.useEffect(() => {
@@ -482,12 +484,12 @@ export function useNodeEditorHandlers(
       applyNodeChanges(data, oldName, persistDeps);
 
       const saveData = convertEditorDataToNodeSaveData(data, oldName);
-      void executeTopologyCommand({ command: "editNode", payload: saveData });
+      void executeTopologyCommand({ command: "editNode", payload: saveData }, {}, sessionClient);
 
       initialDataRef.current = null;
       editNode(null);
     },
-    [editNode, persistDeps]
+    [editNode, persistDeps, sessionClient]
   );
 
   const handleApply = React.useCallback(
@@ -500,11 +502,11 @@ export function useNodeEditorHandlers(
       applyNodeChanges(data, oldName, persistDeps);
 
       const saveData = convertEditorDataToNodeSaveData(data, oldName);
-      void executeTopologyCommand({ command: "editNode", payload: saveData });
+      void executeTopologyCommand({ command: "editNode", payload: saveData }, {}, sessionClient);
 
       initialDataRef.current = { ...data };
     },
-    [persistDeps]
+    [persistDeps, sessionClient]
   );
 
   const previewVisuals = React.useCallback((data: NodeEditorData) => {
@@ -586,6 +588,7 @@ export function useLinkEditorHandlers(
   edgeAnnotationHandlers?: EdgeAnnotationHandlers,
   updateEdgeData?: (edgeId: string, data: LinkEditorData) => void
 ) {
+  const sessionClient = useTopologySessionClient();
   const initialDataRef = React.useRef<LinkEditorData | null>(null);
 
   React.useEffect(() => {
@@ -602,9 +605,9 @@ export function useLinkEditorHandlers(
       const next = upsertEdgeLabelOffsetAnnotation(edgeAnnotationHandlers.edgeAnnotations, data);
       if (!next) return;
       edgeAnnotationHandlers.setEdgeAnnotations(next);
-      void saveEdgeAnnotations(next);
+      void saveEdgeAnnotations(sessionClient, next);
     },
-    [edgeAnnotationHandlers]
+    [edgeAnnotationHandlers, sessionClient]
   );
 
   const handleClose = React.useCallback(() => {
@@ -638,7 +641,7 @@ export function useLinkEditorHandlers(
 
       applyLinkChanges(normalized, persistDeps);
       const saveData = convertEditorDataToLinkSaveData(normalized);
-      void executeTopologyCommand({ command: "editLink", payload: saveData });
+      void executeTopologyCommand({ command: "editLink", payload: saveData }, {}, sessionClient);
 
       if (edgeAnnotationHandlers) {
         const existing = findEdgeAnnotation(edgeAnnotationHandlers.edgeAnnotations, normalized);
@@ -654,7 +657,7 @@ export function useLinkEditorHandlers(
       initialDataRef.current = null;
       editEdge(null);
     },
-    [editEdge, persistDeps, persistOffset, edgeAnnotationHandlers]
+    [editEdge, edgeAnnotationHandlers, persistDeps, persistOffset, sessionClient]
   );
 
   const handleApply = React.useCallback(
@@ -674,11 +677,11 @@ export function useLinkEditorHandlers(
 
       applyLinkChanges(normalized, persistDeps);
       const saveData = convertEditorDataToLinkSaveData(normalized);
-      void executeTopologyCommand({ command: "editLink", payload: saveData });
+      void executeTopologyCommand({ command: "editLink", payload: saveData }, {}, sessionClient);
 
       initialDataRef.current = { ...normalized };
     },
-    [persistDeps, persistOffset]
+    [persistDeps, persistOffset, sessionClient]
   );
 
   // Visual-only offset preview (no persist)
@@ -805,6 +808,7 @@ export function useNetworkEditorHandlers(
   editingNetworkData: NetworkEditorData | null,
   renameNode?: RenameNodeCallback
 ) {
+  const sessionClient = useTopologySessionClient();
   const initialDataRef = React.useRef<NetworkEditorData | null>(null);
   const getCurrentEdges = React.useCallback(() => useGraphStore.getState().edges, []);
   const getCurrentNodes = React.useCallback(() => useGraphStore.getState().nodes, []);
@@ -900,11 +904,12 @@ export function useNetworkEditorHandlers(
       if (commands.length > 0) {
         await executeTopologyCommand(
           { command: "batch", payload: { commands } },
-          { applySnapshot: false }
+          { applySnapshot: false },
+          sessionClient
         );
       }
     },
-    []
+    [sessionClient]
   );
 
   const persistBridgeNetwork = React.useCallback((data: NetworkEditorData, newNodeId: string) => {
@@ -919,8 +924,8 @@ export function useNetworkEditorHandlers(
         label: trimmedLabel.length > 0 ? trimmedLabel : null
       }
     };
-    void executeTopologyCommand({ command: "editNode", payload: saveData });
-  }, []);
+    void executeTopologyCommand({ command: "editNode", payload: saveData }, {}, sessionClient);
+  }, [sessionClient]);
 
   const persistBridgeAlias = React.useCallback(
     async (data: NetworkEditorData, newNodeId: string) => {
@@ -932,7 +937,7 @@ export function useNetworkEditorHandlers(
       const edgeInfos = collectAliasEdgeInfos(currentEdges as BasicEdge[], aliasId);
       const { interfaceSet, interfaceCandidates } = extractInterfaceCandidates(edgeInfos);
 
-      const snapshot = await requestSnapshot();
+      const snapshot = await requestSnapshot({}, sessionClient);
       const annotations = snapshot.annotations;
       const nodeAnnotations = [...(annotations.nodeAnnotations ?? [])];
       const existingAnn = nodeAnnotations.find((ann) => ann.id === aliasId);
@@ -978,14 +983,15 @@ export function useNetworkEditorHandlers(
 
       await executeTopologyCommand(
         { command: "batch", payload: { commands: aliasCommands } },
-        { applySnapshot: false }
+        { applySnapshot: false },
+        sessionClient
       );
 
       updateGraphEdgesForAlias(graphState, edgeInfos, aliasId, newNodeId, primaryInterface);
 
       return true;
     },
-    [getCurrentEdges, getCurrentNodes]
+    [getCurrentEdges, getCurrentNodes, sessionClient]
   );
 
   const persistNetworkEdits = React.useCallback(

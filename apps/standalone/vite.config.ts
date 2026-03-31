@@ -14,8 +14,7 @@ export default defineConfig({
   resolve: {
     alias: {
       react: path.resolve(nodeModules, "react"),
-      "react-dom": path.resolve(nodeModules, "react-dom"),
-      "@srl-labs/clab-ui": path.resolve(root, "packages/ui/src")
+      "react-dom": path.resolve(nodeModules, "react-dom")
     },
     dedupe: ["react", "react-dom"]
   },

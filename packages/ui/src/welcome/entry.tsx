@@ -1,3 +1,9 @@
+import {
+  createClabUiRuntime,
+  createWindowClabUiHost
+} from "../host";
 import { bootstrapWelcomePage } from "./index";
 
-bootstrapWelcomePage();
+const runtime = createClabUiRuntime({ host: createWindowClabUiHost() });
+
+bootstrapWelcomePage(runtime);

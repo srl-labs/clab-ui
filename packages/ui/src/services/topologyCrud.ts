@@ -8,6 +8,7 @@ import type { Node } from "@xyflow/react";
 
 import type { NodeSaveData } from "../core/io/NodePersistenceIO";
 import type { LinkSaveData } from "../core/io/LinkPersistenceIO";
+import type { TopologySessionClient } from "../session";
 import { collectNodeGroupMemberships } from "../annotations/groupMembership";
 import { useGraphStore } from "../stores/graphStore";
 import { BRIDGE_NETWORK_TYPES } from "../utils/networkNodeTypes";
@@ -23,49 +24,67 @@ const WARN_COMMAND_FAILED = "[Host] Topology command failed";
 
 export { buildNetworkNodeAnnotations };
 
-export async function createNode(nodeData: NodeSaveData): Promise<void> {
+export async function createNode(
+  client: TopologySessionClient,
+  nodeData: NodeSaveData
+): Promise<void> {
   try {
-    await executeTopologyCommand({ command: "addNode", payload: nodeData });
+    await executeTopologyCommand({ command: "addNode", payload: nodeData }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: addNode`, err);
   }
 }
 
-export async function editNode(nodeData: NodeSaveData): Promise<void> {
+export async function editNode(
+  client: TopologySessionClient,
+  nodeData: NodeSaveData
+): Promise<void> {
   try {
-    await executeTopologyCommand({ command: "editNode", payload: nodeData });
+    await executeTopologyCommand({ command: "editNode", payload: nodeData }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: editNode`, err);
   }
 }
 
-export async function deleteNode(nodeId: string): Promise<void> {
+export async function deleteNode(
+  client: TopologySessionClient,
+  nodeId: string
+): Promise<void> {
   try {
-    await executeTopologyCommand({ command: "deleteNode", payload: { id: nodeId } });
+    await executeTopologyCommand({ command: "deleteNode", payload: { id: nodeId } }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: deleteNode`, err);
   }
 }
 
-export async function createLink(linkData: LinkSaveData): Promise<void> {
+export async function createLink(
+  client: TopologySessionClient,
+  linkData: LinkSaveData
+): Promise<void> {
   try {
-    await executeTopologyCommand({ command: "addLink", payload: linkData });
+    await executeTopologyCommand({ command: "addLink", payload: linkData }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: addLink`, err);
   }
 }
 
-export async function editLink(linkData: LinkSaveData): Promise<void> {
+export async function editLink(
+  client: TopologySessionClient,
+  linkData: LinkSaveData
+): Promise<void> {
   try {
-    await executeTopologyCommand({ command: "editLink", payload: linkData });
+    await executeTopologyCommand({ command: "editLink", payload: linkData }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: editLink`, err);
   }
 }
 
-export async function deleteLink(linkData: LinkSaveData): Promise<void> {
+export async function deleteLink(
+  client: TopologySessionClient,
+  linkData: LinkSaveData
+): Promise<void> {
   try {
-    await executeTopologyCommand({ command: "deleteLink", payload: linkData });
+    await executeTopologyCommand({ command: "deleteLink", payload: linkData }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: deleteLink`, err);
   }
@@ -92,14 +111,17 @@ export interface NetworkNodeData {
  * Persist network nodes (non-bridge types) via annotations.
  * Assumes the graph store already contains the latest network nodes.
  */
-export async function saveNetworkNodesFromGraph(nodes?: Node[]): Promise<void> {
+export async function saveNetworkNodesFromGraph(
+  client: TopologySessionClient,
+  nodes?: Node[]
+): Promise<void> {
   try {
     const graphNodes = nodes ?? useGraphStore.getState().nodes;
     const annotations = buildNetworkNodeAnnotations(graphNodes);
     await executeTopologyCommand({
       command: "setAnnotations",
       payload: { networkNodeAnnotations: annotations }
-    });
+    }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: setAnnotations(networkNodeAnnotations)`, err);
   }
@@ -109,12 +131,15 @@ export async function saveNetworkNodesFromGraph(nodes?: Node[]): Promise<void> {
  * Create a network node stored in annotations (non-bridge types).
  * Bridge types should be persisted via addNode/editNode instead.
  */
-export async function createNetworkNode(data: NetworkNodeData): Promise<void> {
+export async function createNetworkNode(
+  client: TopologySessionClient,
+  data: NetworkNodeData
+): Promise<void> {
   if (BRIDGE_NETWORK_TYPES.has(data.type)) {
     console.warn(`[Host] Bridge network nodes should be created via addNode: ${data.type}`);
     return;
   }
-  await saveNetworkNodesFromGraph();
+  await saveNetworkNodesFromGraph(client);
 }
 
 /**
@@ -123,6 +148,7 @@ export async function createNetworkNode(data: NetworkNodeData): Promise<void> {
  * trigger a full topology reload, which would reset geo-mode positions.
  */
 export async function saveNodePositions(
+  client: TopologySessionClient,
   positions: Array<{
     id: string;
     position?: { x: number; y: number };
@@ -132,7 +158,8 @@ export async function saveNodePositions(
   try {
     await executeTopologyCommand(
       { command: "savePositions", payload: positions },
-      { applySnapshot: false }
+      { applySnapshot: false },
+      client
     );
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: savePositions`, err);
@@ -144,6 +171,7 @@ export async function saveNodePositions(
  * This keeps related moves (e.g., groups + members) as one undo entry.
  */
 export async function saveNodePositionsWithAnnotations(
+  client: TopologySessionClient,
   positions: Array<{
     id: string;
     position?: { x: number; y: number };
@@ -160,7 +188,8 @@ export async function saveNodePositionsWithAnnotations(
           annotations: buildAnnotationNodesPayload(nodes)
         }
       },
-      { applySnapshot: false }
+      { applySnapshot: false },
+      client
     );
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: savePositionsAndAnnotations`, err);
@@ -172,6 +201,7 @@ export async function saveNodePositionsWithAnnotations(
  * Used when a node drag may change group membership.
  */
 export async function saveNodePositionsWithMemberships(
+  client: TopologySessionClient,
   positions: Array<{
     id: string;
     position?: { x: number; y: number };
@@ -193,7 +223,8 @@ export async function saveNodePositionsWithMemberships(
           ]
         }
       },
-      { applySnapshot: false }
+      { applySnapshot: false },
+      client
     );
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: savePositionsWithMemberships(batch)`, err);

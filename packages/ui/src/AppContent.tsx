@@ -69,8 +69,7 @@ import {
   useTopoViewerState
 } from "./stores";
 import {
-  sendCancelLabLifecycle,
-  sendDumpCssVars
+  useExtensionMessaging
 } from "./messaging/extensionMessaging";
 import {
   executeTopologyCommand,
@@ -78,7 +77,7 @@ import {
   getCustomIconMap,
   saveViewerSettings
 } from "./services";
-import { getConfiguredClabUiHost } from "./host";
+import { useClabUiHost, useTopologySessionClient } from "./host";
 import {
   PENDING_NETEM_KEY,
   areNetemEquivalent,
@@ -283,8 +282,8 @@ function getInteractionLockState(isLocked: boolean, isProcessing: boolean): bool
   return isLocked || isProcessing;
 }
 
-function isDevMockWebview(): boolean {
-  return getConfiguredClabUiHost()?.meta?.isDevMock === true;
+function isDevMockWebview(host: { meta?: { isDevMock?: boolean } } | null): boolean {
+  return host?.meta?.isDevMock === true;
 }
 
 function isDevExplorerDisabledByUrl(): boolean {
@@ -304,13 +303,14 @@ function shouldDumpCssVars(): boolean {
 }
 
 function shouldCollectDevMockTrafficStats(
+  host: { meta?: { disableDevMockTraffic?: boolean } } | null,
   isDevMock: boolean,
   interactionMode: "view" | "edit"
 ): boolean {
   if (!isDevMock || interactionMode !== "view") {
     return false;
   }
-  if (getConfiguredClabUiHost()?.meta?.disableDevMockTraffic === true) {
+  if (host?.meta?.disableDevMockTraffic === true) {
     return false;
   }
   return true;
@@ -667,6 +667,9 @@ export const AppContent: React.FC<AppContentProps> = ({
   layoutControls,
   onInit
 }) => {
+  const host = useClabUiHost();
+  const sessionClient = useTopologySessionClient();
+  const { sendCancelLabLifecycle, sendDumpCssVars } = useExtensionMessaging();
   const state = useTopoViewerState();
   const topoActions = useTopoViewerActions();
   const graphActions = useGraphActions();
@@ -674,12 +677,12 @@ export const AppContent: React.FC<AppContentProps> = ({
   const isProcessing = state.isProcessing;
   const isInteractionLocked = getInteractionLockState(state.isLocked, isProcessing);
   const interactionMode = getInteractionMode(state.mode, isProcessing);
-  const isDevMock = React.useMemo(() => isDevMockWebview(), []);
+  const isDevMock = React.useMemo(() => isDevMockWebview(host), [host]);
   const showDevExplorer = React.useMemo(
     () => isDevMock && !isDevExplorerDisabledByUrl(),
     [isDevMock]
   );
-  useDevMockTrafficStats(shouldCollectDevMockTrafficStats(isDevMock, interactionMode));
+  useDevMockTrafficStats(shouldCollectDevMockTrafficStats(host, isDevMock, interactionMode));
   const { layoutRef, devExplorerWidth, isDevExplorerDragging, handleDevExplorerResizeStart } =
     useDevExplorerPane(showDevExplorer);
 
@@ -698,7 +701,7 @@ export const AppContent: React.FC<AppContentProps> = ({
     if (Object.keys(vars).length === 0) return;
     const sorted = Object.fromEntries(Object.entries(vars).sort(([a], [b]) => a.localeCompare(b)));
     sendDumpCssVars(sorted);
-  }, []);
+  }, [sendDumpCssVars]);
 
   const undoRedo = useUndoRedoControls(state.canUndo, state.canRedo);
   const { trigger: triggerLockShake } = useShakeAnimation();
@@ -1248,11 +1251,19 @@ export const AppContent: React.FC<AppContentProps> = ({
 
     executeTopologyCommand(
       { command: "batch", payload: { commands } },
-      { applySnapshot: false }
+      { applySnapshot: false },
+      sessionClient
     ).catch((err) => {
       console.error("[TopoViewer] Failed to batch delete", err);
     });
-  }, [annotationActions, graphActions, menuHandlers, state.selectedNode, state.selectedEdge]);
+  }, [
+    annotationActions,
+    graphActions,
+    menuHandlers,
+    sessionClient,
+    state.selectedEdge,
+    state.selectedNode
+  ]);
 
   useAppKeyboardShortcuts({
     state: {
@@ -1391,7 +1402,7 @@ export const AppContent: React.FC<AppContentProps> = ({
 
   const handleCancelLifecycle = React.useCallback(() => {
     sendCancelLabLifecycle();
-  }, []);
+  }, [sendCancelLabLifecycle]);
 
   const handleToggleSplit = React.useCallback(() => {
     panelVisibility.handleOpenContextPanel("manual");
@@ -1408,13 +1419,13 @@ export const AppContent: React.FC<AppContentProps> = ({
       const nextLastNonTelemetryMode =
         mode === "telemetry-style" ? state.lastNonTelemetryLinkLabelMode : mode;
       const style = mode === "telemetry-style" ? "telemetry-style" : "default";
-      void saveViewerSettings({
+      void saveViewerSettings(sessionClient, {
         style,
         linkLabelMode: mode,
         lastNonTelemetryLinkLabelMode: nextLastNonTelemetryMode
       });
     },
-    [topoActions, state.lastNonTelemetryLinkLabelMode]
+    [sessionClient, topoActions, state.lastNonTelemetryLinkLabelMode]
   );
 
   return (

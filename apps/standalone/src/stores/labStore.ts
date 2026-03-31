@@ -45,6 +45,7 @@ export interface InterfaceState {
 export interface LabState {
   name: string;
   owner: string;
+  topologyPath: string;
   containers: Map<string, ContainerState>;
 }
 
@@ -78,6 +79,52 @@ function getAttrString(
   }
 
   return undefined;
+}
+
+function normalizeLabStorePath(pathValue: string | undefined): string {
+  return (pathValue ?? "")
+    .trim()
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/")
+    .replace(/^\.\//, "");
+}
+
+function normalizeLabStoreName(labName: string | undefined): string {
+  return (labName ?? "").trim().toLowerCase();
+}
+
+function resolveLabStoreKey(labPath: string | undefined): string | null {
+  const normalizedPath = normalizeLabStorePath(labPath);
+  return normalizedPath ? `path:${normalizedPath}` : null;
+}
+
+function findExistingLabEntry(
+  labs: Map<string, LabState>,
+  labPath: string | undefined
+): { key: string; lab: LabState } | null {
+  const preferredKey = resolveLabStoreKey(labPath);
+  if (preferredKey) {
+    const exact = labs.get(preferredKey);
+    if (exact) {
+      return { key: preferredKey, lab: exact };
+    }
+  }
+
+  const normalizedPath = normalizeLabStorePath(labPath);
+  if (normalizedPath) {
+    for (const [key, lab] of labs.entries()) {
+      if (normalizeLabStorePath(lab.topologyPath) === normalizedPath) {
+        return { key, lab };
+      }
+      for (const container of lab.containers.values()) {
+        if (normalizeLabStorePath(container.labPath) === normalizedPath) {
+          return { key, lab };
+        }
+      }
+    }
+  }
+
+  return null;
 }
 
 function extractContainerState(attrs: Record<string, EventAttributeValue>): ContainerState {
@@ -157,17 +204,29 @@ export const useLabStore = create<LabStoreState>((set, get) => ({
 
   processEvent: (event) => {
     const attrs = event.attributes;
-    const labName = getAttrString(attrs, "lab", "containerlab");
-    if (!labName) return;
+    const labName = getAttrString(attrs, "lab", "containerlab") ?? "";
+    const labPath = getAttrString(attrs, "lab-path", "clab-topo-file") ?? "";
+    const labKey = resolveLabStoreKey(labPath);
+    if (!labKey) return;
 
     const previousLabs = get().labs;
     const labs = new Map(previousLabs);
-    const existingLab = previousLabs.get(labName);
+    const existingEntry = findExistingLabEntry(previousLabs, labPath);
+    const existingLab = existingEntry?.lab;
+    if (existingEntry && existingEntry.key !== labKey) {
+      labs.delete(existingEntry.key);
+    }
     const lab: LabState = existingLab
-      ? { name: existingLab.name, owner: existingLab.owner, containers: new Map(existingLab.containers) }
+      ? {
+          name: labName || existingLab.name,
+          owner: existingLab.owner,
+          topologyPath: labPath || existingLab.topologyPath,
+          containers: new Map(existingLab.containers)
+        }
       : {
           name: labName,
           owner: getAttrString(attrs, "clab-owner", "owner") ?? "",
+          topologyPath: labPath,
           containers: new Map()
         };
 
@@ -180,9 +239,9 @@ export const useLabStore = create<LabStoreState>((set, get) => ({
         lab.containers.delete(containerName);
         // If no containers left, remove the lab
         if (lab.containers.size === 0) {
-          labs.delete(labName);
+          labs.delete(labKey);
         } else {
-          labs.set(labName, lab);
+          labs.set(labKey, lab);
         }
       } else {
         // start, create, running, health_status, etc.
@@ -196,8 +255,14 @@ export const useLabStore = create<LabStoreState>((set, get) => ({
         if (incoming.owner) {
           lab.owner = incoming.owner;
         }
+        if (incoming.labPath) {
+          lab.topologyPath = incoming.labPath;
+        }
+        if (incoming.labName) {
+          lab.name = incoming.labName;
+        }
         lab.containers.set(containerName, container);
-        labs.set(labName, lab);
+        labs.set(labKey, lab);
       }
     } else if (event.type === "interface" || event.type === "interface-stats") {
       const existing = lab.containers.get(containerName);
@@ -207,7 +272,13 @@ export const useLabStore = create<LabStoreState>((set, get) => ({
         : placeholder;
       upsertInterface(container, attrs, action);
       lab.containers.set(containerName, container);
-      labs.set(labName, lab);
+      if (placeholder.labPath) {
+        lab.topologyPath = placeholder.labPath;
+      }
+      if (placeholder.labName) {
+        lab.name = placeholder.labName;
+      }
+      labs.set(labKey, lab);
     }
 
     set({ labs });

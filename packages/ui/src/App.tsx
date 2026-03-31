@@ -9,6 +9,8 @@ import type { ReactFlowInstance } from "@xyflow/react";
 
 import type { CanvasRef } from "./hooks/ui";
 import type { ReactFlowCanvasRef } from "./components/canvas";
+import type { ClabUiRuntime } from "./host";
+import { ClabUiRuntimeProvider } from "./host";
 import { useLayoutControls } from "./hooks/ui";
 import {
   type InitialGraphData,
@@ -19,8 +21,11 @@ import {
 } from "./hooks/app";
 import { AppContent } from "./AppContent";
 
-/** Main App component - initializes stores and subscriptions */
-export const App: React.FC<{ initialData?: InitialGraphData }> = ({ initialData }) => {
+interface AppRootProps {
+  initialData?: InitialGraphData;
+}
+
+function AppRoot({ initialData }: AppRootProps): React.JSX.Element {
   const reactFlowRef = React.useRef<ReactFlowCanvasRef>(null);
   const [rfInstance, setRfInstance] = React.useState<ReactFlowInstance | null>(null);
   const layoutCanvasRef: React.RefObject<CanvasRef | null> = reactFlowRef;
@@ -41,5 +46,17 @@ export const App: React.FC<{ initialData?: InitialGraphData }> = ({ initialData 
       layoutControls={layoutControls}
       onInit={setRfInstance}
     />
+  );
+}
+
+/** Main App component - initializes stores and subscriptions */
+export const App: React.FC<{ initialData?: InitialGraphData; runtime: ClabUiRuntime }> = ({
+  initialData,
+  runtime
+}) => {
+  return (
+    <ClabUiRuntimeProvider runtime={runtime}>
+      <AppRoot initialData={initialData} />
+    </ClabUiRuntimeProvider>
   );
 };

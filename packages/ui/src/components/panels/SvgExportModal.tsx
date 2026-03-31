@@ -39,10 +39,8 @@ import {
   FREE_SHAPE_NODE_TYPE,
   GROUP_NODE_TYPE
 } from "../../annotations/annotationNodeConverters";
-import {
-  sendGrafanaBundleExport
-} from "../../messaging/extensionMessaging";
-import { getClabUiHost } from "../../host";
+import { useExtensionMessaging } from "../../messaging/extensionMessaging";
+import { type ClabUiHost, useClabUiHost } from "../../host";
 import { log } from "../../utils/logger";
 import { ColorField, PREVIEW_GRID_BG_SX } from "../ui/form";
 import { DialogTitleWithClose } from "../ui/dialog/DialogChrome";
@@ -331,7 +329,11 @@ function hasStrictlyAscendingThresholds(thresholds: GrafanaTrafficThresholds): b
   );
 }
 
-function requestGrafanaBundleExport(payload: GrafanaBundlePayload): Promise<string[]> {
+function requestGrafanaBundleExport(
+  host: ClabUiHost,
+  payload: GrafanaBundlePayload,
+  sendGrafanaBundleExport: (payload: GrafanaBundlePayload) => void
+): Promise<string[]> {
   return new Promise((resolve, reject) => {
     let unsubscribe = () => {
       /* no-op until subscription is active */
@@ -342,7 +344,7 @@ function requestGrafanaBundleExport(payload: GrafanaBundlePayload): Promise<stri
       reject(new Error("Timed out waiting for export confirmation"));
     }, 30_000);
 
-    unsubscribe = getClabUiHost().topoViewer.subscribe((event) => {
+    unsubscribe = host.topoViewer.subscribe((event) => {
       if (!isSvgExportResultMessage(event)) return;
       if (event.requestId !== payload.requestId) return;
 
@@ -380,6 +382,8 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   rfInstance,
   customIcons
 }) => {
+  const host = useClabUiHost();
+  const { sendGrafanaBundleExport } = useExtensionMessaging();
   const [borderZoom, setBorderZoom] = useState(100);
   const [borderPadding, setBorderPadding] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
@@ -605,13 +609,13 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
       const dashboardJson = buildGrafanaDashboardJson(panelYaml, grafanaSvg, prepared.baseName);
 
       const requestId = createRequestId();
-      const files = await requestGrafanaBundleExport({
+      const files = await requestGrafanaBundleExport(host, {
         requestId,
         baseName: prepared.baseName,
         svgContent: grafanaSvg,
         dashboardJson,
         panelYaml
-      });
+      }, sendGrafanaBundleExport);
       const suffix =
         files.length > 0 ? ` (${files.map((file) => file.split("/").pop()).join(", ")})` : "";
       setExportStatus({

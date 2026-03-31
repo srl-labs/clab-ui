@@ -25,7 +25,7 @@ No wrapper packages are published separately. Consumers should stay on the expli
 ## Local publish (manual)
 
 ```bash
-cd /home/flschwar/projects/clab/containerlab-gui
+cd /home/flschwar/projects/clab/clab-ui
 npm install
 npm run typecheck
 npm run publish:ui

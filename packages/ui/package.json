@@ -9,6 +9,15 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srl-labs/clab-ui.git",
+    "directory": "packages/ui"
+  },
+  "homepage": "https://github.com/srl-labs/clab-ui",
+  "bugs": {
+    "url": "https://github.com/srl-labs/clab-ui/issues"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

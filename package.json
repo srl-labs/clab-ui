@@ -1,9 +1,17 @@
 {
-  "name": "containerlab-gui-workspace",
+  "name": "clab-ui-workspace",
   "version": "0.0.1",
   "private": true,
-  "description": "Workspace for shared containerlab UI packages",
+  "description": "Workspace for the shared clab-ui package and standalone host",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/srl-labs/clab-ui.git"
+  },
+  "homepage": "https://github.com/srl-labs/clab-ui",
+  "bugs": {
+    "url": "https://github.com/srl-labs/clab-ui/issues"
+  },
   "engines": {
     "node": ">=24.0.0"
   },

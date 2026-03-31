@@ -1,10 +1,10 @@
-# containerlab-gui
+# clab-ui
 
 Shared UI workspace for containerlab webviews and topology editing.
 
 Primary consumer today: [`vscode-containerlab`](https://github.com/srl-labs/vscode-containerlab).
 
-![containerlab-gui screenshot](resources/screenshot.png)
+![clab-ui screenshot](resources/screenshot.png)
 
 ---
 
@@ -186,6 +186,6 @@ Detailed steps: [`PUBLISHING.md`](PUBLISHING.md)
 
 ## Standalone Runtime
 
-The standalone browser experience is the supported local development runtime for `containerlab-gui`.
+The standalone browser experience is the supported local development runtime for `clab-ui`.
 
 It uses the same browser-side host contract as VS Code, with only platform-specific differences in backend transport and shell behavior.

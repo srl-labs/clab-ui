@@ -1,9 +1,16 @@
 {
-  "name": "clab-ui-workspace",
-  "version": "0.0.1",
-  "private": true,
-  "description": "Workspace for the shared clab-ui package and standalone host",
+  "name": "@srl-labs/clab-ui",
+  "version": "0.0.18",
+  "private": false,
+  "description": "Shared UI package for containerlab webviews and topology editing.",
   "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/srl-labs/clab-ui.git"
@@ -15,37 +22,81 @@
   "engines": {
     "node": ">=24.0.0"
   },
-  "workspaces": [
-    "packages/*",
-    "apps/standalone"
-  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./host": {
+      "types": "./dist/host/index.d.ts",
+      "import": "./dist/host/index.js"
+    },
+    "./session": {
+      "types": "./dist/session/index.d.ts",
+      "import": "./dist/session/index.js"
+    },
+    "./theme": {
+      "types": "./dist/theme/index.d.ts",
+      "import": "./dist/theme/index.js"
+    },
+    "./explorer": {
+      "types": "./dist/explorer/index.d.ts",
+      "import": "./dist/explorer/index.js"
+    },
+    "./inspect": {
+      "types": "./dist/inspect/index.d.ts",
+      "import": "./dist/inspect/index.js"
+    },
+    "./welcome": {
+      "types": "./dist/welcome/index.d.ts",
+      "import": "./dist/welcome/index.js"
+    },
+    "./node-impairments": {
+      "types": "./dist/node-impairments/index.d.ts",
+      "import": "./dist/node-impairments/index.js"
+    },
+    "./wireshark-vnc": {
+      "types": "./dist/wireshark-vnc/index.d.ts",
+      "import": "./dist/wireshark-vnc/index.js"
+    },
+    "./styles/global.css": "./dist/styles/global.css"
+  },
   "scripts": {
-    "dev": "npm run dev --workspace=@srl-labs/clab-standalone",
-    "build": "node esbuild.config.js",
-    "build:watch": "node esbuild.config.js --dev",
-    "build:dev": "node esbuild.config.js --dev",
-    "build:ui-package": "npm run build --workspace=@srl-labs/clab-ui",
-    "typecheck": "npm run build:ui-package && tsc --noEmit",
+    "build": "node ./build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "npm run typecheck && npm run lint:ts",
     "lint:ts": "oxlint --import-plugin --react-plugin --jsx-a11y-plugin .",
     "lint:ts:fix": "oxlint --import-plugin --react-plugin --jsx-a11y-plugin . --fix --fix-suggestions",
-    "test:unit": "npm run build:ui-package && node --import tsx --test apps/standalone/src/**/*.test.ts packages/ui/src/**/*.test.ts",
-    "test:e2e": "playwright test --config test/e2e/playwright.config.ts",
-    "test:e2e:ui": "playwright test --config test/e2e/playwright.config.ts --ui",
-    "test:e2e:debug": "playwright test --config test/e2e/playwright.config.ts --debug",
-    "pack:preview": "npm pack --dry-run --workspace=@srl-labs/clab-ui",
-    "publish:ui": "npm publish --workspace=@srl-labs/clab-ui",
-    "prepack": "npm run build",
-    "dev:standalone": "npm run build:ui-package && npm run dev --workspace=@srl-labs/clab-standalone",
-    "build:standalone": "npm run build:ui-package && npm run build --workspace=@srl-labs/clab-standalone",
-    "start:standalone": "npm run start --workspace=@srl-labs/clab-standalone"
+    "test:unit": "node --import tsx --test src/**/*.test.ts src/**/*.test.tsx",
+    "pack:preview": "npm pack --dry-run",
+    "publish:ui": "npm publish",
+    "prepack": "npm run build"
   },
-  "devDependencies": {
+  "peerDependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
+  "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@fontsource/roboto": "^5.2.9",
     "@mui/icons-material": "^7.3.8",
     "@mui/material": "^7.3.8",
-    "@playwright/test": "^1.58.2",
+    "@mui/x-charts": "^8.27.0",
+    "@mui/x-tree-view": "^8.27.1",
+    "@xyflow/react": "^12.10.0",
+    "ajv": "^8.18.0",
+    "d3-force": "^3.0.0",
+    "dompurify": "^3.3.1",
+    "highlight.js": "^11.11.1",
+    "maplibre-gl": "^5.18.0",
+    "markdown-it": "^14.1.1",
+    "markdown-it-emoji": "^3.0.0",
+    "monaco-editor": "^0.55.1",
+    "yaml": "^2.8.2",
+    "zustand": "^4.5.7"
+  },
+  "devDependencies": {
     "@types/d3-force": "^3.0.10",
     "@types/markdown-it": "^14.1.2",
     "@types/markdown-it-emoji": "^3.0.1",
@@ -53,20 +104,16 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/vscode": "^1.99.0",
-    "@vitejs/plugin-react": "^5.1.4",
-    "ajv": "^8.18.0",
-    "autoprefixer": "^10.4.24",
     "esbuild": "^0.27.3",
-    "monaco-editor": "^0.55.1",
     "oxlint": "^1.55.0",
     "oxlint-tsgolint": "^0.18.1",
-    "postcss": "^8.5.6",
-    "postcss-cli": "^11.0.1",
-    "postcss-import": "^16.1.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "typescript": "^5.9.3",
-    "vite": "^7.3.1",
-    "yaml": "^2.8.2"
+    "tsx": "^4.19.4",
+    "typescript": "^5.9.3"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
   }
 }

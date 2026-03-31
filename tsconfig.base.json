@@ -14,11 +14,11 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@webview/*": ["./packages/ui/src/*"],
-      "@webviews/*": ["./packages/ui/src/webviews/*"],
-      "@shared/*": ["./packages/ui/src/core/*"],
-      "@srl-labs/clab-ui": ["./packages/ui/src/index.ts"],
-      "@srl-labs/clab-ui/*": ["./packages/ui/src/*"]
+      "@webview/*": ["./src/*"],
+      "@webviews/*": ["./src/webviews/*"],
+      "@shared/*": ["./src/core/*"],
+      "@srl-labs/clab-ui": ["./src/index.ts"],
+      "@srl-labs/clab-ui/*": ["./src/*"]
     }
   }
 }

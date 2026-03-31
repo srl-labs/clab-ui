@@ -10,7 +10,7 @@ const distDir = path.join(__dirname, "dist");
 const cssSource = path.join(__dirname, "src/styles/global.css");
 const cssOutput = path.join(distDir, "styles/global.css");
 const packageJsonPath = path.join(__dirname, "package.json");
-const tscBin = path.join(__dirname, "../../node_modules/typescript/bin/tsc");
+const tscBin = path.join(__dirname, "node_modules/typescript/bin/tsc");
 const copiedCssAssets = [
   {
     from: path.join(__dirname, "src/components/canvas/nodes/FreeTextNode.css"),

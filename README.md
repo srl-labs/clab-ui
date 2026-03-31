@@ -1,47 +1,25 @@
 # clab-ui
 
-Shared UI workspace for containerlab webviews and topology editing.
+Shared UI package for containerlab webviews and topology editing.
 
-Primary consumer today: [`vscode-containerlab`](https://github.com/srl-labs/vscode-containerlab).
+Consumers:
 
-![clab-ui screenshot](resources/screenshot.png)
-
----
+- [`vscode-containerlab`](https://github.com/srl-labs/vscode-containerlab)
+- [`containerlab-web`](https://github.com/srl-labs/containerlab-web)
 
 ## What This Repo Contains
 
-- React UI and topology editing logic used by containerlab webviews
-- Shared parsing/core utilities used by the extension host
-- A standalone-backed local development flow (`npm run dev`) that exercises the real browser/runtime integration
-- Build tooling that produces webview-ready assets in `dist/`
+- React UI and topology editing logic used by containerlab consumers
+- Shared parsing, host, session, and runtime helpers
+- Package build tooling that emits the published `dist/` output
 
----
-
-## Key Features
-
-- **TopoViewer editing:** create/delete nodes and links, drag/drop layout, undo/redo, copy/paste, and box selection
-- **Rich annotations:** groups, free text, free shapes, endpoint label offsets, traffic-rate overlays, and geolocation layout helpers
-- **Context-driven editors:** node, link, network, group, and lab settings editors with schema-aware forms
-- **Operational helpers:** find node, grid controls, dummy link display, and quick context menu actions
-- **Export paths:** SVG export and Grafana-oriented export helpers
-- **Extra webviews:** explorer, inspect, welcome page, node impairments, and Wireshark VNC
-
----
-
-## Current Status
-
-| Component | Package | Status | Notes |
-| --- | --- | --- | --- |
-| Main UI package | `@srl-labs/clab-ui` | Published | Owns the shared browser-side host contract and constructors |
-| Standalone app | `@srl-labs/clab-standalone` | Workspace app | Local dev/runtime host backed by the API proxy server |
-
----
+This repository no longer contains the standalone browser host. That runtime
+now lives in `containerlab-web`.
 
 ## Requirements
 
 - Node.js `>= 24`
 - npm
-- For E2E tests: Playwright Chromium browser
 
 Install dependencies:
 
@@ -49,82 +27,20 @@ Install dependencies:
 npm install
 ```
 
-Install Playwright browser once (only needed for E2E):
-
-```bash
-npx playwright install chromium
-```
-
----
-
-## Getting Started
-
-Start the standalone-backed dev flow:
-
-```bash
-npm run dev
-```
-
-Then open `http://localhost:5173`.
-
-Local dev runtime model:
-
-- Browser frontend served by the standalone Vite app
-- Fastify backend proxy for auth, topology snapshot/command, files, and lifecycle actions
-- Shared `ClabUiHost` contract used by both standalone and VS Code webviews through explicit per-viewer runtimes
-
----
-
 ## Common Commands
 
 | Command | Description |
 | --- | --- |
-| `npm run dev` | Run the standalone-backed local development flow |
-| `npm run build` | Build production webview assets into `dist/` |
-| `npm run build:watch` | Build in dev mode (inline sourcemaps, no minify) |
-| `npm run build:dev` | Build in dev mode (same output profile as `build:watch`) |
+| `npm run build` | Build the published package into `dist/` |
 | `npm run typecheck` | Run TypeScript checks |
 | `npm run lint` | Typecheck + `oxlint` |
-| `npm run lint:ts` | Run `oxlint` only |
-| `npm run lint:ts:fix` | Run `oxlint` with fixes |
-| `npm run test:e2e` | Run Playwright E2E suite |
-| `npm run test:e2e:ui` | Run Playwright in UI mode |
-| `npm run test:e2e:debug` | Run Playwright in debug mode |
-| `npm run pack:preview` | Preview package contents for `@srl-labs/clab-ui` |
-| `npm run publish:ui` | Publish `@srl-labs/clab-ui` manually (requires registry auth) |
+| `npm run test:unit` | Run package unit tests |
+| `npm run pack:preview` | Preview package contents |
+| `npm run publish:ui` | Publish `@srl-labs/clab-ui` manually |
 
-Run a single E2E file:
+## Public Package Surface
 
-```bash
-npm run test:e2e -- test/e2e/specs/node-creation.spec.ts
-```
-
----
-
-## Build Outputs
-
-`npm run build` writes `dist/` with:
-
-- `reactTopoViewerWebview.js`
-- `containerlabExplorerView.js`
-- `welcomePageWebview.js`
-- `inspectWebview.js`
-- `nodeImpairmentsWebview.js`
-- `wiresharkVncWebview.js`
-- `reactTopoViewerStyles.css`
-- `monaco-editor-worker.js`
-- `monaco-json-worker.js`
-- `maplibre-gl-csp-worker.js`
-- `manifest.json` (logical asset IDs -> output files)
-- `index.js` / `index.d.ts` helpers (`getWebviewAssetManifest()`, `resolveAssetPath(assetId)`)
-
----
-
-## Package Surfaces
-
-Published package: `@srl-labs/clab-ui`
-
-Frequently used exports:
+Supported exports:
 
 - `@srl-labs/clab-ui`
 - `@srl-labs/clab-ui/host`
@@ -137,55 +53,31 @@ Frequently used exports:
 - `@srl-labs/clab-ui/wireshark-vnc`
 - `@srl-labs/clab-ui/styles/global.css`
 
-Notes:
+Deep `core/*`, `services/*`, and `src/*` imports are not part of the supported
+public API.
 
-- Browser runtime integration is exposed from `@srl-labs/clab-ui/host`.
-- Deep `core/*`, `services/*`, and `src/*` imports are no longer part of the supported public surface.
+## Local Consumer Workflow
 
----
+When another local repo wants to consume this checkout directly, build it first:
 
-## Host Integration
-
-The UI is mounted with an explicit runtime object instead of a process-global host singleton:
-
-```ts
-import { App } from "@srl-labs/clab-ui";
-import { createClabUiRuntime, createWindowClabUiHost } from "@srl-labs/clab-ui/host";
-
-const runtime = createClabUiRuntime({
-  host: createWindowClabUiHost()
-});
-
-<App initialData={initialData} runtime={runtime} />;
+```bash
+npm install
+npm run build
 ```
 
----
-
-## Troubleshooting
-
-- `npm install` fails with engine mismatch: ensure Node `>= 24` (`node -v`).
-- Playwright tests fail before opening a browser: run `npx playwright install chromium`.
-- Local dev flow cannot reach the backend: ensure the standalone dev server on `http://localhost:3000` is starting successfully.
-
----
+`vscode-containerlab` can then opt into its local override mode and resolve
+against this repo's `dist/` output.
 
 ## Publishing
 
-`@srl-labs/clab-ui` is published to GitHub Packages through `.github/workflows/publish-package.yml`.
+`@srl-labs/clab-ui` is published to GitHub Packages through
+`.github/workflows/publish-package.yml`.
 
 Release flow:
 
-1. Bump `packages/ui/package.json` version.
+1. Bump `package.json` version.
 2. Commit and push.
-3. Create a tag `v<version>` matching the package version.
+3. Create tag `v<version>` matching the package version.
 4. Push the tag to trigger publish.
 
 Detailed steps: [`PUBLISHING.md`](PUBLISHING.md)
-
----
-
-## Standalone Runtime
-
-The standalone browser experience is the supported local development runtime for `clab-ui`.
-
-It uses the same browser-side host contract as VS Code, with only platform-specific differences in backend transport and shell behavior.

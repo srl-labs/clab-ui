@@ -4,6 +4,21 @@ export interface VarMap {
   [cssVar: string]: string;
 }
 
+const CLAB_UI_VAR_ALIASES = {
+  "--clab-ui-editor-background": "--vscode-editor-background",
+  "--clab-ui-editor-foreground": "--vscode-editor-foreground",
+  "--clab-ui-panel-background": "--vscode-sideBar-background",
+  "--clab-ui-panel-border": "--vscode-panel-border",
+  "--clab-ui-button-background": "--vscode-button-background",
+  "--clab-ui-button-foreground": "--vscode-button-foreground",
+  "--clab-ui-input-background": "--vscode-input-background",
+  "--clab-ui-input-foreground": "--vscode-input-foreground",
+  "--clab-ui-input-border": "--vscode-input-border",
+  "--clab-ui-focus-border": "--vscode-focusBorder",
+  "--clab-ui-font-family": "--vscode-font-family",
+  "--clab-ui-font-size": "--vscode-font-size"
+} as const;
+
 // Dark palette
 export const DARK_VARS: VarMap = {
   "--vscode-editor-background": "#1e1e1e",
@@ -173,10 +188,24 @@ export const LIGHT_VARS: VarMap = {
 };
 
 // Apply CSS variable map as inline styles on <html> for dev mode.
-export function applyDevVars(mode: "light" | "dark"): void {
+function applyAliasVars(root: HTMLElement, vars: VarMap): void {
+  for (const [alias, source] of Object.entries(CLAB_UI_VAR_ALIASES)) {
+    const value = vars[source];
+    if (typeof value === "string" && value.length > 0) {
+      root.style.setProperty(alias, value);
+    }
+  }
+}
+
+export function applyThemeVars(mode: "light" | "dark"): void {
   const vars = mode === "light" ? LIGHT_VARS : DARK_VARS;
   const root = document.documentElement;
   for (const [key, value] of Object.entries(vars)) {
     root.style.setProperty(key, value);
   }
+  applyAliasVars(root, vars);
+}
+
+export function applyDevVars(mode: "light" | "dark"): void {
+  applyThemeVars(mode);
 }

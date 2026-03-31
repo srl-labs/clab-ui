@@ -2,16 +2,16 @@
 // Palette values are CSS var() references — VS Code swaps them for light/dark.
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
 
-const BUTTON_BACKGROUND = "var(--vscode-button-background)";
+const BUTTON_BACKGROUND = "var(--clab-ui-button-background, var(--vscode-button-background))";
 const BUTTON_SECONDARY_BACKGROUND = "var(--vscode-button-secondaryBackground)";
 const EDITOR_ERROR_FOREGROUND = "var(--vscode-editorError-foreground)";
 const EDITOR_WARNING_FOREGROUND = "var(--vscode-editorWarning-foreground)";
 const EDITOR_INFO_FOREGROUND = "var(--vscode-editorInfo-foreground)";
 const TESTING_ICON_PASSED = "var(--vscode-testing-iconPassed, var(--vscode-charts-green))";
-const FOCUS_BORDER = "var(--vscode-focusBorder)";
+const FOCUS_BORDER = "var(--clab-ui-focus-border, var(--vscode-focusBorder))";
 const EXPLORER_FONT_FAMILY =
-  "var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif)";
-const EXPLORER_FONT_SIZE = "var(--vscode-font-size, 13px)";
+  "var(--clab-ui-font-family, var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif))";
+const EXPLORER_FONT_SIZE = "var(--clab-ui-font-size, var(--vscode-font-size, 13px))";
 const EXPLORER_SCOPE_SELECTORS = [
   "body[data-webview-kind='containerlab-explorer']",
   ".containerlab-explorer-root"
@@ -30,13 +30,13 @@ const buildPaletteColor = (main: string, contrastText: string) => ({
 // Palette — single source of truth for all colors.
 // dark/light repeat main to prevent createTheme from deriving them (crashes on CSS vars).
 export const vscodePalette = {
-  divider: "var(--vscode-panel-border)",
+  divider: "var(--clab-ui-panel-border, var(--vscode-panel-border))",
   background: {
-    default: "var(--vscode-editor-background)",
-    paper: "var(--vscode-sideBar-background)"
+    default: "var(--clab-ui-editor-background, var(--vscode-editor-background))",
+    paper: "var(--clab-ui-panel-background, var(--vscode-sideBar-background))"
   },
   text: {
-    primary: "var(--vscode-foreground)",
+    primary: "var(--clab-ui-editor-foreground, var(--vscode-foreground))",
     secondary: "var(--vscode-descriptionForeground)",
     disabled: "var(--vscode-disabledForeground)"
   },
@@ -71,6 +71,18 @@ export const structuralOverrides: NonNullable<ThemeOptions["components"]> = {
     styleOverrides: {
       // Bridge vars for non-MUI components (React Flow canvas)
       ":root": {
+        "--clab-ui-editor-background": "var(--vscode-editor-background)",
+        "--clab-ui-editor-foreground": "var(--vscode-editor-foreground)",
+        "--clab-ui-panel-background": "var(--vscode-sideBar-background)",
+        "--clab-ui-panel-border": "var(--vscode-panel-border)",
+        "--clab-ui-button-background": "var(--vscode-button-background)",
+        "--clab-ui-button-foreground": "var(--vscode-button-foreground)",
+        "--clab-ui-input-background": "var(--vscode-input-background)",
+        "--clab-ui-input-foreground": "var(--vscode-input-foreground)",
+        "--clab-ui-input-border": "var(--vscode-input-border)",
+        "--clab-ui-focus-border": "var(--vscode-focusBorder)",
+        "--clab-ui-font-family": "var(--vscode-font-family)",
+        "--clab-ui-font-size": "var(--vscode-font-size)",
         "--topoviewer-surface-panel": vscodePalette.background.paper,
         "--topoviewer-surface-elevated": vscodePalette.background.paper,
         "--topoviewer-grid-color": vscodePalette.divider,

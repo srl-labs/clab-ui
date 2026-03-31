@@ -15,9 +15,6 @@ export default defineConfig({
     alias: {
       react: path.resolve(nodeModules, "react"),
       "react-dom": path.resolve(nodeModules, "react-dom"),
-      "@webview": path.resolve(root, "packages/ui/src"),
-      "@webviews": path.resolve(root, "packages/ui/src/webviews"),
-      "@shared": path.resolve(root, "packages/ui/src/core"),
       "@srl-labs/clab-ui": path.resolve(root, "packages/ui/src")
     },
     dedupe: ["react", "react-dom"]

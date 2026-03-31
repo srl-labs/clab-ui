@@ -29,7 +29,10 @@ function detectColorMode(): "light" | "dark" {
     return document.documentElement.classList.contains("light") ? "light" : "dark";
   }
 
-  const bg = getCssVar("--vscode-editor-background", "#1e1e1e");
+  const bg = getCssVar(
+    "--clab-ui-editor-background",
+    getCssVar("--vscode-editor-background", "#1e1e1e")
+  );
   const lum = parseLuminance(bg);
   if (lum !== null) return lum > 0.5 ? "light" : "dark";
   return "dark";
@@ -86,8 +89,7 @@ const DEV_MONACO_COLORS = {
 } as const;
 
 function isDevMock(): boolean {
-  const vsc = Reflect.get(window, "vscode");
-  return isObj(vsc) && Reflect.get(vsc, "__isDevMock__") === true;
+  return getConfiguredClabUiHost()?.meta?.isDevMock === true;
 }
 
 function applyVscodeThemeToMonaco(): void {
@@ -99,8 +101,12 @@ function applyVscodeThemeToMonaco(): void {
   // hold the *previous* theme's values when the MutationObserver fires.
   // Use hardcoded colours keyed off the detected mode instead.
   const dev = isDevMock();
-  const background = dev ? c.bg : getCssVar("--vscode-editor-background", c.bg);
-  const foreground = dev ? c.fg : getCssVar("--vscode-editor-foreground", c.fg);
+  const background = dev
+    ? c.bg
+    : getCssVar("--clab-ui-editor-background", getCssVar("--vscode-editor-background", c.bg));
+  const foreground = dev
+    ? c.fg
+    : getCssVar("--clab-ui-editor-foreground", getCssVar("--vscode-editor-foreground", c.fg));
   const selection = dev ? c.sel : getCssVar("--vscode-editor-selectionBackground", c.sel);
   const inactiveSelection = dev
     ? c.inactiveSel

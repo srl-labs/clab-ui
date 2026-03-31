@@ -2,7 +2,7 @@ import type {
   HostRuntimeContainer,
   HostRuntimeInterface,
   HostRuntimeInterfaceStats
-} from "@webview/services/topologyHostClient";
+} from "@srl-labs/clab-ui/host";
 import type { ContainerState, InterfaceState, LabState } from "./stores/labStore";
 
 function findLabState(

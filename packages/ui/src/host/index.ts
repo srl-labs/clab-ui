@@ -9,6 +9,7 @@ import type {
   ExplorerUiState
 } from "../explorer/shared/explorer/types";
 import { TOPOLOGY_HOST_PROTOCOL_VERSION } from "../core/types/messages";
+export * from "./controllers";
 
 export type TopoViewerLifecycleAction =
   | "deployLab"
@@ -209,6 +210,7 @@ interface WindowHostOptions {
   explorer?: ClabUiExplorerHost;
   topoViewer?: ClabUiTopoViewerHost;
   topology?: ClabUiHost["topology"];
+  meta?: ClabUiHost["meta"];
 }
 
 interface ApiHostOptions extends WindowHostOptions {
@@ -602,8 +604,10 @@ export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiH
     postMessage,
     subscribe,
     meta: {
-      isDevMock: resolvedVsCodeApi?.__isDevMock__ === true,
-      disableDevMockTraffic: resolvedVsCodeApi?.__disableDevMockTraffic__ === true
+      isDevMock: options.meta?.isDevMock ?? resolvedVsCodeApi?.__isDevMock__ === true,
+      disableDevMockTraffic:
+        options.meta?.disableDevMockTraffic ??
+        resolvedVsCodeApi?.__disableDevMockTraffic__ === true
     },
     explorer,
     topoViewer,

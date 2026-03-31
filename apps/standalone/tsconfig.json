@@ -5,8 +5,6 @@
     "rootDir": "src",
     "jsx": "react-jsx",
     "paths": {
-      "@webview/*": ["../../packages/ui/src/*"],
-      "@shared/*": ["../../packages/ui/src/core/*"],
       "@srl-labs/clab-ui": ["../../packages/ui/src"],
       "@srl-labs/clab-ui/*": ["../../packages/ui/src/*"]
     }

@@ -56,6 +56,10 @@ Supported exports:
 Deep `core/*`, `services/*`, and `src/*` imports are not part of the supported
 public API.
 
+Integrator-facing guidance for these exports lives in
+[`INTEGRATORS.md`](INTEGRATORS.md). If you are embedding this package into your
+own app, start there.
+
 ## Local Consumer Workflow
 
 When another local repo wants to consume this checkout directly, build it first:

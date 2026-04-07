@@ -114,15 +114,15 @@ export const structuralOverrides: NonNullable<ThemeOptions["components"]> = {
       [explorerScopedSelector(" .explorer-node-label")]: {
         fontSize: EXPLORER_FONT_SIZE,
         fontWeight: 500,
-        lineHeight: 1.15
+        lineHeight: 1.2
       },
       [explorerScopedSelector(" .explorer-node-inline-icon")]: {
-        fontSize: "15px",
+        fontSize: "14px",
         flex: "0 0 auto"
       },
       [explorerScopedSelector(" .explorer-node-inline-icon-button")]: {
-        width: 20,
-        height: 20,
+        width: 18,
+        height: 18,
         padding: 0,
         color: "inherit"
       },
@@ -133,9 +133,12 @@ export const structuralOverrides: NonNullable<ThemeOptions["components"]> = {
         color: "var(--vscode-icon-foreground, var(--vscode-foreground))"
       },
       [explorerScopedSelector(" .explorer-section-title")]: {
-        fontSize: EXPLORER_FONT_SIZE,
-        fontWeight: 500,
-        lineHeight: 1.2
+        fontSize: "10.5px",
+        fontWeight: 700,
+        lineHeight: 1.2,
+        letterSpacing: "0.09em",
+        textTransform: "uppercase",
+        color: "var(--vscode-descriptionForeground)"
       },
       "@keyframes shortcutFade": {
         "0%": { opacity: 0, transform: "translateY(8px) scale(0.95)" },

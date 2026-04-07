@@ -27,6 +27,8 @@ export interface ExplorerNode {
   description?: string;
   tooltip?: string;
   contextValue?: string;
+  endpointId?: string;
+  state?: string;
   statusIndicator?: "green" | "red" | "yellow" | "blue" | "gray";
   statusDescription?: string;
   primaryAction?: ExplorerAction;
@@ -39,6 +41,7 @@ export interface ExplorerSectionSnapshot {
   id: ExplorerSectionId;
   label: string;
   count: number;
+  appearance?: "default" | "bareTree";
   nodes: ExplorerNode[];
   toolbarActions: ExplorerAction[];
 }

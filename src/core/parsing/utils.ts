@@ -75,7 +75,7 @@ export function extractIconVisuals(nodeAnn: NodeAnnotation | undefined): Record<
 export function sanitizeLabels(
   labels: Record<string, unknown> | undefined
 ): Record<string, unknown> {
-  const cleaned = { ...(labels ?? {}) };
+  const cleaned = { ...labels };
   delete cleaned["graph-posX"];
   delete cleaned["graph-posY"];
   delete cleaned["graph-icon"];

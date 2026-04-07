@@ -428,7 +428,7 @@ export class TopologyHostCore implements TopologyHost {
         await this.annotationsIO.modifyAnnotations(this.yamlFilePath, (current) => ({
           ...current,
           viewerSettings: {
-            ...(current.viewerSettings ?? {}),
+            ...current.viewerSettings,
             ...command.payload
           }
         }));
@@ -1287,7 +1287,7 @@ function mergeAnnotationsPayload(
   const merged: TopologyAnnotations = { ...current, ...annotations };
   if (annotations.viewerSettings) {
     merged.viewerSettings = {
-      ...(current.viewerSettings ?? {}),
+      ...current.viewerSettings,
       ...annotations.viewerSettings
     };
   }

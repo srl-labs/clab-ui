@@ -94,10 +94,14 @@ const DEFAULT_EXPANDED_SECTIONS = new Set<ExplorerSectionId>([
   "localLabs",
   "helpFeedback"
 ]);
-const TREE_DEPTH_INDENT = 1.6;
-const TREE_DISCLOSURE_SLOT_PX = 14;
-const TREE_ROW_GAP = 0.3;
-const NODE_MARKER_SLOT_PX = 14;
+const TREE_DEPTH_INDENT = 1.25;
+const TREE_DISCLOSURE_SLOT_PX = 16;
+const TREE_ROW_GAP = 0.2;
+const NODE_MARKER_SLOT_PX = 13;
+const SECTION_HEADER_HEIGHT_PX = 24;
+const TREE_ROW_HEIGHT_PX = 22;
+const TREE_SECTION_ROW_HEIGHT_PX = 22;
+const TREE_ENDPOINT_ROW_HEIGHT_PX = 24;
 const RESIZE_DIVIDER_HEIGHT_PX = 4;
 const MIN_SECTION_BODY_HEIGHT_PX = 40;
 const FIXED_HEIGHT_SECTIONS: ReadonlySet<ExplorerSectionId> = new Set(["helpFeedback"]);
@@ -429,11 +433,35 @@ function statusColor(indicator: string | undefined): string {
   return STATUS_COLOR_MAP[indicator] || COLOR_TEXT_DISABLED;
 }
 
-function formatSectionTitle(section: ExplorerSectionSnapshot): string {
-  if (section.id === "helpFeedback") {
-    return section.label;
+function indicatorThemeColor(theme: Theme, indicator: ExplorerNode["statusIndicator"]): string {
+  switch (indicator) {
+    case "green":
+      return theme.palette.success.main;
+    case "red":
+      return theme.palette.error.main;
+    case "yellow":
+      return theme.palette.warning.main;
+    case "blue":
+      return theme.palette.info.main;
+    default:
+      return theme.palette.text.disabled;
   }
-  return `${section.label} (${section.count})`;
+}
+
+function formatSectionTitle(section: ExplorerSectionSnapshot): string {
+  return section.label;
+}
+
+function showSectionCount(section: ExplorerSectionSnapshot): boolean {
+  return section.id !== "helpFeedback";
+}
+
+function isBareTreeSection(section: ExplorerSectionSnapshot): boolean {
+  return section.appearance === "bareTree";
+}
+
+function sectionHeaderHeight(section: ExplorerSectionSnapshot): number {
+  return isBareTreeSection(section) ? 0 : SECTION_HEADER_HEIGHT_PX;
 }
 
 function flattenNodeIds(nodes: ExplorerNode[]): string[] {
@@ -515,6 +543,48 @@ function nodeKindFromContext(contextValue: string | undefined): ExplorerNodeKind
   return "other";
 }
 
+function isEndpointNode(contextValue: string | undefined): boolean {
+  return contextValue === "containerlabEndpoint";
+}
+
+function isEndpointSectionNode(contextValue: string | undefined): boolean {
+  return (
+    contextValue === "containerlabEndpointSectionRunning" ||
+    contextValue === "containerlabEndpointSectionLocal"
+  );
+}
+
+function isEndpointDisconnectedNode(contextValue: string | undefined): boolean {
+  return contextValue === "containerlabEndpointDisconnected";
+}
+
+function endpointStatusLabel(
+  state: ExplorerNode["state"],
+  indicator: ExplorerNode["statusIndicator"]
+): string {
+  switch (String(state ?? "").toLowerCase()) {
+    case "connected":
+      return "connected";
+    case "session_expired":
+      return "expired";
+    case "offline":
+      return "offline";
+    case "saved":
+      return "saved";
+    default:
+      switch (indicator) {
+        case "green":
+          return "connected";
+        case "red":
+          return "disconnected";
+        case "yellow":
+          return "degraded";
+        default:
+          return "unknown";
+      }
+  }
+}
+
 function isFavoriteLabNode(contextValue: string | undefined): boolean {
   return (
     typeof contextValue === "string" &&
@@ -525,6 +595,117 @@ function isFavoriteLabNode(contextValue: string | undefined): boolean {
 
 function isSharedLabNode(node: ExplorerNode): boolean {
   return Boolean(node.shareAction);
+}
+
+function endpointRowHeight(isEndpointRoot: boolean, isEndpointSection: boolean): number {
+  if (isEndpointRoot) {
+    return TREE_ENDPOINT_ROW_HEIGHT_PX;
+  }
+  if (isEndpointSection) {
+    return TREE_SECTION_ROW_HEIGHT_PX;
+  }
+  return TREE_ROW_HEIGHT_PX;
+}
+
+function explorerNodeLabelColor({
+  isEndpointRoot,
+  isEndpointSection,
+  isDisconnectedPlaceholder
+}: {
+  isEndpointRoot: boolean;
+  isEndpointSection: boolean;
+  isDisconnectedPlaceholder: boolean;
+}): string | undefined {
+  if (isDisconnectedPlaceholder || isEndpointSection) {
+    return COLOR_TEXT_SECONDARY;
+  }
+  if (isEndpointRoot) {
+    return COLOR_TEXT_PRIMARY;
+  }
+  return undefined;
+}
+
+function endpointStatusText(node: ExplorerNode, isEndpointRoot: boolean): string | null {
+  if (!isEndpointRoot) {
+    return null;
+  }
+  return endpointStatusLabel(node.state, node.statusIndicator);
+}
+
+function endpointDescriptionText(
+  secondaryText: string | undefined,
+  isEndpointRoot: boolean
+): string | null {
+  if (!isEndpointRoot || !secondaryText || secondaryText.trim().length === 0) {
+    return null;
+  }
+  return secondaryText;
+}
+
+interface ExplorerNodeDisplayFlags {
+  inlineContainerStatus: string | undefined;
+  showSecondaryLine: boolean;
+  showStatusDot: boolean;
+  showFavoriteIcon: boolean;
+  showSharedIcon: boolean;
+}
+
+function deriveExplorerNodeDisplayFlags(
+  node: ExplorerNode,
+  secondaryText: string | undefined,
+  isEndpointRoot: boolean,
+  isEndpointSection: boolean,
+  isDisconnectedPlaceholder: boolean
+): ExplorerNodeDisplayFlags {
+  const isContainer =
+    node.contextValue === "containerlabContainer" || node.contextValue === "containerlabContainerGroup";
+  const isInterface =
+    node.contextValue === "containerlabInterfaceUp" || node.contextValue === "containerlabInterfaceDown";
+  return {
+    inlineContainerStatus: isContainer ? secondaryText?.trim() : undefined,
+    showSecondaryLine:
+      Boolean(secondaryText) &&
+      !isContainer &&
+      !isInterface &&
+      !isEndpointRoot &&
+      !isEndpointSection &&
+      !isDisconnectedPlaceholder,
+    showStatusDot: Boolean(node.statusIndicator) && !isInterface && !isEndpointRoot && !isDisconnectedPlaceholder,
+    showFavoriteIcon: isFavoriteLabNode(node.contextValue),
+    showSharedIcon: isSharedLabNode(node)
+  };
+}
+
+interface ExplorerEndpointQuickActions {
+  newTopologyAction: ExplorerAction | undefined;
+  cloneRepoAction: ExplorerAction | undefined;
+  reconnectAction: ExplorerAction | undefined;
+}
+
+function resolveEndpointQuickActions(
+  actions: readonly ExplorerAction[],
+  isEndpointRoot: boolean,
+  isEndpointConnected: boolean
+): ExplorerEndpointQuickActions {
+  if (!isEndpointRoot) {
+    return {
+      newTopologyAction: undefined,
+      cloneRepoAction: undefined,
+      reconnectAction: undefined
+    };
+  }
+  if (isEndpointConnected) {
+    return {
+      newTopologyAction: actions.find((action) => action.commandId === "containerlab.editor.topoViewerEditor"),
+      cloneRepoAction: actions.find((action) => action.commandId === "containerlab.lab.cloneRepo"),
+      reconnectAction: undefined
+    };
+  }
+  return {
+    newTopologyAction: undefined,
+    cloneRepoAction: undefined,
+    reconnectAction: actions.find((action) => action.commandId === "containerlab.endpoint.reconnect")
+  };
 }
 
 function actionIcon(action: ExplorerAction): SvgIconComponent {
@@ -716,6 +897,9 @@ function nodeLeadingIcon(
   }
 
   const context = node.contextValue;
+  if (isEndpointNode(context)) {
+    return { Icon: SettingsEthernetIcon, color: COLOR_TEXT_SECONDARY };
+  }
   if (context === "containerlabInterfaceUp") {
     return { Icon: SettingsEthernetIcon, color: "success.main" };
   }
@@ -987,6 +1171,9 @@ function useShareActionHandler(
 interface ExplorerNodeTextBlockProps {
   node: ExplorerNode;
   hasEntryTooltip: boolean;
+  isEndpointRoot: boolean;
+  isEndpointSection: boolean;
+  isDisconnectedPlaceholder: boolean;
   leadingIcon: ReturnType<typeof nodeLeadingIcon>;
   showStatusDot: boolean;
   showFavoriteIcon: boolean;
@@ -998,9 +1185,273 @@ interface ExplorerNodeTextBlockProps {
   handleShareAction: (event: MouseEvent<HTMLElement>) => void;
 }
 
+interface ExplorerNodeMarkerProps {
+  leadingIcon: ReturnType<typeof nodeLeadingIcon>;
+  isEndpointRoot: boolean;
+  showStatusDot: boolean;
+  statusIndicator: ExplorerNode["statusIndicator"];
+}
+
+function ExplorerNodeMarker({
+  leadingIcon,
+  isEndpointRoot,
+  showStatusDot,
+  statusIndicator
+}: Readonly<ExplorerNodeMarkerProps>) {
+  return (
+    <Box
+      sx={{
+        width: NODE_MARKER_SLOT_PX,
+        flex: `0 0 ${NODE_MARKER_SLOT_PX}px`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center"
+      }}
+    >
+      {leadingIcon ? (
+        <leadingIcon.Icon
+          fontSize="inherit"
+          sx={{
+            fontSize: isEndpointRoot ? 15 : 13,
+            color: leadingIcon.color,
+            flex: "0 0 auto"
+          }}
+        />
+      ) : (
+        showStatusDot && (
+          <Box
+            sx={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              flex: "0 0 auto",
+              bgcolor: statusColor(statusIndicator)
+            }}
+          />
+        )
+      )}
+    </Box>
+  );
+}
+
+interface ExplorerNodePrimaryLabelProps {
+  label: string;
+  isEndpointRoot: boolean;
+  isEndpointSection: boolean;
+  isDisconnectedPlaceholder: boolean;
+}
+
+function ExplorerNodePrimaryLabel({
+  label,
+  isEndpointRoot,
+  isEndpointSection,
+  isDisconnectedPlaceholder
+}: Readonly<ExplorerNodePrimaryLabelProps>) {
+  return (
+    <Typography
+      className="explorer-node-label"
+      variant="body2"
+      noWrap
+      sx={{
+        flex: 1,
+        minWidth: 0,
+        fontWeight: isEndpointRoot || isEndpointSection ? 600 : undefined,
+        fontSize: isEndpointSection ? "0.72rem" : undefined,
+        letterSpacing: isEndpointSection ? "0.04em" : undefined,
+        color: explorerNodeLabelColor({
+          isEndpointRoot,
+          isEndpointSection,
+          isDisconnectedPlaceholder
+        }),
+        fontStyle: isDisconnectedPlaceholder ? "italic" : undefined
+      }}
+    >
+      {label}
+    </Typography>
+  );
+}
+
+interface ExplorerNodeTrailingContentProps {
+  node: ExplorerNode;
+  showFavoriteIcon: boolean;
+  showSharedIcon: boolean;
+  inlineContainerStatus: string | undefined;
+  endpointStatus: string | null;
+  endpointDescription: string | null;
+  handleShareAction: (event: MouseEvent<HTMLElement>) => void;
+}
+
+function ExplorerNodeTrailingContent({
+  node,
+  showFavoriteIcon,
+  showSharedIcon,
+  inlineContainerStatus,
+  endpointStatus,
+  endpointDescription,
+  handleShareAction
+}: Readonly<ExplorerNodeTrailingContentProps>) {
+  return (
+    <>
+      {showFavoriteIcon && (
+        <StarIcon
+          fontSize="inherit"
+          className="explorer-node-inline-icon explorer-node-inline-icon-favorite"
+          aria-hidden="true"
+          sx={{ flexShrink: 0 }}
+        />
+      )}
+      {showSharedIcon && (
+        <IconButton
+          size="small"
+          className="explorer-node-inline-icon-button"
+          onClick={handleShareAction}
+          aria-label={node.shareAction?.label ?? "Open shared session"}
+          sx={{ flexShrink: 0 }}
+        >
+          <LinkIcon
+            fontSize="inherit"
+            className="explorer-node-inline-icon explorer-node-inline-icon-shared"
+            aria-hidden="true"
+          />
+        </IconButton>
+      )}
+      {inlineContainerStatus && (
+        <Typography variant="caption" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
+          {inlineContainerStatus}
+        </Typography>
+      )}
+      {endpointStatus && (
+        <Box
+          sx={(theme) => {
+            const tone = indicatorThemeColor(theme, node.statusIndicator);
+            return {
+              display: "inline-flex",
+              alignItems: "center",
+              px: "6px",
+              borderRadius: 8,
+              color: tone,
+              bgcolor: theme.alpha(tone, 0.15),
+              height: 16,
+              flexShrink: 0,
+              ml: "6px"
+            };
+          }}
+        >
+          <Typography
+            variant="caption"
+            fontWeight={500}
+            sx={{
+              lineHeight: "16px",
+              color: "inherit",
+              letterSpacing: "0.03em",
+              fontSize: "0.65rem",
+              textTransform: "uppercase"
+            }}
+          >
+            {endpointStatus}
+          </Typography>
+        </Box>
+      )}
+      {endpointDescription && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          noWrap
+          sx={{
+            ml: "8px",
+            maxWidth: 120,
+            fontSize: "0.75rem",
+            flexShrink: 0
+          }}
+        >
+          {endpointDescription}
+        </Typography>
+      )}
+    </>
+  );
+}
+
+interface ExplorerEndpointActionButtonProps {
+  action: ExplorerAction | undefined;
+  ariaLabel: string;
+  icon: SvgIconComponent;
+  onInvokeAction: (action: ExplorerAction) => void;
+}
+
+function ExplorerEndpointActionButton({
+  action,
+  ariaLabel,
+  icon: Icon,
+  onInvokeAction
+}: Readonly<ExplorerEndpointActionButtonProps>) {
+  if (!action) {
+    return null;
+  }
+
+  return (
+    <IconButton
+      size="small"
+      className="explorer-node-actions-trigger"
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onInvokeAction(action);
+      }}
+      aria-label={ariaLabel}
+      sx={{
+        width: 20,
+        height: 20,
+        p: 0.25,
+        color: "text.secondary",
+        opacity: 0,
+        pointerEvents: "none",
+        transition: "opacity 120ms ease"
+      }}
+    >
+      <Icon sx={{ fontSize: 14 }} />
+    </IconButton>
+  );
+}
+
+interface ExplorerEndpointQuickActionsProps {
+  actions: ExplorerEndpointQuickActions;
+  onInvokeAction: (action: ExplorerAction) => void;
+}
+
+function ExplorerEndpointQuickActions({
+  actions,
+  onInvokeAction
+}: Readonly<ExplorerEndpointQuickActionsProps>) {
+  return (
+    <>
+      <ExplorerEndpointActionButton
+        action={actions.newTopologyAction}
+        ariaLabel="New topology file"
+        icon={NoteAddIcon}
+        onInvokeAction={onInvokeAction}
+      />
+      <ExplorerEndpointActionButton
+        action={actions.cloneRepoAction}
+        ariaLabel="Clone repository"
+        icon={SourceIcon}
+        onInvokeAction={onInvokeAction}
+      />
+      <ExplorerEndpointActionButton
+        action={actions.reconnectAction}
+        ariaLabel="Reconnect"
+        icon={RefreshIcon}
+        onInvokeAction={onInvokeAction}
+      />
+    </>
+  );
+}
+
 function ExplorerNodeTextBlock({
   node,
   hasEntryTooltip,
+  isEndpointRoot,
+  isEndpointSection,
+  isDisconnectedPlaceholder,
   leadingIcon,
   showStatusDot,
   showFavoriteIcon,
@@ -1011,6 +1462,9 @@ function ExplorerNodeTextBlock({
   handlePrimaryAction,
   handleShareAction
 }: Readonly<ExplorerNodeTextBlockProps>) {
+  const endpointStatus = endpointStatusText(node, isEndpointRoot);
+  const endpointDescription = endpointDescriptionText(secondaryText, isEndpointRoot);
+
   return (
     <Box
       onClick={handlePrimaryAction}
@@ -1034,63 +1488,33 @@ function ExplorerNodeTextBlock({
           }
         }}
       >
-        <Stack direction="row" spacing={TREE_ROW_GAP} alignItems="center" sx={{ minWidth: 0 }}>
-          <Box
-            sx={{
-              width: NODE_MARKER_SLOT_PX,
-              flex: `0 0 ${NODE_MARKER_SLOT_PX}px`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center"
-            }}
-          >
-            {leadingIcon && (
-              <leadingIcon.Icon
-                fontSize="inherit"
-                sx={{ fontSize: 13, color: leadingIcon.color, flex: "0 0 auto" }}
-              />
-            )}
-            {!leadingIcon && showStatusDot && (
-              <Box
-                sx={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  flex: "0 0 auto",
-                  bgcolor: statusColor(node.statusIndicator)
-                }}
-              />
-            )}
-          </Box>
-          <Typography className="explorer-node-label" variant="body2" noWrap>
-            {node.label}
-          </Typography>
-          {showFavoriteIcon && (
-            <StarIcon
-              fontSize="inherit"
-              className="explorer-node-inline-icon explorer-node-inline-icon-favorite"
-              aria-hidden="true"
-            />
-          )}
-          {showSharedIcon && (
-            <IconButton
-              size="small"
-              className="explorer-node-inline-icon-button"
-              onClick={handleShareAction}
-              aria-label={node.shareAction?.label ?? "Open shared session"}
-            >
-              <LinkIcon
-                fontSize="inherit"
-                className="explorer-node-inline-icon explorer-node-inline-icon-shared"
-                aria-hidden="true"
-              />
-            </IconButton>
-          )}
-          {inlineContainerStatus && (
-            <Typography variant="caption" color="text.secondary" noWrap>
-              {inlineContainerStatus}
-            </Typography>
-          )}
+        <Stack
+          direction="row"
+          spacing={TREE_ROW_GAP}
+          alignItems="center"
+          sx={{ minWidth: 0, width: "100%" }}
+        >
+          <ExplorerNodeMarker
+            leadingIcon={leadingIcon}
+            isEndpointRoot={isEndpointRoot}
+            showStatusDot={showStatusDot}
+            statusIndicator={node.statusIndicator}
+          />
+          <ExplorerNodePrimaryLabel
+            label={node.label}
+            isEndpointRoot={isEndpointRoot}
+            isEndpointSection={isEndpointSection}
+            isDisconnectedPlaceholder={isDisconnectedPlaceholder}
+          />
+          <ExplorerNodeTrailingContent
+            node={node}
+            showFavoriteIcon={showFavoriteIcon}
+            showSharedIcon={showSharedIcon}
+            inlineContainerStatus={inlineContainerStatus}
+            endpointStatus={endpointStatus}
+            endpointDescription={endpointDescription}
+            handleShareAction={handleShareAction}
+          />
         </Stack>
       </Tooltip>
       {showSecondaryLine && (
@@ -1133,10 +1557,19 @@ function ExplorerNodeActions({
     <>
       <IconButton
         size="small"
+        className="explorer-node-actions-trigger"
         onClick={handleMenuOpen}
         aria-label={`Actions for ${node.label}`}
         data-node-actions-trigger="true"
-        sx={{ width: 22, height: 22, p: 0.25, color: COLOR_TEXT_PRIMARY }}
+        sx={{
+          width: 20,
+          height: 20,
+          p: 0.25,
+          color: "text.secondary",
+          opacity: menuOpen ? 1 : 0,
+          pointerEvents: menuOpen ? "auto" : "none",
+          transition: "opacity 120ms ease"
+        }}
       >
         <MoreVertIcon fontSize="small" />
       </IconButton>
@@ -1157,21 +1590,29 @@ function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<Explore
   const hasEntryTooltip = Boolean(node.tooltip);
   const leadingIcon = nodeLeadingIcon(node, sectionId);
   const nodeKind = nodeKindFromContext(node.contextValue);
+  const isEndpointRoot = isEndpointNode(node.contextValue);
+  const isEndpointSection = isEndpointSectionNode(node.contextValue);
+  const isDisconnectedPlaceholder = isEndpointDisconnectedNode(node.contextValue);
   const menuActions = useMemo(() => filterNodeMenuActions(node.actions, nodeKind), [node.actions, nodeKind]);
-  const hasActions = menuActions.length > 0;
+  const hasActions = menuActions.length > 0 && !isDisconnectedPlaceholder;
   const contextMenuItems = useMemo<ContextMenuItem[]>(
     () => buildNodeContextMenuItems(menuActions, nodeKind, onInvokeAction),
     [menuActions, nodeKind, onInvokeAction]
   );
   const secondaryText = node.description || node.statusDescription;
-  const isContainer = node.contextValue === "containerlabContainer" || node.contextValue === "containerlabContainerGroup";
-  const isInterface =
-    node.contextValue === "containerlabInterfaceUp" || node.contextValue === "containerlabInterfaceDown";
-  const inlineContainerStatus = isContainer ? secondaryText?.trim() : undefined;
-  const showSecondaryLine = Boolean(secondaryText) && !isContainer && !isInterface;
-  const showStatusDot = Boolean(node.statusIndicator) && !isInterface;
-  const showFavoriteIcon = isFavoriteLabNode(node.contextValue);
-  const showSharedIcon = isSharedLabNode(node);
+  const {
+    inlineContainerStatus,
+    showSecondaryLine,
+    showStatusDot,
+    showFavoriteIcon,
+    showSharedIcon
+  } = deriveExplorerNodeDisplayFlags(
+    node,
+    secondaryText,
+    isEndpointRoot,
+    isEndpointSection,
+    isDisconnectedPlaceholder
+  );
   const {
     menuPosition,
     menuOpenToLeft,
@@ -1186,25 +1627,43 @@ function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<Explore
   });
   const handlePrimaryAction = usePrimaryActionHandler(node.primaryAction, onInvokeAction);
   const handleShareAction = useShareActionHandler(node.shareAction, onInvokeAction);
+  const isEndpointConnected = String(node.state ?? "").toLowerCase() === "connected";
+  const endpointActions = useMemo(
+    () => resolveEndpointQuickActions(node.actions, isEndpointRoot, isEndpointConnected),
+    [isEndpointConnected, isEndpointRoot, node.actions]
+  );
+  const rowMinHeight = endpointRowHeight(isEndpointRoot, isEndpointSection);
 
   return (
     <Stack
       direction="row"
       alignItems="center"
-      spacing={0.75}
+      spacing={0.55}
       onContextMenu={handleRowContextMenu}
       data-explorer-node-row="true"
       sx={{
         width: "100%",
-        borderRadius: 0.5,
+        minHeight: rowMinHeight,
+        borderRadius: 0.75,
+        px: isEndpointRoot ? 0.35 : 0.15,
+        "&:hover": {
+          bgcolor: "action.hover"
+        },
         ...(menuOpen && {
-          bgcolor: (theme: Theme) => theme.alpha(theme.palette.primary.main, 0.12)
-        })
+          bgcolor: "action.selected"
+        }),
+        "&:hover .explorer-node-actions-trigger, &:focus-within .explorer-node-actions-trigger": {
+          opacity: 1,
+          pointerEvents: "auto"
+        }
       }}
     >
       <ExplorerNodeTextBlock
         node={node}
         hasEntryTooltip={hasEntryTooltip}
+        isEndpointRoot={isEndpointRoot}
+        isEndpointSection={isEndpointSection}
+        isDisconnectedPlaceholder={isDisconnectedPlaceholder}
         leadingIcon={leadingIcon}
         showStatusDot={showStatusDot}
         showFavoriteIcon={showFavoriteIcon}
@@ -1215,6 +1674,7 @@ function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<Explore
         handlePrimaryAction={handlePrimaryAction}
         handleShareAction={handleShareAction}
       />
+      <ExplorerEndpointQuickActions actions={endpointActions} onInvokeAction={onInvokeAction} />
       <ExplorerNodeActions
         hasActions={hasActions}
         node={node}
@@ -1249,6 +1709,9 @@ function SectionTreeNode({
 }: Readonly<SectionTreeNodeProps>) {
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedItems.includes(node.id);
+  const isEndpointRoot = isEndpointNode(node.contextValue);
+  const isEndpointSection = isEndpointSectionNode(node.contextValue);
+  const rowMinHeight = endpointRowHeight(isEndpointRoot, isEndpointSection);
 
   return (
     <Box>
@@ -1256,7 +1719,7 @@ function SectionTreeNode({
         direction="row"
         alignItems="center"
         spacing={TREE_ROW_GAP}
-        sx={{ minHeight: 22, pl: depth * TREE_DEPTH_INDENT }}
+        sx={{ minHeight: rowMinHeight, pl: depth * TREE_DEPTH_INDENT }}
       >
         <Box
           sx={{
@@ -1338,7 +1801,7 @@ function SectionTree({
   }
 
   return (
-    <Stack spacing={0.15} sx={{ minHeight: 0 }}>
+    <Stack spacing={0.05} sx={{ minHeight: 0 }}>
       {section.nodes.map((node) => (
         <SectionTreeNode
           key={node.id}
@@ -1356,7 +1819,7 @@ function SectionTree({
 
 function SectionToolbarActions({ actions, onInvokeAction }: Readonly<SectionToolbarProps>) {
   return (
-    <Stack direction="row" spacing={0.25}>
+    <Stack direction="row" spacing={0.1} className="explorer-section-hover-actions">
       {actions.map((action) => {
         const IconComponent = actionIcon(action);
         return (
@@ -1413,7 +1876,7 @@ function usePaneResize(
   heightRatioBySection: Partial<Record<ExplorerSectionId, number>>,
   setHeightRatioBySection: Dispatch<SetStateAction<Partial<Record<ExplorerSectionId, number>>>>,
   collapsedBySection: Partial<Record<ExplorerSectionId, boolean>>,
-  orderedSectionIds: ExplorerSectionId[]
+  orderedSections: ExplorerSectionSnapshot[]
 ) {
   const [isResizing, setIsResizing] = useState(false);
   const isResizingRef = useRef(false);
@@ -1426,11 +1889,18 @@ function usePaneResize(
       isResizingRef.current = true;
       setIsResizing(true);
 
-      const expandedIds = orderedSectionIds.filter((id) => !collapsedBySection[id] && !FIXED_HEIGHT_SECTIONS.has(id));
-      const headerHeight = 28;
+      const expandedSections = orderedSections.filter(
+        (section) => !collapsedBySection[section.id] && !FIXED_HEIGHT_SECTIONS.has(section.id)
+      );
+      const expandedIds = expandedSections.map((section) => section.id);
+      const headerHeight = expandedSections.reduce(
+        (sum, section) => sum + sectionHeaderHeight(section),
+        0
+      );
       const dividerCount = Math.max(0, expandedIds.length - 1);
       const containerHeight = container.clientHeight;
-      const availableBody = containerHeight - expandedIds.length * headerHeight - dividerCount * RESIZE_DIVIDER_HEIGHT_PX;
+      const availableBody =
+        containerHeight - headerHeight - dividerCount * RESIZE_DIVIDER_HEIGHT_PX;
 
       const initialAboveRatio = heightRatioBySection[aboveId] ?? (1 / expandedIds.length);
       const initialBelowRatio = heightRatioBySection[belowId] ?? (1 / expandedIds.length);
@@ -1472,7 +1942,7 @@ function usePaneResize(
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     },
-    [containerRef, heightRatioBySection, setHeightRatioBySection, collapsedBySection, orderedSectionIds]
+    [containerRef, heightRatioBySection, setHeightRatioBySection, collapsedBySection, orderedSections]
   );
 
   return { isResizing, handleResizeStart };
@@ -1509,6 +1979,7 @@ function getSectionPaperSx(isDropTarget: boolean, flexStyle: string) {
     overflow: "hidden",
     borderRadius: 0,
     border: "none",
+    bgcolor: "transparent",
     boxShadow: isDropTarget
       ? (theme: Theme) => `inset 0 0 0 1px ${theme.alpha(theme.palette.primary.main, 0.35)}`
       : "none"
@@ -1517,20 +1988,29 @@ function getSectionPaperSx(isDropTarget: boolean, flexStyle: string) {
 
 function getSectionHeaderSx(_isCollapsed: boolean, isBeingDragged: boolean) {
   return {
-    px: 0.75,
-    py: 0.2,
-    height: 28,
-    minHeight: 28,
-    maxHeight: 28,
+    px: 0.35,
+    py: 0.1,
+    height: SECTION_HEADER_HEIGHT_PX,
+    minHeight: SECTION_HEADER_HEIGHT_PX,
+    maxHeight: SECTION_HEADER_HEIGHT_PX,
     display: "flex",
     alignItems: "center",
-    gap: 0.35,
+    gap: 0.2,
     cursor: isBeingDragged ? "grabbing" : "grab",
     userSelect: "none",
-    bgcolor: (theme: Theme) =>
-      isBeingDragged
-        ? theme.alpha(theme.palette.primary.main, 0.1)
-        : theme.alpha(theme.palette.background.default, 0.55)
+    bgcolor: isBeingDragged ? "action.selected" : "transparent",
+    "&:hover": {
+      bgcolor: "action.hover"
+    },
+    "& .explorer-section-hover-actions": {
+      opacity: isBeingDragged ? 1 : 0,
+      pointerEvents: isBeingDragged ? "auto" : "none",
+      transition: "opacity 120ms ease"
+    },
+    "&:hover .explorer-section-hover-actions, &:focus-within .explorer-section-hover-actions": {
+      opacity: 1,
+      pointerEvents: "auto"
+    }
   };
 }
 
@@ -1553,6 +2033,7 @@ function ExplorerSectionCard({
   onCollapseAllInSection
 }: Readonly<ExplorerSectionCardProps>) {
   const expandableIds = useMemo(() => flattenExpandableNodeIds(section.nodes), [section.nodes]);
+  const bareTreeSection = isBareTreeSection(section);
 
   const allExpanded = useMemo(() => {
     return expandableIds.length > 0 && expandableIds.every((id) => expandedItems.includes(id));
@@ -1570,60 +2051,98 @@ function ExplorerSectionCard({
       onDragOver={onSectionDragOver(section.id)}
       onDrop={onSectionDrop(section.id)}
     >
-      <Box
-        draggable
-        onDragStart={onSectionDragStart(section.id)}
-        onDragEnd={onSectionDragEnd}
-        sx={{ ...getSectionHeaderSx(isCollapsed, isBeingDragged), flex: "0 0 auto" }}
-      >
-        <IconButton
-          size="small"
-          onClick={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            onToggleSectionCollapsed(section.id);
-          }}
-          aria-label={isCollapsed ? `Expand ${section.label}` : `Collapse ${section.label}`}
-          sx={{ color: COLOR_TEXT_PRIMARY, p: 0.25 }}
-        >
-          {isCollapsed ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-        </IconButton>
-
+      {!bareTreeSection && (
         <Box
-          onClick={() => onToggleSectionCollapsed(section.id)}
-          sx={{ minWidth: 0, flex: 1, cursor: "pointer" }}
+          draggable
+          onDragStart={onSectionDragStart(section.id)}
+          onDragEnd={onSectionDragEnd}
+          sx={{ ...getSectionHeaderSx(isCollapsed, isBeingDragged), flex: "0 0 auto" }}
         >
-          <Typography className="explorer-section-title" variant="body2" noWrap>
-            {formatSectionTitle(section)}
-          </Typography>
+          <IconButton
+            size="small"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onToggleSectionCollapsed(section.id);
+            }}
+            aria-label={isCollapsed ? `Expand ${section.label}` : `Collapse ${section.label}`}
+            sx={{ color: COLOR_TEXT_PRIMARY, p: 0.25 }}
+          >
+            {isCollapsed ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+          </IconButton>
+
+          <Box
+            onClick={() => onToggleSectionCollapsed(section.id)}
+            sx={{
+              minWidth: 0,
+              flex: 1,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 0.5
+            }}
+          >
+            <Typography className="explorer-section-title" variant="body2" noWrap>
+              {formatSectionTitle(section)}
+            </Typography>
+            {showSectionCount(section) && (
+              <Box
+                className="explorer-section-count"
+                sx={(theme) => ({
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  px: 0.7,
+                  py: 0.05,
+                  minWidth: 18,
+                  borderRadius: 999,
+                  bgcolor: theme.alpha(theme.palette.text.primary, 0.08),
+                  color: "text.secondary"
+                })}
+              >
+                <Typography variant="caption" sx={{ color: "inherit", lineHeight: 1.3, fontWeight: 700 }}>
+                  {section.count}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+
+          <SectionToolbarActions actions={section.toolbarActions} onInvokeAction={onInvokeAction} />
+
+          {showExpandAllControl && (
+            <Tooltip title={allExpanded ? "Collapse All" : "Expand All"}>
+              <IconButton
+                size="small"
+                className="explorer-section-hover-actions"
+                sx={{ color: COLOR_TEXT_PRIMARY }}
+                aria-label={allExpanded ? "Collapse all" : "Expand all"}
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (allExpanded) {
+                    onCollapseAllInSection(section.id);
+                  } else {
+                    onExpandAllInSection(section.id, section.nodes);
+                  }
+                }}
+              >
+                {allExpanded ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
-
-        <SectionToolbarActions actions={section.toolbarActions} onInvokeAction={onInvokeAction} />
-
-        {showExpandAllControl && (
-          <Tooltip title={allExpanded ? "Collapse All" : "Expand All"}>
-            <IconButton
-              size="small"
-              sx={{ color: COLOR_TEXT_PRIMARY }}
-              aria-label={allExpanded ? "Collapse all" : "Expand all"}
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (allExpanded) {
-                  onCollapseAllInSection(section.id);
-                } else {
-                  onExpandAllInSection(section.id, section.nodes);
-                }
-              }}
-            >
-              {allExpanded ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
-            </IconButton>
-          </Tooltip>
-        )}
-      </Box>
+      )}
 
       {!isCollapsed && (
-        <Box sx={{ p: 1, flex: 1, minHeight: 0, overflowY: "auto" }}>
+        <Box
+          sx={{
+            px: bareTreeSection ? 0.15 : 0.3,
+            py: bareTreeSection ? 0.1 : 0.25,
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto"
+          }}
+        >
           <SectionTree
             section={section}
             expandedItems={expandedItems}
@@ -1681,7 +2200,9 @@ export function ContainerlabExplorerView() {
     setCollapsedBySection((current) => {
       const next: Partial<Record<ExplorerSectionId, boolean>> = {};
       for (const section of message.sections) {
-        next[section.id] = current[section.id] ?? !DEFAULT_EXPANDED_SECTIONS.has(section.id);
+        next[section.id] = isBareTreeSection(section)
+          ? false
+          : (current[section.id] ?? !DEFAULT_EXPANDED_SECTIONS.has(section.id));
       }
       if (filterActive) {
         next.runningLabs = false;
@@ -1832,8 +2353,17 @@ export function ContainerlabExplorerView() {
 
   const orderedSectionIds = useMemo(() => orderedSections.map((s) => s.id), [orderedSections]);
 
+  const floatingToolbarActions = useMemo(() => {
+    const primaryBareTreeSection = orderedSections.find((section) => isBareTreeSection(section));
+    return primaryBareTreeSection?.toolbarActions ?? [];
+  }, [orderedSections]);
+
   const toggleSectionCollapsed = useCallback((sectionId: ExplorerSectionId) => {
     setCollapsedBySection((current) => {
+      const section = sectionsById.get(sectionId);
+      if (section && isBareTreeSection(section)) {
+        return current;
+      }
       const wasCollapsed = current[sectionId] ?? false;
       const next = { ...current, [sectionId]: !wasCollapsed };
 
@@ -1842,7 +2372,7 @@ export function ContainerlabExplorerView() {
 
       return next;
     });
-  }, [orderedSectionIds]);
+  }, [orderedSectionIds, sectionsById]);
 
   const setSectionRef = useCallback((sectionId: ExplorerSectionId, element: HTMLDivElement | null) => {
     sectionRefs.current[sectionId] = element;
@@ -1897,7 +2427,7 @@ export function ContainerlabExplorerView() {
     heightRatioBySection,
     setHeightRatioBySection,
     collapsedBySection,
-    orderedSectionIds
+    orderedSections
   );
 
   const sectionFlexStyles = useMemo(() => {
@@ -1961,10 +2491,10 @@ export function ContainerlabExplorerView() {
         display: "flex",
         flexDirection: "column",
         bgcolor: "background.paper",
-        pt: 1.5,
+        pt: 0,
         px: 0,
         pb: 0,
-        gap: 1.5
+        gap: 0
       }}
     >
       {errorMessage && (
@@ -1978,9 +2508,11 @@ export function ContainerlabExplorerView() {
         spacing={1}
         alignItems="center"
         sx={{
-          px: 1.5,
+          px: 0.75,
           py: 0.5,
-          bgcolor: "background.paper"
+          bgcolor: "background.paper",
+          borderBottom: 1,
+          borderColor: "divider"
         }}
       >
         <TextField
@@ -1993,13 +2525,16 @@ export function ContainerlabExplorerView() {
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <FilterAltIcon fontSize="small" />
+                  <SearchIcon fontSize="small" />
                 </InputAdornment>
               ),
               endAdornment: undefined
             }
           }}
         />
+        {floatingToolbarActions.length > 0 && (
+          <SectionToolbarActions actions={floatingToolbarActions} onInvokeAction={invokeAction} />
+        )}
       </Stack>
 
       <Box

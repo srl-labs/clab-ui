@@ -66,7 +66,7 @@ function buildFallbackEndpoint(options: {
 function mergeEndpointData(fallback: EndpointData, override?: EndpointData): EndpointData {
   return {
     ...fallback,
-    ...(override ?? {}),
+    ...override,
     stats: override?.stats ?? fallback.stats
   };
 }

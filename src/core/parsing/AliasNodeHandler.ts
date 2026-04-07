@@ -255,7 +255,7 @@ function applyAliasToEdgeData(
 ): void {
   const originalSource = data.source;
   const originalTarget = data.target;
-  const extra = { ...(data.extraData ?? {}) };
+  const extra = { ...data.extraData };
   if (srcAlias !== undefined && srcAlias.length > 0) {
     data.source = srcAlias;
     if (originalSource !== undefined && originalSource.length > 0) {

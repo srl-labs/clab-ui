@@ -21,6 +21,7 @@ type HelpFeedbackProvider = ExplorerTreeProvider;
 type ExplorerTreeItemLike = vscode.TreeItem & {
   id?: string;
   contextValue?: string;
+  endpointId?: string;
   state?: string;
   status?: string;
   link?: string;
@@ -134,7 +135,10 @@ const COMMAND_LABELS: Record<string, string> = {
   "containerlab.treeView.runningLabs.hideNonOwnedLabs": "Hide Non-Owned Labs",
   "containerlab.treeView.runningLabs.showNonOwnedLabs": "Show Non-Owned Labs",
   "containerlab.editor.topoViewerEditor": "New Topology File",
-  "containerlab.lab.cloneRepo": "Clone Repository"
+  "containerlab.lab.cloneRepo": "Clone Repository",
+  "containerlab.endpoint.reconnect": "Reconnect Endpoint",
+  "containerlab.endpoint.remove": "Remove Endpoint",
+  "containerlab.endpoint.copyUrl": "Copy Endpoint URL"
 };
 
 const DESTRUCTIVE_COMMANDS = new Set<string>([
@@ -264,6 +268,19 @@ function aggregateStatusFromIndicators(indicators: ExplorerNode["statusIndicator
 
 function getStatusIndicator(item: ExplorerTreeItemLike): ExplorerNode["statusIndicator"] {
   const context = item.contextValue;
+  if (context === "containerlabEndpoint") {
+    const state = String(item.state ?? "").toLowerCase();
+    if (state === "connected") {
+      return "green";
+    }
+    if (state === "session_expired") {
+      return "yellow";
+    }
+    if (state === "offline") {
+      return "red";
+    }
+    return "gray";
+  }
   if (context === "containerlabInterfaceUp") {
     return "green";
   }
@@ -554,6 +571,63 @@ function appendHelpFeedbackActions(
   pushAction(actions, seen, registry, "containerlab.openLink", [linkArg], "Open Link");
 }
 
+function appendEndpointActions(
+  actions: ExplorerAction[],
+  seen: Set<string>,
+  registry: ExplorerActionRegistry,
+  item: ExplorerTreeItemLike
+): void {
+  const normalizedState = String(item.state ?? "").toLowerCase();
+  if (normalizedState === "connected") {
+    pushAction(actions, seen, registry, "containerlab.editor.topoViewerEditor", [item]);
+    pushAction(actions, seen, registry, "containerlab.lab.cloneRepo", [item]);
+  }
+  pushAction(actions, seen, registry, "containerlab.endpoint.reconnect", [item]);
+  pushAction(actions, seen, registry, "containerlab.endpoint.remove", [item], undefined, true);
+  pushAction(actions, seen, registry, "containerlab.endpoint.copyUrl", [item]);
+}
+
+function appendNodeActionsForContext(
+  actions: ExplorerAction[],
+  seen: Set<string>,
+  sectionId: ExplorerSectionId,
+  item: ExplorerTreeItemLike,
+  registry: ExplorerActionRegistry,
+  options: ExplorerSnapshotOptions,
+  contributedActions: readonly ExplorerContributedMenuItem[],
+  commandLabels: ReadonlyMap<string, string>,
+  commandIcons: ReadonlyMap<string, string>
+): void {
+  const contextValue = item.contextValue;
+  if (contextValue === "containerlabEndpoint") {
+    appendEndpointActions(actions, seen, registry, item);
+    return;
+  }
+  if (isLabContext(contextValue)) {
+    appendLabActions(actions, seen, registry, sectionId, item);
+    return;
+  }
+  if (contextValue === "containerlabContainer" || contextValue === "containerlabContainerGroup") {
+    appendContainerActions(
+      actions,
+      seen,
+      registry,
+      item,
+      contributedActions,
+      commandLabels,
+      commandIcons
+    );
+    return;
+  }
+  if (contextValue === "containerlabInterfaceUp") {
+    appendInterfaceActions(actions, seen, registry, item, options.isLocalCaptureAllowed);
+    return;
+  }
+  if (contextValue === "containerlabSSHXLink" || contextValue === "containerlabGottyLink") {
+    appendLinkActions(actions, seen, registry, item);
+  }
+}
+
 function getNodeActions(
   sectionId: ExplorerSectionId,
   item: ExplorerTreeItemLike,
@@ -567,46 +641,39 @@ function getNodeActions(
   const commandLabels = commandMetadata?.commandLabels ?? new Map<string, string>();
   const commandIcons = commandMetadata?.commandIcons ?? new Map<string, string>();
 
-  const contextValue = item.contextValue;
   if (sectionId === "helpFeedback") {
     appendHelpFeedbackActions(actions, seen, registry, item);
     return applyCommandIcons(actions, commandIcons);
   }
 
-  if (isLabContext(contextValue)) {
-    appendLabActions(actions, seen, registry, sectionId, item);
-    return applyCommandIcons(actions, commandIcons);
-  }
-
-  if (contextValue === "containerlabContainer" || contextValue === "containerlabContainerGroup") {
-    appendContainerActions(
-      actions,
-      seen,
-      registry,
-      item,
-      contributedActions,
-      commandLabels,
-      commandIcons
-    );
-    return applyCommandIcons(actions, commandIcons);
-  }
-
-  if (contextValue === "containerlabInterfaceUp") {
-    appendInterfaceActions(actions, seen, registry, item, options.isLocalCaptureAllowed);
-    return applyCommandIcons(actions, commandIcons);
-  }
-
-  if (contextValue === "containerlabSSHXLink" || contextValue === "containerlabGottyLink") {
-    appendLinkActions(actions, seen, registry, item);
-  }
+  appendNodeActionsForContext(
+    actions,
+    seen,
+    sectionId,
+    item,
+    registry,
+    options,
+    contributedActions,
+    commandLabels,
+    commandIcons
+  );
 
   return applyCommandIcons(actions, commandIcons);
 }
 
 function resolvePrimaryAction(
   contextValue: string | undefined,
-  nodeActions: ExplorerAction[]
+  nodeActions: ExplorerAction[],
+  nodeState?: string
 ): ExplorerAction | undefined {
+  if (contextValue === "containerlabEndpoint") {
+    const normalizedState = String(nodeState ?? "").toLowerCase();
+    if (normalizedState !== "connected") {
+      return nodeActions.find((action) => action.commandId === "containerlab.endpoint.reconnect");
+    }
+    return undefined;
+  }
+
   if (isLabContext(contextValue)) {
     return nodeActions.find((action) => action.commandId === "containerlab.lab.graph.topoViewer");
   }
@@ -637,6 +704,20 @@ async function getProviderChildren(
 
 function shouldResolveChildren(item: ExplorerTreeItemLike): boolean {
   return item.collapsibleState !== TREE_ITEM_COLLAPSIBLE_NONE;
+}
+
+function resolveNodeStatusIndicator(
+  contextValue: string | undefined,
+  item: ExplorerTreeItemLike,
+  children: ExplorerNode[]
+): ExplorerNode["statusIndicator"] {
+  if (contextValue === "containerlabEndpoint") {
+    return getStatusIndicator(item);
+  }
+  if (isDeployedLab(contextValue) || contextValue === "containerlabContainerGroup") {
+    return aggregateStatusFromIndicators(collectContainerIndicators(children));
+  }
+  return getStatusIndicator(item);
 }
 
 async function buildNode(
@@ -689,11 +770,8 @@ async function buildNode(
   } else {
     shareAction = undefined;
   }
-  const primaryAction = resolvePrimaryAction(contextValue, nodeActions);
-  const statusIndicator =
-    isDeployedLab(contextValue) || contextValue === "containerlabContainerGroup"
-      ? aggregateStatusFromIndicators(collectContainerIndicators(children))
-      : getStatusIndicator(item);
+  const primaryAction = resolvePrimaryAction(contextValue, nodeActions, item.state);
+  const statusIndicator = resolveNodeStatusIndicator(contextValue, item, children);
 
   return {
     id: item.id || pathId,
@@ -701,6 +779,8 @@ async function buildNode(
     description,
     tooltip,
     contextValue,
+    endpointId: item.endpointId,
+    state: item.state,
     statusIndicator,
     statusDescription: description,
     primaryAction,

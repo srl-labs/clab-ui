@@ -42,6 +42,7 @@ import {
   IconButton,
   InputAdornment,
   Paper,
+  Snackbar,
   Stack,
   TextField,
   Tooltip,
@@ -2170,6 +2171,7 @@ export function ContainerlabExplorerView() {
   });
   const [filterText, setFilterText] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [errorOpen, setErrorOpen] = useState(false);
   const [draggingSection, setDraggingSection] = useState<ExplorerSectionId | null>(null);
   const [dragOverSection, setDragOverSection] = useState<ExplorerSectionId | null>(null);
   const [heightRatioBySection, setHeightRatioBySection] = useState<
@@ -2267,6 +2269,11 @@ export function ContainerlabExplorerView() {
 
   const handleErrorMessage = useCallback((message: ErrorExplorerMessage) => {
     setErrorMessage(message.message);
+    setErrorOpen(true);
+  }, []);
+
+  const handleErrorClose = useCallback(() => {
+    setErrorOpen(false);
   }, []);
 
   useMessageListener<ExplorerIncomingMessage>(
@@ -2497,11 +2504,33 @@ export function ContainerlabExplorerView() {
         gap: 0
       }}
     >
-      {errorMessage && (
-        <Alert severity="error" onClose={() => setErrorMessage(null)} sx={{ mx: 1.5 }}>
+      <Snackbar
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        autoHideDuration={10000}
+        open={errorOpen && Boolean(errorMessage)}
+        onClose={handleErrorClose}
+        sx={{
+          mt: 1,
+          mr: 1,
+          maxWidth: { xs: "calc(100vw - 16px)", sm: 560 }
+        }}
+      >
+        <Alert
+          severity="error"
+          variant="filled"
+          onClose={handleErrorClose}
+          sx={{
+            width: "100%",
+            alignItems: "flex-start",
+            "& .MuiAlert-message": {
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word"
+            }
+          }}
+        >
           {errorMessage}
         </Alert>
-      )}
+      </Snackbar>
 
       <Stack
         direction="row"

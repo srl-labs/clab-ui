@@ -486,6 +486,15 @@ function flattenExpandableNodeIds(nodes: ExplorerNode[]): string[] {
   return ids;
 }
 
+function flattenDescendantNodeIds(node: ExplorerNode): string[] {
+  const ids: string[] = [];
+  for (const child of node.children) {
+    ids.push(child.id);
+    ids.push(...flattenDescendantNodeIds(child));
+  }
+  return ids;
+}
+
 function mergeSectionOrder(
   currentOrder: ExplorerSectionId[],
   sections: ExplorerSectionSnapshot[]
@@ -1796,15 +1805,60 @@ function SectionTree({
   onExpandedItemsChange,
   onInvokeAction
 }: Readonly<SectionTreeProps>) {
+  const nodeById = useMemo(() => {
+    const map = new Map<string, ExplorerNode>();
+    const visit = (nodes: ExplorerNode[]) => {
+      for (const node of nodes) {
+        map.set(node.id, node);
+        if (node.children.length > 0) {
+          visit(node.children);
+        }
+      }
+    };
+    visit(section.nodes);
+    return map;
+  }, [section.nodes]);
+
+  const descendantIdsByNodeId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const node of nodeById.values()) {
+      map.set(node.id, flattenDescendantNodeIds(node));
+    }
+    return map;
+  }, [nodeById]);
+
   const toggleExpanded = useCallback(
     (nodeId: string) => {
-      if (expandedItems.includes(nodeId)) {
-        onExpandedItemsChange(expandedItems.filter((id) => id !== nodeId));
+      const isExpanded = expandedItems.includes(nodeId);
+      const node = nodeById.get(nodeId);
+      const shouldResetEndpointDescendants = Boolean(node && isEndpointNode(node.contextValue));
+      const descendantIds = shouldResetEndpointDescendants ? (descendantIdsByNodeId.get(nodeId) ?? []) : [];
+      const descendantSet = shouldResetEndpointDescendants ? new Set(descendantIds) : null;
+      const endpointSectionIds = shouldResetEndpointDescendants
+        ? (node?.children ?? []).map((child) => child.id)
+        : [];
+
+      if (isExpanded) {
+        onExpandedItemsChange(
+          expandedItems.filter((id) => id !== nodeId && !(descendantSet?.has(id) ?? false))
+        );
         return;
       }
-      onExpandedItemsChange([...expandedItems, nodeId]);
+
+      const nextExpanded = descendantSet
+        ? expandedItems.filter((id) => !descendantSet.has(id))
+        : [...expandedItems];
+      if (!nextExpanded.includes(nodeId)) {
+        nextExpanded.push(nodeId);
+      }
+      for (const childId of endpointSectionIds) {
+        if (!nextExpanded.includes(childId)) {
+          nextExpanded.push(childId);
+        }
+      }
+      onExpandedItemsChange(nextExpanded);
     },
-    [expandedItems, onExpandedItemsChange]
+    [descendantIdsByNodeId, expandedItems, nodeById, onExpandedItemsChange]
   );
 
   if (section.nodes.length === 0) {

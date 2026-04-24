@@ -86,15 +86,25 @@ export interface HostRuntimeInterfaceStats {
   statsIntervalSeconds?: number;
 }
 
+export interface HostRuntimeNetemState {
+  delay?: string;
+  jitter?: string;
+  loss?: string;
+  rate?: string;
+  corruption?: string;
+}
+
 export interface HostRuntimeInterface {
   name: string;
   alias: string;
+  label?: string;
   mac: string;
   mtu: number;
   state: string;
   type: string;
   ifIndex?: number;
   stats?: HostRuntimeInterfaceStats;
+  netemState?: HostRuntimeNetemState;
 }
 
 export interface HostRuntimeContainer {

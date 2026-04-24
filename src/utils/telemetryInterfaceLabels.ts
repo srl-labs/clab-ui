@@ -114,11 +114,11 @@ export function resolveInterfaceOverrideValue(
 
 export function getInterfaceSelectionValue(
   endpoint: string,
-  interfaceLabelOverrides: Record<string, string>
+  interfaceLabelOverrides: Record<string, unknown>
 ): string {
   if (!(endpoint in interfaceLabelOverrides)) return INTERFACE_SELECT_AUTO;
   const override = interfaceLabelOverrides[endpoint];
-  if (override.length === 0) return INTERFACE_SELECT_AUTO;
+  if (typeof override !== "string" || override.length === 0) return INTERFACE_SELECT_AUTO;
   if (override === endpoint) return INTERFACE_SELECT_FULL;
   return `${INTERFACE_SELECT_TOKEN_PREFIX}${override}`;
 }
@@ -126,7 +126,7 @@ export function getInterfaceSelectionValue(
 export function resolveTelemetryInterfaceLabel(
   endpoint: string,
   globalSelection: string,
-  interfaceLabelOverrides: Record<string, string>
+  interfaceLabelOverrides: Record<string, unknown>
 ): string {
   const endpointOverride = interfaceLabelOverrides[endpoint];
   if (typeof endpointOverride === "string" && endpointOverride.trim().length > 0) {

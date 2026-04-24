@@ -170,6 +170,8 @@ export interface InterfaceInfo {
   name: string;
   /** Interface alias (e.g., "ge-0/0/1") */
   alias: string;
+  /** Interface display label, usually alias when available */
+  label?: string;
   /** MAC address */
   mac: string;
   /** MTU */

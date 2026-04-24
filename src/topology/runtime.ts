@@ -110,7 +110,11 @@ function interfacesMatch(iface: HostRuntimeInterface, ifaceName: string): boolea
   if (candidates.size === 0) {
     return false;
   }
-  return candidates.has(iface.name) || candidates.has(iface.alias);
+  return (
+    candidates.has(iface.name) ||
+    candidates.has(iface.alias) ||
+    candidates.has(iface.label ?? "")
+  );
 }
 
 function containerMatchesNodeIdentifier(
@@ -198,6 +202,7 @@ function toInterfaceInfo(iface: HostRuntimeInterface): InterfaceInfo {
   return {
     name: iface.name ?? "",
     alias: iface.alias ?? "",
+    label: iface.label,
     mac: iface.mac ?? "",
     mtu: iface.mtu ?? 0,
     state: iface.state ?? "",
@@ -215,7 +220,8 @@ function toInterfaceInfo(iface: HostRuntimeInterface): InterfaceInfo {
           txPackets: iface.stats.txPackets,
           statsIntervalSeconds: iface.stats.statsIntervalSeconds
         }
-      : undefined
+      : undefined,
+    netemState: iface.netemState
   };
 }
 

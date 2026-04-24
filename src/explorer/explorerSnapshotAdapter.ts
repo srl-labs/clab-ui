@@ -42,6 +42,7 @@ export interface ExplorerSnapshotOptions {
   hideNonOwnedLabs: boolean;
   isLocalCaptureAllowed: boolean;
   commandMetadata?: ExplorerCommandMetadata;
+  hiddenCommandIds?: readonly string[];
 }
 
 export interface ExplorerActionInvocation {
@@ -136,6 +137,10 @@ const COMMAND_LABELS: Record<string, string> = {
   "containerlab.treeView.runningLabs.showNonOwnedLabs": "Show Non-Owned Labs",
   "containerlab.editor.topoViewerEditor": "New Topology File",
   "containerlab.lab.cloneRepo": "Clone Repository",
+  "containerlab.install.edgeshark": "Install EdgeShark",
+  "containerlab.uninstall.edgeshark": "Uninstall EdgeShark",
+  "containerlab.capture.killAllWiresharkVNC": "Kill All Wireshark VNC Sessions",
+  "containerlab.set.sessionHostname": "Configure Session Hostname",
   "containerlab.endpoint.reconnect": "Reconnect Endpoint",
   "containerlab.endpoint.remove": "Remove Endpoint",
   "containerlab.endpoint.copyUrl": "Copy Endpoint URL"
@@ -146,7 +151,9 @@ const DESTRUCTIVE_COMMANDS = new Set<string>([
   "containerlab.lab.destroy",
   "containerlab.lab.destroy.cleanup",
   "containerlab.lab.sshx.detach",
-  "containerlab.lab.gotty.detach"
+  "containerlab.lab.gotty.detach",
+  "containerlab.uninstall.edgeshark",
+  "containerlab.capture.killAllWiresharkVNC"
 ]);
 const SECTION_BUILD_TIMEOUT_MS = 4000;
 const TREE_ITEM_COLLAPSIBLE_NONE = 0;
@@ -373,6 +380,19 @@ function applyCommandIcons(
   return actions;
 }
 
+function filterHiddenActions(
+  actions: ExplorerAction[],
+  options: ExplorerSnapshotOptions
+): ExplorerAction[] {
+  const hiddenCommandIds = options.hiddenCommandIds ?? [];
+  if (hiddenCommandIds.length === 0) {
+    return actions;
+  }
+
+  const hidden = new Set(hiddenCommandIds);
+  return actions.filter((action) => !hidden.has(action.commandId));
+}
+
 function getLinkArgument(item: ExplorerTreeItemLike): string | undefined {
   const link = item.link;
   if (typeof link === "string" && link.length > 0) {
@@ -581,6 +601,10 @@ function appendEndpointActions(
   if (normalizedState === "connected") {
     pushAction(actions, seen, registry, "containerlab.editor.topoViewerEditor", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.cloneRepo", [item]);
+    pushAction(actions, seen, registry, "containerlab.install.edgeshark", [item]);
+    pushAction(actions, seen, registry, "containerlab.uninstall.edgeshark", [item], undefined, true);
+    pushAction(actions, seen, registry, "containerlab.capture.killAllWiresharkVNC", [item], undefined, true);
+    pushAction(actions, seen, registry, "containerlab.set.sessionHostname", [item]);
   }
   pushAction(actions, seen, registry, "containerlab.endpoint.reconnect", [item]);
   pushAction(actions, seen, registry, "containerlab.endpoint.remove", [item], undefined, true);
@@ -643,7 +667,7 @@ function getNodeActions(
 
   if (sectionId === "helpFeedback") {
     appendHelpFeedbackActions(actions, seen, registry, item);
-    return applyCommandIcons(actions, commandIcons);
+    return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);
   }
 
   appendNodeActionsForContext(
@@ -658,7 +682,7 @@ function getNodeActions(
     commandIcons
   );
 
-  return applyCommandIcons(actions, commandIcons);
+  return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);
 }
 
 function resolvePrimaryAction(
@@ -840,7 +864,7 @@ function toolbarActionsForSection(
     } else {
       pushAction(actions, seen, registry, "containerlab.treeView.runningLabs.hideNonOwnedLabs");
     }
-    return applyCommandIcons(actions, commandIcons);
+    return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);
   }
 
   if (sectionId === "localLabs") {
@@ -848,7 +872,7 @@ function toolbarActionsForSection(
     pushAction(actions, seen, registry, "containerlab.lab.cloneRepo");
   }
 
-  return applyCommandIcons(actions, commandIcons);
+  return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);
 }
 
 async function buildSectionSnapshot(

@@ -78,10 +78,9 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@srl-labs/clab-ui";
 import { createApiClabUiHost, createClabUiRuntime } from "@srl-labs/clab-ui/host";
-import { parseSchemaData, type TopologyRef } from "@srl-labs/clab-ui/session";
+import type { TopologyRef } from "@srl-labs/clab-ui/session";
 import { MuiThemeProvider, applyThemeVars } from "@srl-labs/clab-ui/theme";
 import "@srl-labs/clab-ui/styles/global.css";
-import clabSchema from "./clab.schema.json";
 
 async function main(): Promise<void> {
   applyThemeVars(document.documentElement, "dark");
@@ -133,7 +132,6 @@ async function main(): Promise<void> {
   });
 
   const initialData = {
-    schemaData: parseSchemaData(clabSchema as Record<string, unknown>),
     dockerImages: [],
     customNodes: [],
     defaultNode: "",
@@ -260,7 +258,7 @@ Field guidance:
 
 | Field | Type | Required in practice | Meaning |
 | --- | --- | --- | --- |
-| `schemaData` | `SchemaData` | Yes for useful editing | Parsed containerlab schema metadata used by the editor and palette |
+| `schemaData` | `SchemaData` | No | Optional override for the bundled containerlab schema metadata used by the editor and palette |
 | `dockerImages` | `string[]` | No | Available images shown in UI affordances |
 | `customNodes` | `CustomNodeTemplate[]` | No | Reusable node templates |
 | `defaultNode` | `string` | No | Name of the default custom node template |
@@ -270,7 +268,6 @@ Recommended default:
 
 ```ts
 const initialData = {
-  schemaData: parseSchemaData(clabSchema as Record<string, unknown>),
   dockerImages: [],
   customNodes: [],
   defaultNode: "",
@@ -280,7 +277,9 @@ const initialData = {
 
 ### How To Produce `schemaData`
 
-Use the exported schema helper:
+`clab-ui` bundles default containerlab schema metadata. Hosts only need to
+provide `schemaData` when they want to override that bundled default, for
+example with a newer or custom schema. Use the exported schema helper:
 
 ```ts
 import { parseSchemaData } from "@srl-labs/clab-ui/session";
@@ -289,7 +288,7 @@ const schemaData = parseSchemaData(rawSchemaJson as Record<string, unknown>);
 ```
 
 `schemaData` is parsed from a containerlab schema JSON object. The package does
-not fetch the schema for you.
+not fetch override schemas for you.
 
 ### `CustomNodeTemplate`
 
@@ -669,4 +668,3 @@ You should not rely on:
 
 If you need a new integration hook, add it to the package API intentionally.
 Do not reach into internals from the consumer.
-

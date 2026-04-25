@@ -9,3 +9,4 @@ export {
   extractSrosComponentTypes,
   parseSchemaData
 } from "./SchemaParser";
+export { containerlabSchema, defaultSchemaData } from "./bundledSchema";

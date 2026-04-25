@@ -2,10 +2,10 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "../../src/App";
+import { defaultSchemaData } from "../../src/core/schema";
 import { createClabUiRuntime } from "../../src/host";
 import { applyThemeVars } from "../../src/theme";
 import "../../src/styles/global.css";
-import schemaData from "../../src/schema/clab.schema.json";
 
 import { createFakeClabUiHost } from "./fakeHost";
 
@@ -30,7 +30,7 @@ const runtime = createClabUiRuntime({
 });
 
 const initialData = {
-  schemaData,
+  schemaData: defaultSchemaData,
   dockerImages: [],
   customNodes: [],
   defaultNode: "",
@@ -50,7 +50,7 @@ harnessWindow.__DEV__ = {
     host.harness.writeAnnotationsFile(filename, content)
 };
 harnessWindow.__INITIAL_DATA__ = initialData;
-harnessWindow.__SCHEMA_DATA__ = schemaData;
+harnessWindow.__SCHEMA_DATA__ = defaultSchemaData;
 harnessWindow.__DOCKER_IMAGES__ = [];
 
 applyThemeVars(params.get("theme") === "light" ? "light" : "dark");

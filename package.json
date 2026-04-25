@@ -43,6 +43,14 @@
       "types": "./dist/explorer/index.d.ts",
       "import": "./dist/explorer/index.js"
     },
+    "./image-manager": {
+      "types": "./dist/image-manager/index.d.ts",
+      "import": "./dist/image-manager/index.js"
+    },
+    "./image-manager/catalog": {
+      "types": "./dist/image-manager/catalog.d.ts",
+      "import": "./dist/image-manager/catalog.js"
+    },
     "./inspect": {
       "types": "./dist/inspect/index.d.ts",
       "import": "./dist/inspect/index.js"

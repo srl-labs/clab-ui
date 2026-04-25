@@ -13,6 +13,7 @@ import { resolveWindowVsCodeApi, type WindowVsCodeApiLike } from "../utils/vscod
 import type {
   ClabUiExplorerHost,
   ClabUiHost,
+  ClabUiImageHost,
   ClabUiTopoViewerEvent,
   ClabUiTopoViewerHost,
   TopologyUiContext,
@@ -54,6 +55,7 @@ interface WindowHostOptions {
   vscodeApi?: WindowVsCodeApiLike;
   postMessage?: (message: unknown) => void;
   explorer?: ClabUiExplorerHost;
+  images?: ClabUiImageHost;
   topoViewer?: ClabUiTopoViewerHost;
   topology?: ClabUiHost["topology"];
   meta?: ClabUiHost["meta"];
@@ -62,6 +64,22 @@ interface WindowHostOptions {
 interface ApiHostOptions extends WindowHostOptions {
   baseUrl?: string;
   fetchImpl?: FetchLike;
+}
+
+type ImageManagerRequestAction = keyof ClabUiImageHost;
+
+interface PendingImageRequest {
+  resolve: (value: unknown) => void;
+  reject: (err: Error) => void;
+  timeoutId: ReturnType<typeof setTimeout>;
+}
+
+interface ImageManagerResponseMessage {
+  type: "image-manager:response";
+  requestId: string;
+  success: boolean;
+  result?: unknown;
+  error?: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -265,6 +283,15 @@ function isTopologySnapshot(value: unknown): value is TopologySnapshot {
   );
 }
 
+function isImageManagerResponseMessage(value: unknown): value is ImageManagerResponseMessage {
+  return (
+    isRecord(value) &&
+    value.type === "image-manager:response" &&
+    typeof value.requestId === "string" &&
+    typeof value.success === "boolean"
+  );
+}
+
 function trimTrailingSlash(value: string): string {
   return value.endsWith("/") ? value.slice(0, -1) : value;
 }
@@ -386,6 +413,76 @@ export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiH
       }
     };
 
+  const images =
+    options.images ??
+    (() => {
+      const pending = new Map<string, PendingImageRequest>();
+      let listenerStarted = false;
+
+      const ensureListener = (): void => {
+        if (listenerStarted) return;
+        subscribe((event) => {
+          if (!isImageManagerResponseMessage(event.data)) {
+            return;
+          }
+
+          const request = pending.get(event.data.requestId);
+          if (!request) {
+            return;
+          }
+
+          clearTimeout(request.timeoutId);
+          pending.delete(event.data.requestId);
+          if (event.data.success) {
+            request.resolve(event.data.result);
+          } else {
+            request.reject(new Error(event.data.error || "Image manager request failed"));
+          }
+        });
+        listenerStarted = true;
+      };
+
+      const sendImageRequest = <T>(
+        action: ImageManagerRequestAction,
+        payload?: unknown,
+        timeoutMs = 30_000
+      ): Promise<T> => {
+        ensureListener();
+        const requestId = globalThis.crypto.randomUUID();
+        return new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            if (!pending.has(requestId)) {
+              return;
+            }
+            pending.delete(requestId);
+            reject(new Error("Image manager request timed out"));
+          }, timeoutMs);
+          pending.set(requestId, { resolve: (value) => resolve(value as T), reject, timeoutId });
+          postMessage({
+            command: "image-manager:request",
+            requestId,
+            action,
+            payload
+          });
+        });
+      };
+
+      return {
+        listImages(options) {
+          return sendImageRequest("listImages", options);
+        },
+        listImageReferences(options) {
+          return sendImageRequest("listImageReferences", options);
+        },
+        pullImage(request) {
+          return sendImageRequest("pullImage", request, 30 * 60_000);
+        },
+        removeImage(request) {
+          return sendImageRequest("removeImage", request);
+        }
+      } satisfies ClabUiImageHost;
+    })();
+
   const topology =
     options.topology ??
     (() => {
@@ -504,6 +601,7 @@ export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiH
         resolvedVsCodeApi?.__disableDevMockTraffic__ === true
     },
     explorer,
+    images,
     topoViewer,
     topology
   };
@@ -537,6 +635,7 @@ export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
 
   return {
     ...baseHost,
+    images: options.images ?? baseHost.images,
     topology: options.topology ?? {
       async requestSnapshot(
         context: TopologyUiContext,

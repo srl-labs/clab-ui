@@ -132,6 +132,7 @@ const COMMAND_LABELS: Record<string, string> = {
   "containerlab.lab.fcli.sysInfo": "Run fcli sys-info",
   "containerlab.lab.fcli.custom": "Run Custom fcli",
   "containerlab.lab.deploy.specificFile": "Deploy Lab File",
+  "containerlab.images.manage": "Manage Images",
   "containerlab.inspectAll": "Inspect All Labs",
   "containerlab.treeView.runningLabs.hideNonOwnedLabs": "Hide Non-Owned Labs",
   "containerlab.treeView.runningLabs.showNonOwnedLabs": "Show Non-Owned Labs",
@@ -858,6 +859,7 @@ function toolbarActionsForSection(
 
   if (sectionId === "runningLabs") {
     pushAction(actions, seen, registry, "containerlab.lab.deploy.specificFile");
+    pushAction(actions, seen, registry, "containerlab.images.manage");
     pushAction(actions, seen, registry, "containerlab.inspectAll");
     if (options.hideNonOwnedLabs) {
       pushAction(actions, seen, registry, "containerlab.treeView.runningLabs.showNonOwnedLabs");
@@ -870,6 +872,7 @@ function toolbarActionsForSection(
   if (sectionId === "localLabs") {
     pushAction(actions, seen, registry, "containerlab.editor.topoViewerEditor");
     pushAction(actions, seen, registry, "containerlab.lab.cloneRepo");
+    pushAction(actions, seen, registry, "containerlab.images.manage");
   }
 
   return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);

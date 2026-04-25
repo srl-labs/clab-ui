@@ -12,6 +12,7 @@ import FolderIcon from "@mui/icons-material/Folder";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import LinkIcon from "@mui/icons-material/Link";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
@@ -222,6 +223,7 @@ const ACTION_ICON_BY_COMMAND: Record<string, SvgIconComponent> = {
   "containerlab.inspectall": ManageSearchIcon,
   "containerlab.treeview.runninglabs.hidenonownedlabs": VisibilityOffIcon,
   "containerlab.treeview.runninglabs.shownonownedlabs": VisibilityIcon,
+  "containerlab.images.manage": Inventory2OutlinedIcon,
   "containerlab.editor.topoviewereditor": NoteAddIcon,
   "containerlab.lab.clonerepo": SourceIcon,
   "containerlab.lab.togglefavorite": StarBorderIcon,

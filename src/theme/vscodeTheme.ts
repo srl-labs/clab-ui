@@ -149,6 +149,34 @@ export const structuralOverrides: NonNullable<ThemeOptions["components"]> = {
     }
   },
   MuiButton: { defaultProps: { disableElevation: true, variant: "contained" } },
+  MuiChip: {
+    styleOverrides: {
+      root: {
+        color: vscodePalette.text.primary,
+        maxWidth: "100%"
+      },
+      icon: {
+        color: "inherit"
+      },
+      deleteIcon: {
+        color: "var(--vscode-icon-foreground, currentColor)"
+      },
+      filled: {
+        color: "var(--vscode-badge-foreground)",
+        backgroundColor: "var(--vscode-badge-background)",
+        "& .MuiChip-icon, & .MuiChip-deleteIcon": {
+          color: "currentColor"
+        }
+      },
+      outlined: {
+        color: vscodePalette.text.primary,
+        borderColor: vscodePalette.divider,
+        "& .MuiChip-icon": {
+          color: "inherit"
+        }
+      }
+    }
+  },
   MuiTabs: { styleOverrides: { root: { minHeight: 36 } } },
   MuiTab: { styleOverrides: { root: { minHeight: 36, padding: "6px 12px" } } },
   MuiPaper: { styleOverrides: { root: { backgroundImage: "none" } } },

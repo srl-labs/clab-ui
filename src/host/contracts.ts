@@ -9,6 +9,14 @@ import type {
   ExplorerIncomingMessage,
   ExplorerUiState
 } from "../explorer/shared/explorer/types";
+import type {
+  ContainerImageSummary,
+  ImageActionResult,
+  ImageManagerTargetOptions,
+  ImagePullRequest,
+  ImageRemoveRequest,
+  KindImageReference
+} from "../image-manager/types";
 
 export type TopoViewerLifecycleAction =
   | "deployLab"
@@ -161,6 +169,13 @@ export interface ClabUiTopoViewerHost {
   subscribe(handler: (event: ClabUiTopoViewerEvent) => void): () => void;
 }
 
+export interface ClabUiImageHost {
+  listImages(options?: ImageManagerTargetOptions): Promise<ContainerImageSummary[]>;
+  listImageReferences(options?: ImageManagerTargetOptions): Promise<KindImageReference[]>;
+  pullImage(request: ImagePullRequest): Promise<ImageActionResult>;
+  removeImage(request: ImageRemoveRequest): Promise<ImageActionResult>;
+}
+
 export interface ClabUiHost {
   postMessage(message: unknown): void;
   subscribe(handler: (event: MessageEvent<unknown>) => void): () => void;
@@ -169,6 +184,7 @@ export interface ClabUiHost {
     disableDevMockTraffic?: boolean;
   };
   explorer: ClabUiExplorerHost;
+  images?: ClabUiImageHost;
   topoViewer: ClabUiTopoViewerHost;
   topology: {
     requestSnapshot(

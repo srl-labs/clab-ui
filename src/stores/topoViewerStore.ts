@@ -57,6 +57,7 @@ export interface TopoViewerState {
   endpointLabelOffset: number;
   telemetryNodeSizePx: number;
   telemetryInterfaceSizePercent: number;
+  showRateLabels: boolean;
   telemetryGlobalInterfaceOverrideSelection: string;
   telemetryInterfaceLabelOverrides: Record<string, string>;
   gridLineWidth: number;
@@ -103,6 +104,7 @@ export interface TopoViewerActions {
   setEndpointLabelOffset: (value: number) => void;
   setTelemetryNodeSizePx: (value: number) => void;
   setTelemetryInterfaceSizePercent: (value: number) => void;
+  setShowRateLabels: (enabled: boolean) => void;
   setTelemetryGlobalInterfaceOverrideSelection: (value: string) => void;
   setTelemetryInterfaceLabelOverrides: (overrides: Record<string, string>) => void;
   setTelemetryInterfaceLabelOverride: (endpoint: string, override: string | null) => void;
@@ -170,6 +172,7 @@ const initialState: TopoViewerState = {
   endpointLabelOffset: DEFAULT_ENDPOINT_LABEL_OFFSET,
   telemetryNodeSizePx: 40,
   telemetryInterfaceSizePercent: 100,
+  showRateLabels: false,
   telemetryGlobalInterfaceOverrideSelection: "__auto__",
   telemetryInterfaceLabelOverrides: {},
   gridLineWidth: 0.5,
@@ -360,6 +363,10 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
   setTelemetryInterfaceSizePercent: (value) => {
     const next = Number.isFinite(value) ? value : 100;
     set({ telemetryInterfaceSizePercent: next });
+  },
+
+  setShowRateLabels: (showRateLabels) => {
+    set({ showRateLabels });
   },
 
   setTelemetryGlobalInterfaceOverrideSelection: (value) => {
@@ -593,6 +600,7 @@ export const useTelemetryLabelSettings = () =>
     (state) => ({
       nodeSizePx: state.telemetryNodeSizePx,
       interfaceSizePercent: state.telemetryInterfaceSizePercent,
+      showRateLabels: state.showRateLabels,
       globalInterfaceOverrideSelection: state.telemetryGlobalInterfaceOverrideSelection,
       interfaceLabelOverrides: state.telemetryInterfaceLabelOverrides
     }),
@@ -645,6 +653,7 @@ export const useTopoViewerState = () =>
       endpointLabelOffset: state.endpointLabelOffset,
       telemetryNodeSizePx: state.telemetryNodeSizePx,
       telemetryInterfaceSizePercent: state.telemetryInterfaceSizePercent,
+      showRateLabels: state.showRateLabels,
       telemetryGlobalInterfaceOverrideSelection: state.telemetryGlobalInterfaceOverrideSelection,
       telemetryInterfaceLabelOverrides: state.telemetryInterfaceLabelOverrides,
       gridLineWidth: state.gridLineWidth,
@@ -685,6 +694,7 @@ export const useTopoViewerActions = () =>
       setEndpointLabelOffset: state.setEndpointLabelOffset,
       setTelemetryNodeSizePx: state.setTelemetryNodeSizePx,
       setTelemetryInterfaceSizePercent: state.setTelemetryInterfaceSizePercent,
+      setShowRateLabels: state.setShowRateLabels,
       setTelemetryGlobalInterfaceOverrideSelection:
         state.setTelemetryGlobalInterfaceOverrideSelection,
       setTelemetryInterfaceLabelOverrides: state.setTelemetryInterfaceLabelOverrides,

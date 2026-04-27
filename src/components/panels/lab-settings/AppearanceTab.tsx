@@ -8,6 +8,7 @@ import {
   MenuItem,
   Paper,
   Slider,
+  Switch,
   Tab,
   Tabs,
   TextField,
@@ -105,6 +106,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
   const telemetryInterfaceSizePercent = useTopoViewerStore(
     (state) => state.telemetryInterfaceSizePercent
   );
+  const showRateLabels = useTopoViewerStore((state) => state.showRateLabels);
   const globalInterfaceOverrideSelection = useTopoViewerStore(
     (state) => state.telemetryGlobalInterfaceOverrideSelection
   );
@@ -117,6 +119,7 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
   const setTelemetryInterfaceSizePercent = useTopoViewerStore(
     (state) => state.setTelemetryInterfaceSizePercent
   );
+  const setShowRateLabels = useTopoViewerStore((state) => state.setShowRateLabels);
   const setTelemetryGlobalInterfaceOverrideSelection = useTopoViewerStore(
     (state) => state.setTelemetryGlobalInterfaceOverrideSelection
   );
@@ -236,6 +239,38 @@ export const AppearanceTab: React.FC<AppearanceTabProps> = ({
               }}
             />
           </Box>
+
+          <Paper
+            variant="outlined"
+            sx={{
+              px: 1.5,
+              py: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 1.5,
+              minHeight: 40
+            }}
+          >
+            <Typography
+              id="show-rate-labels-label"
+              variant="body2"
+              sx={{ minWidth: 0 }}
+            >
+              Show rate labels
+            </Typography>
+            <Switch
+              size="small"
+              checked={showRateLabels}
+              disabled={isReadOnly}
+              slotProps={{ input: { "aria-labelledby": "show-rate-labels-label" } }}
+              onChange={(e) => {
+                if (isReadOnly) return;
+                setShowRateLabels(e.target.checked);
+              }}
+              sx={{ flexShrink: 0 }}
+            />
+          </Paper>
 
           {isTelemetryStyleEnabled ? (
             <>

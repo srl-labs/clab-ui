@@ -1,10 +1,13 @@
 // Grafana Flow-panel export helpers.
 import type { Edge, Node } from "@xyflow/react";
 
+import { TRAFFIC_RATE_NODE_TYPE } from "../../../annotations/annotationNodeConverters";
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SVG_MIME_TYPE = "image/svg+xml";
 const CELL_ID_PREAMBLE = "cell-";
 type TrafficThresholdUnit = "kbit" | "mbit" | "gbit";
+type GrafanaTrafficRateMetric = "rx" | "tx" | "combined";
 
 export interface GrafanaEdgeCellMapping {
   edgeId: string;
@@ -25,13 +28,22 @@ export interface GrafanaTrafficThresholds {
   red: number;
 }
 
+export interface GrafanaTrafficRateLabelPlacement {
+  labelCellId: string;
+  x: number;
+  y: number;
+  dataRef: string;
+}
+
 export interface GrafanaPanelYamlOptions {
   trafficThresholds?: GrafanaTrafficThresholds;
   includeHideRatesLegendToggle?: boolean;
+  trafficRateLabelPlacements?: GrafanaTrafficRateLabelPlacement[];
 }
 
 export interface GrafanaCellIdSvgOptions {
   trafficRatesOnHoverOnly?: boolean;
+  trafficRateLabelPlacements?: GrafanaTrafficRateLabelPlacement[];
 }
 
 export const DEFAULT_GRAFANA_TRAFFIC_THRESHOLDS: GrafanaTrafficThresholds = {
@@ -156,6 +168,94 @@ export function collectGrafanaEdgeCellMappings(
   }
 
   return mappings;
+}
+
+function asFinitePositiveNumber(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
+function getNodeDimension(node: Node, key: "width" | "height", fallback: number): number {
+  const direct = asFinitePositiveNumber(node[key]);
+  if (direct !== null) return direct;
+  const fromData = asFinitePositiveNumber(asRecord(node.data)[key]);
+  return fromData ?? fallback;
+}
+
+function getTrafficRateNodeCenter(node: Node): { x: number; y: number } {
+  return {
+    x: node.position.x + getNodeDimension(node, "width", 100) / 2,
+    y: node.position.y + getNodeDimension(node, "height", 30) / 2
+  };
+}
+
+function normalizeTrafficRateTextMetric(value: unknown): GrafanaTrafficRateMetric {
+  if (value === "rx" || value === "tx" || value === "combined") return value;
+  return "tx";
+}
+
+function getTrafficRateDataRef(
+  nodeId: string,
+  interfaceName: string,
+  metric: GrafanaTrafficRateMetric
+): string {
+  const direction = metric === "rx" ? "in" : "out";
+  return `${nodeId}:${interfaceName}:${direction}`;
+}
+
+function matchTrafficRateLabelCellId(
+  nodeId: string,
+  interfaceName: string,
+  mapping: GrafanaEdgeCellMapping
+): string | null {
+  if (mapping.source === nodeId && mapping.sourceEndpoint === interfaceName) {
+    return getTrafficLabelCellId(mapping.trafficCellId);
+  }
+  if (mapping.target === nodeId && mapping.targetEndpoint === interfaceName) {
+    return getTrafficLabelCellId(mapping.reverseTrafficCellId);
+  }
+  return null;
+}
+
+export function collectGrafanaTrafficRateLabelPlacements(
+  nodes: Node[],
+  mappings: GrafanaEdgeCellMapping[]
+): GrafanaTrafficRateLabelPlacement[] {
+  if (mappings.length === 0) return [];
+
+  const usedLabelCellIds = new Set<string>();
+  const placements: GrafanaTrafficRateLabelPlacement[] = [];
+  const trafficRateNodes = nodes
+    .filter((node) => node.type === TRAFFIC_RATE_NODE_TYPE)
+    .sort((left, right) => left.id.localeCompare(right.id));
+
+  for (const node of trafficRateNodes) {
+    const data = asRecord(node.data);
+    const nodeId = asString(data.nodeId);
+    const interfaceName = asString(data.interfaceName);
+    if (nodeId === null || interfaceName === null) continue;
+
+    for (const mapping of mappings) {
+      const labelCellId = matchTrafficRateLabelCellId(nodeId, interfaceName, mapping);
+      if (labelCellId === null || usedLabelCellIds.has(labelCellId)) continue;
+
+      const center = getTrafficRateNodeCenter(node);
+      usedLabelCellIds.add(labelCellId);
+      placements.push({
+        labelCellId,
+        x: center.x,
+        y: center.y,
+        dataRef: getTrafficRateDataRef(
+          nodeId,
+          interfaceName,
+          normalizeTrafficRateTextMetric(data.textMetric)
+        )
+      });
+      break;
+    }
+  }
+
+  return placements;
 }
 
 export function collectLinkedNodeIds(
@@ -1156,6 +1256,18 @@ function resolveTrafficLabelPoint(
   return fallback;
 }
 
+function buildTrafficRateLabelPlacementMap(
+  placements: GrafanaTrafficRateLabelPlacement[] | undefined
+): Map<string, GrafanaTrafficRateLabelPlacement> {
+  const result = new Map<string, GrafanaTrafficRateLabelPlacement>();
+  for (const placement of placements ?? []) {
+    if (result.has(placement.labelCellId)) continue;
+    if (!Number.isFinite(placement.x) || !Number.isFinite(placement.y)) continue;
+    result.set(placement.labelCellId, placement);
+  }
+  return result;
+}
+
 function createTrafficHalfCell(
   doc: XMLDocument,
   sourcePath: Element,
@@ -1165,9 +1277,11 @@ function createTrafficHalfCell(
   interfaceLabelPoints: Point[],
   interfaceSide: "start" | "end",
   graphScale: number,
+  trafficRateLabelPlacementsByCellId: Map<string, GrafanaTrafficRateLabelPlacement>,
   trafficRatesOnHoverOnly: boolean
 ): Element {
   const trafficLabelPlaceholder = "rate";
+  const labelCellId = getTrafficLabelCellId(shortCellId);
 
   const group = doc.createElementNS(SVG_NS, "g");
   group.setAttribute("class", "grafana-traffic-half");
@@ -1190,19 +1304,26 @@ function createTrafficHalfCell(
     group.appendChild(hitboxPath);
   }
 
-  const mid = resolveTrafficLabelPoint(
-    halfPathData,
-    occupiedLabelPoints,
-    interfaceLabelPoints,
-    interfaceSide,
-    graphScale
-  );
+  const placement = trafficRateLabelPlacementsByCellId.get(labelCellId);
+  const mid =
+    placement !== undefined
+      ? { x: placement.x, y: placement.y }
+      : resolveTrafficLabelPoint(
+          halfPathData,
+          occupiedLabelPoints,
+          interfaceLabelPoints,
+          interfaceSide,
+          graphScale
+        );
+  if (placement !== undefined) {
+    occupiedLabelPoints.push({ point: mid });
+  }
   const text = doc.createElementNS(SVG_NS, "text");
   text.setAttribute("x", fmt(mid.x));
   text.setAttribute("y", fmt(mid.y));
   text.setAttribute("font-size", "10");
   text.setAttribute("font-family", "Helvetica, Arial, sans-serif");
-  setCellIdAttributes(text, getTrafficLabelCellId(shortCellId));
+  setCellIdAttributes(text, labelCellId);
   text.style.color = "#FFFFFF";
   text.style.filter = "drop-shadow(0 0 1px rgba(0, 0, 0, 0.95))";
   text.setAttribute("fill", "currentColor");
@@ -1273,6 +1394,7 @@ function replaceTrafficPathWithHalfCells(
   occupiedTrafficLabelPoints: TrafficLabelPlacement[],
   interfaceLabelPoints: Point[],
   graphScale: number,
+  trafficRateLabelPlacementsByCellId: Map<string, GrafanaTrafficRateLabelPlacement>,
   trafficRatesOnHoverOnly: boolean
 ): void {
   const parent = trafficPath.parentNode;
@@ -1292,6 +1414,7 @@ function replaceTrafficPathWithHalfCells(
     interfaceLabelPoints,
     "start",
     graphScale,
+    trafficRateLabelPlacementsByCellId,
     trafficRatesOnHoverOnly
   );
   const secondHalf = createTrafficHalfCell(
@@ -1303,6 +1426,7 @@ function replaceTrafficPathWithHalfCells(
     interfaceLabelPoints,
     "end",
     graphScale,
+    trafficRateLabelPlacementsByCellId,
     trafficRatesOnHoverOnly
   );
   parent.insertBefore(firstHalf, trafficPath);
@@ -1317,6 +1441,7 @@ function applyTrafficCellsToEdgeGroup(
   occupiedTrafficLabelPoints: TrafficLabelPlacement[],
   interfaceLabelPoints: Point[],
   graphScale: number,
+  trafficRateLabelPlacementsByCellId: Map<string, GrafanaTrafficRateLabelPlacement>,
   trafficRatesOnHoverOnly: boolean
 ): void {
   const trafficCellEl = resolveTrafficCellElement(trafficGroup);
@@ -1332,6 +1457,7 @@ function applyTrafficCellsToEdgeGroup(
     occupiedTrafficLabelPoints,
     interfaceLabelPoints,
     graphScale,
+    trafficRateLabelPlacementsByCellId,
     trafficRatesOnHoverOnly
   );
 }
@@ -1370,6 +1496,9 @@ export function applyGrafanaCellIdsToSvg(
   const edgeGroupByDataId = buildEdgeGroupByDataId(doc);
   const occupiedTrafficLabelPoints: TrafficLabelPlacement[] = [];
   const interfaceLabelPoints = collectInterfaceLabelPoints(doc);
+  const trafficRateLabelPlacementsByCellId = buildTrafficRateLabelPlacementMap(
+    options.trafficRateLabelPlacements
+  );
 
   for (const mapping of mappings) {
     const trafficGroup = edgeGroupByDataId.get(mapping.edgeId);
@@ -1381,6 +1510,7 @@ export function applyGrafanaCellIdsToSvg(
       occupiedTrafficLabelPoints,
       interfaceLabelPoints,
       graphScale,
+      trafficRateLabelPlacementsByCellId,
       trafficRatesOnHoverOnly
     );
     applyOperstateCellsToEdgeGroup(doc, mapping, trafficGroup);
@@ -1445,6 +1575,19 @@ function quoteYaml(value: string): string {
   return JSON.stringify(value);
 }
 
+function buildTrafficRateLabelDataRefMap(
+  placements: GrafanaTrafficRateLabelPlacement[] | undefined
+): Map<string, string> {
+  const result = new Map<string, string>();
+  for (const placement of placements ?? []) {
+    if (result.has(placement.labelCellId)) continue;
+    const dataRef = asString(placement.dataRef);
+    if (dataRef === null) continue;
+    result.set(placement.labelCellId, dataRef);
+  }
+  return result;
+}
+
 function asValidYamlNumber(value: number, fallback: number): number {
   if (!Number.isFinite(value)) return fallback;
   return Math.max(0, value);
@@ -1458,6 +1601,9 @@ export function buildGrafanaPanelYaml(
 ): string {
   const trafficThresholds = options.trafficThresholds ?? DEFAULT_GRAFANA_TRAFFIC_THRESHOLDS;
   const includeHideRatesLegendToggle = options.includeHideRatesLegendToggle !== false;
+  const trafficRateLabelDataRefByCellId = buildTrafficRateLabelDataRefMap(
+    options.trafficRateLabelPlacements
+  );
   const greenThreshold = asValidYamlNumber(
     trafficThresholds.green,
     DEFAULT_GRAFANA_TRAFFIC_THRESHOLDS.green
@@ -1518,6 +1664,11 @@ export function buildGrafanaPanelYaml(
     const targetOperstateDataRef = `oper-state:${mapping.target}:${mapping.targetEndpoint}`;
     const trafficDataRef = `${mapping.source}:${mapping.sourceEndpoint}:out`;
     const reverseTrafficDataRef = `${mapping.target}:${mapping.targetEndpoint}:out`;
+    const trafficLabelCellId = getTrafficLabelCellId(mapping.trafficCellId);
+    const reverseTrafficLabelCellId = getTrafficLabelCellId(mapping.reverseTrafficCellId);
+    const trafficLabelDataRef = trafficRateLabelDataRefByCellId.get(trafficLabelCellId) ?? trafficDataRef;
+    const reverseTrafficLabelDataRef =
+      trafficRateLabelDataRefByCellId.get(reverseTrafficLabelCellId) ?? reverseTrafficDataRef;
     lines.push(`  ${quoteYaml(mapping.operstateCellId)}:`);
     lines.push(`    dataRef: ${quoteYaml(operstateDataRef)}`);
     lines.push("    fillColor:");
@@ -1539,8 +1690,8 @@ export function buildGrafanaPanelYaml(
     if (includeHideRatesLegendToggle) {
       lines.push(`    tags: ["${RATE_LABEL_HIDE_TAG}"]`);
     }
-    lines.push(`  ${quoteYaml(getTrafficLabelCellId(mapping.trafficCellId))}:`);
-    lines.push(`    dataRef: ${quoteYaml(trafficDataRef)}`);
+    lines.push(`  ${quoteYaml(trafficLabelCellId)}:`);
+    lines.push(`    dataRef: ${quoteYaml(trafficLabelDataRef)}`);
     lines.push("    label: *label-config");
     lines.push("    labelColor:");
     lines.push("      thresholds: *thresholds-rate-label");
@@ -1551,8 +1702,8 @@ export function buildGrafanaPanelYaml(
     if (includeHideRatesLegendToggle) {
       lines.push(`    tags: ["${RATE_LABEL_HIDE_TAG}"]`);
     }
-    lines.push(`  ${quoteYaml(getTrafficLabelCellId(mapping.reverseTrafficCellId))}:`);
-    lines.push(`    dataRef: ${quoteYaml(reverseTrafficDataRef)}`);
+    lines.push(`  ${quoteYaml(reverseTrafficLabelCellId)}:`);
+    lines.push(`    dataRef: ${quoteYaml(reverseTrafficLabelDataRef)}`);
     lines.push("    label: *label-config");
     lines.push("    labelColor:");
     lines.push("      thresholds: *thresholds-rate-label");

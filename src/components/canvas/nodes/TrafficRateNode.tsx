@@ -18,11 +18,12 @@ const TEXT_MIN_WIDTH = 1;
 const TEXT_MIN_HEIGHT = 1;
 const REF_WIDTH = 260;
 const REF_HEIGHT = 180;
-const TEXT_REF_WIDTH = 100;
+const TEXT_REF_WIDTH = 50;
 const TEXT_REF_HEIGHT = 30;
 const FALLBACK_BACKGROUND = "#1e1e1e";
 const FALLBACK_BORDER_COLOR = "#3f3f46";
 const DEFAULT_BORDER_WIDTH = 1;
+const DEFAULT_TEXT_BORDER_WIDTH = 0;
 const DEFAULT_BORDER_STYLE: NonNullable<TrafficRateNodeData["borderStyle"]> = "solid";
 const DEFAULT_BORDER_RADIUS = 8;
 const DEFAULT_BACKGROUND_OPACITY = 20;
@@ -257,7 +258,8 @@ const TrafficRateNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) =
     nodeData.backgroundOpacity ?? DEFAULT_BACKGROUND_OPACITY
   );
   const borderColor = nodeData.borderColor ?? defaultBorderColor;
-  const borderWidth = nodeData.borderWidth ?? DEFAULT_BORDER_WIDTH;
+  const borderWidth =
+    nodeData.borderWidth ?? (mode === "text" ? DEFAULT_TEXT_BORDER_WIDTH : DEFAULT_BORDER_WIDTH);
   const borderStyle = nodeData.borderStyle ?? DEFAULT_BORDER_STYLE;
   const showLegend = nodeData.showLegend !== false;
   const textColor = nodeData.textColor ?? defaultTextColor;

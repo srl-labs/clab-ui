@@ -26,6 +26,7 @@ import {
   toFiniteNumber,
   toPosition
 } from "../annotations";
+import { AUTO_CREATED_TRAFFIC_RATE_LABEL } from "../annotations/constants";
 import { useGraphStore } from "../stores/graphStore";
 import { useTopoViewerStore } from "../stores/topoViewerStore";
 import type {
@@ -546,6 +547,23 @@ function parseTelemetryInterfaceSizePercent(value: unknown): number | null {
   return clampTelemetryInterfaceSizePercent(parsed);
 }
 
+function parseShowRateLabels(
+  viewerSettings: Required<TopologyAnnotations>["viewerSettings"],
+  trafficRateAnnotations: TrafficRateAnnotation[]
+): boolean {
+  if (
+    trafficRateAnnotations.some(
+      (annotation) => annotation.label === AUTO_CREATED_TRAFFIC_RATE_LABEL
+    )
+  ) {
+    return true;
+  }
+  if (typeof viewerSettings.showRateLabels === "boolean") {
+    return viewerSettings.showRateLabels;
+  }
+  return viewerSettings.autoCreateTrafficRateAnnotations === true;
+}
+
 function resolveLinkLabelModes(viewerSettings: Required<TopologyAnnotations>["viewerSettings"]): {
   resolvedLinkLabelMode: LinkLabelMode | null;
   resolvedLastNonTelemetryLinkLabelMode: NonTelemetryLinkLabelMode | null;
@@ -594,7 +612,8 @@ function resolveLinkLabelModes(viewerSettings: Required<TopologyAnnotations>["vi
 function buildInitialTopoViewerData(
   snapshot: TopologySnapshot,
   edgeAnnotations: TopologyAnnotations["edgeAnnotations"],
-  viewerSettings: Required<TopologyAnnotations>["viewerSettings"]
+  viewerSettings: Required<TopologyAnnotations>["viewerSettings"],
+  trafficRateAnnotations: TrafficRateAnnotation[]
 ): Partial<TopoViewerState> {
   const offset = parseEndpointLabelOffset(viewerSettings.endpointLabelOffset);
   const { gridColor, gridBgColor } = viewerSettings;
@@ -604,6 +623,7 @@ function buildInitialTopoViewerData(
   const telemetryInterfaceSizePercent = parseTelemetryInterfaceSizePercent(
     viewerSettings.telemetryInterfaceSizePercent
   );
+  const showRateLabels = parseShowRateLabels(viewerSettings, trafficRateAnnotations);
   const { resolvedLinkLabelMode, resolvedLastNonTelemetryLinkLabelMode } =
     resolveLinkLabelModes(viewerSettings);
 
@@ -625,6 +645,7 @@ function buildInitialTopoViewerData(
     gridBgColor: gridBgColor ?? null,
     ...(telemetryNodeSizePx !== null ? { telemetryNodeSizePx } : {}),
     ...(telemetryInterfaceSizePercent !== null ? { telemetryInterfaceSizePercent } : {}),
+    showRateLabels,
     ...(resolvedLinkLabelMode !== null ? { linkLabelMode: resolvedLinkLabelMode } : {}),
     ...(resolvedLastNonTelemetryLinkLabelMode !== null
       ? { lastNonTelemetryLinkLabelMode: resolvedLastNonTelemetryLinkLabelMode }
@@ -672,7 +693,8 @@ export function applySnapshotToStores(
   const initialData = buildInitialTopoViewerData(
     snapshot,
     cleanedEdgeAnnotations,
-    annotations.viewerSettings
+    annotations.viewerSettings,
+    annotations.trafficRateAnnotations
   );
   useTopoViewerStore.getState().setInitialData(initialData);
 

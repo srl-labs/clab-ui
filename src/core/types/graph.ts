@@ -106,6 +106,7 @@ export interface FreeShapeNodeData {
  * Node data for traffic-rate annotations.
  */
 export interface TrafficRateNodeData extends TrafficRateStyle {
+  label?: string;
   nodeId?: string;
   interfaceName?: string;
   mode?: "chart" | "text";

@@ -7,13 +7,12 @@ import Tab from "@mui/material/Tab";
 
 import { useTopologySessionClient } from "../../../host";
 import { useLabSettingsState } from "../../../hooks/editor";
-import { saveViewerSettings } from "../../../services";
-import { useTopoViewerStore } from "../../../stores/topoViewerStore";
+import { saveAnnotationNodesFromGraph, saveViewerSettings } from "../../../services";
+import { useGraphStore, useTopoViewerStore } from "../../../stores";
 import type { GridSettingsControlsProps } from "../GridSettingsPopover";
-import { BasicTab } from "../lab-settings/BasicTab";
-import { MgmtTab } from "../lab-settings/MgmtTab";
-import { AppearanceTab } from "../lab-settings/AppearanceTab";
-import type { LabSettings } from "../lab-settings/types";
+import { BasicTab, MgmtTab, AppearanceTab, type LabSettings } from "../lab-settings";
+
+import { syncRateLabelAnnotationsForLinks } from "./trafficRateAnnotationAutoCreate";
 
 export interface LabSettingsSectionProps extends GridSettingsControlsProps {
   mode: "view" | "edit";
@@ -53,10 +52,21 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
   const telemetryInterfaceSizePercent = useTopoViewerStore(
     (store) => store.telemetryInterfaceSizePercent
   );
+  const showRateLabels = useTopoViewerStore((store) => store.showRateLabels);
 
   const handleSave = async () => {
     if (!areTopologySettingsReadOnly) {
       await state.handleSave();
+    }
+    const graphStore = useGraphStore.getState();
+    const result = syncRateLabelAnnotationsForLinks(
+      graphStore.nodes,
+      graphStore.edges,
+      showRateLabels
+    );
+    if (result.createdCount > 0 || result.removedCount > 0) {
+      graphStore.setNodes(result.nodes);
+      await saveAnnotationNodesFromGraph(sessionClient, result.nodes);
     }
     const style = linkLabelMode === "telemetry-style" ? "telemetry-style" : "default";
     const nextLastNonTelemetryLinkLabelMode =
@@ -67,6 +77,8 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
       lastNonTelemetryLinkLabelMode: nextLastNonTelemetryLinkLabelMode,
       telemetryNodeSizePx,
       telemetryInterfaceSizePercent,
+      showRateLabels,
+      autoCreateTrafficRateAnnotations: showRateLabels,
       gridLineWidth,
       gridStyle,
       gridColor,

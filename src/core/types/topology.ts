@@ -133,6 +133,7 @@ export interface FreeShapeAnnotation {
  */
 export interface TrafficRateAnnotation extends TrafficRateStyle {
   id: string;
+  label?: string;
   position: { x: number; y: number };
   geoCoordinates?: { lat: number; lng: number };
   groupId?: string; // Parent group ID for hierarchy membership
@@ -262,6 +263,8 @@ export interface TopologyAnnotations {
     lastNonTelemetryLinkLabelMode?: "show-all" | "on-select" | "hide";
     telemetryNodeSizePx?: number;
     telemetryInterfaceSizePercent?: number;
+    showRateLabels?: boolean;
+    autoCreateTrafficRateAnnotations?: boolean;
   };
   [key: string]: unknown;
 }

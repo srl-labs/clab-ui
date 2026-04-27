@@ -14,3 +14,4 @@ export const DEFAULT_BORDER_STYLE: NonNullable<FreeShapeAnnotation["borderStyle"
 export const DEFAULT_ARROW_SIZE = 10;
 export const DEFAULT_CORNER_RADIUS = 0;
 export const MIN_SHAPE_SIZE = 5;
+export const AUTO_CREATED_TRAFFIC_RATE_LABEL = "autocreated";

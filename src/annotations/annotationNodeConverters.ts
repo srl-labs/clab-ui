@@ -59,7 +59,7 @@ const DEFAULT_GROUP_WIDTH = 200;
 const DEFAULT_GROUP_HEIGHT = 150;
 const DEFAULT_TRAFFIC_RATE_CHART_WIDTH = 280;
 const DEFAULT_TRAFFIC_RATE_CHART_HEIGHT = 170;
-const DEFAULT_TRAFFIC_RATE_TEXT_WIDTH = 100;
+const DEFAULT_TRAFFIC_RATE_TEXT_WIDTH = 50;
 const DEFAULT_TRAFFIC_RATE_TEXT_HEIGHT = 30;
 
 // ============================================================================
@@ -166,6 +166,8 @@ function buildTrafficRateNodeData(
     borderRadius: toFiniteNumber(annotation.borderRadius)
   };
 
+  const label = toOptionalString(annotation.label);
+  if (label !== undefined) data.label = label;
   const nodeId = toOptionalString(annotation.nodeId);
   if (nodeId !== undefined) data.nodeId = nodeId;
   const interfaceName = toOptionalString(annotation.interfaceName);
@@ -199,6 +201,8 @@ function buildTrafficRateAnnotationBase(
     geoCoordinates: data.geoCoordinates as { lat: number; lng: number } | undefined
   };
 
+  const label = toOptionalString(data.label);
+  if (label !== undefined) annotation.label = label;
   const nodeId = toOptionalString(data.nodeId);
   if (nodeId !== undefined) annotation.nodeId = nodeId;
   const interfaceName = toOptionalString(data.interfaceName);

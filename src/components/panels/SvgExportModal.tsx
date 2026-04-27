@@ -35,6 +35,7 @@ import type {
 import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
+  TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE
 } from "../../annotations/annotationNodeConverters";
 import { useExtensionMessaging } from "../../messaging/extensionMessaging";
@@ -47,6 +48,7 @@ import {
   applyPadding,
   buildGraphSvg,
   collectGrafanaEdgeCellMappings,
+  collectGrafanaTrafficRateLabelPlacements,
   collectLinkedNodeIds,
   sanitizeSvgForGrafana,
   removeUnlinkedNodesFromSvg,
@@ -82,6 +84,7 @@ export interface SvgExportModalProps {
 const ANNOTATION_NODE_TYPES: Set<string> = new Set([
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
+  TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE
 ]);
 
@@ -579,6 +582,10 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
         prepared.graphSvg.nodes,
         ANNOTATION_NODE_TYPES
       );
+      const trafficRateLabelPlacements = collectGrafanaTrafficRateLabelPlacements(
+        prepared.graphSvg.nodes,
+        mappings
+      );
       let grafanaBaseSvg = sanitizeSvgForGrafana(prepared.finalSvg);
       if (excludeNodesWithoutLinks) {
         const linkedNodeIds = collectLinkedNodeIds(
@@ -594,7 +601,8 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
       }
 
       let grafanaSvg = applyGrafanaCellIdsToSvg(grafanaBaseSvg, mappings, {
-        trafficRatesOnHoverOnly
+        trafficRatesOnHoverOnly,
+        trafficRateLabelPlacements
       });
       if (includeGrafanaLegend) {
         grafanaSvg = addGrafanaTrafficLegend(grafanaSvg, trafficThresholds, trafficThresholdUnit);
@@ -602,7 +610,8 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
       grafanaSvg = makeGrafanaSvgResponsive(grafanaSvg);
       const panelYaml = buildGrafanaPanelYaml(mappings, {
         trafficThresholds,
-        includeHideRatesLegendToggle
+        includeHideRatesLegendToggle,
+        trafficRateLabelPlacements
       });
       const dashboardJson = buildGrafanaDashboardJson(panelYaml, grafanaSvg, prepared.baseName);
 

@@ -28,10 +28,11 @@ export interface TrafficRateEditorFooterRef {
 
 const DEFAULT_WIDTH = 280;
 const DEFAULT_HEIGHT = 170;
-const DEFAULT_TEXT_WIDTH = 100;
+const DEFAULT_TEXT_WIDTH = 50;
 const DEFAULT_TEXT_HEIGHT = 30;
 const DEFAULT_BACKGROUND_OPACITY = 20;
 const DEFAULT_BORDER_WIDTH = 1;
+const DEFAULT_TEXT_BORDER_WIDTH = 0;
 const DEFAULT_BORDER_RADIUS_CHART = 8;
 const DEFAULT_BORDER_RADIUS_TEXT = 4;
 const FALLBACK_BACKGROUND_COLOR = "#1e1e1e";
@@ -45,6 +46,7 @@ interface TrafficRateSizeConfig {
   defaultWidthForMode: number;
   defaultHeightForMode: number;
   defaultBorderRadiusForMode: number;
+  defaultBorderWidthForMode: number;
   width: number;
   height: number;
   widthMin: number;
@@ -147,6 +149,8 @@ function resolveTrafficRateSizeConfig(
   const defaultHeightForMode = mode === "text" ? DEFAULT_TEXT_HEIGHT : DEFAULT_HEIGHT;
   const defaultBorderRadiusForMode =
     mode === "text" ? DEFAULT_BORDER_RADIUS_TEXT : DEFAULT_BORDER_RADIUS_CHART;
+  const defaultBorderWidthForMode =
+    mode === "text" ? DEFAULT_TEXT_BORDER_WIDTH : DEFAULT_BORDER_WIDTH;
   const width = formData.width ?? defaultWidthForMode;
   const height = formData.height ?? defaultHeightForMode;
   const widthMin = mode === "text" ? 1 : 180;
@@ -155,6 +159,7 @@ function resolveTrafficRateSizeConfig(
     defaultWidthForMode,
     defaultHeightForMode,
     defaultBorderRadiusForMode,
+    defaultBorderWidthForMode,
     width,
     height,
     widthMin,
@@ -165,7 +170,7 @@ function resolveTrafficRateSizeConfig(
 function resolveModeFieldOverrides(
   formData: TrafficRateAnnotation,
   nextMode: TrafficRateMode
-): Partial<Pick<TrafficRateAnnotation, "width" | "height" | "borderRadius">> {
+): Partial<Pick<TrafficRateAnnotation, "width" | "height" | "borderRadius" | "borderWidth">> {
   if (nextMode === "text") {
     return {
       width:
@@ -179,6 +184,10 @@ function resolveModeFieldOverrides(
       borderRadius:
         formData.borderRadius === undefined || formData.borderRadius === DEFAULT_BORDER_RADIUS_CHART
           ? DEFAULT_BORDER_RADIUS_TEXT
+          : undefined,
+      borderWidth:
+        formData.borderWidth === undefined || formData.borderWidth === DEFAULT_BORDER_WIDTH
+          ? DEFAULT_TEXT_BORDER_WIDTH
           : undefined
     };
   }
@@ -195,6 +204,10 @@ function resolveModeFieldOverrides(
     borderRadius:
       formData.borderRadius === undefined || formData.borderRadius === DEFAULT_BORDER_RADIUS_TEXT
         ? DEFAULT_BORDER_RADIUS_CHART
+        : undefined,
+    borderWidth:
+      formData.borderWidth === undefined || formData.borderWidth === DEFAULT_TEXT_BORDER_WIDTH
+        ? DEFAULT_BORDER_WIDTH
         : undefined
   };
 }
@@ -283,7 +296,7 @@ function resolveEditorResolvedFields(
     borderStyleValue: formData.borderStyle ?? "solid",
     textColorValue: formData.textColor ?? themeDefaults.textColor,
     opacityValue: String(formData.backgroundOpacity ?? DEFAULT_BACKGROUND_OPACITY),
-    borderWidthValue: String(formData.borderWidth ?? DEFAULT_BORDER_WIDTH),
+    borderWidthValue: String(formData.borderWidth ?? sizeConfig.defaultBorderWidthForMode),
     borderRadiusValue: String(formData.borderRadius ?? sizeConfig.defaultBorderRadiusForMode),
     showLegendChecked: formData.showLegend !== false
   };
@@ -600,7 +613,7 @@ export const TrafficRateEditorView: React.FC<TrafficRateEditorViewProps> = ({
                 onChange={(value) => {
                   updateField(
                     "borderWidth",
-                    parseClampedOrDefault(value, DEFAULT_BORDER_WIDTH, 0, 20)
+                    parseClampedOrDefault(value, sizeConfig.defaultBorderWidthForMode, 0, 20)
                   );
                 }}
                 min={0}

@@ -42,6 +42,7 @@ export type { GraphSvgResult, ViewportSize, GraphSvgRenderOptions } from "./grap
 // Grafana export helpers
 export {
   collectGrafanaEdgeCellMappings,
+  collectGrafanaTrafficRateLabelPlacements,
   collectLinkedNodeIds,
   sanitizeSvgForGrafana,
   removeUnlinkedNodesFromSvg,
@@ -57,5 +58,6 @@ export type {
   GrafanaEdgeCellMapping,
   GrafanaCellIdSvgOptions,
   GrafanaPanelYamlOptions,
+  GrafanaTrafficRateLabelPlacement,
   GrafanaTrafficThresholds
 } from "./grafanaExport";

@@ -287,6 +287,18 @@ interface TopologyAnnotations {
     shapeType: string;
     position: { x: number; y: number };
   }>;
+  trafficRateAnnotations?: Array<{
+    id: string;
+    label?: string;
+    nodeId?: string;
+    interfaceName?: string;
+    mode?: "chart" | "text";
+    textMetric?: "combined" | "rx" | "tx";
+    position: { x: number; y: number };
+    width?: number;
+    height?: number;
+    borderWidth?: number;
+  }>;
   groupStyleAnnotations?: Array<{
     id: string;
     name: string;
@@ -319,6 +331,8 @@ interface TopologyAnnotations {
     lastNonTelemetryLinkLabelMode?: "show-all" | "on-select" | "hide";
     telemetryNodeSizePx?: number;
     telemetryInterfaceSizePercent?: number;
+    showRateLabels?: boolean;
+    autoCreateTrafficRateAnnotations?: boolean;
   };
   aliasEndpointAnnotations?: Array<{ id: string }>;
 }

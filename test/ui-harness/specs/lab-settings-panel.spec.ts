@@ -133,6 +133,8 @@ test.describe("Lab Settings Modal", () => {
     await expect(styleSelect).toBeVisible();
     await expect(modal.getByLabel("Node size")).toBeVisible();
     await expect(modal.getByLabel("Interface size")).toBeVisible();
+    await expect(modal.getByLabel("Show rate labels")).toBeVisible();
+    await expect(modal.getByLabel("Show rate labels")).not.toBeChecked();
 
     // Interface-name override controls are available in the Appearance tab.
     await expect(modal.getByLabel("Global override (all interfaces)")).toBeVisible();
@@ -141,6 +143,64 @@ test.describe("Lab Settings Modal", () => {
     await styleSelect.click();
     await chooseOption(page, /^Telemetry Style$/);
     await expect(modal.getByLabel("Global override (all interfaces)")).toBeVisible();
+  });
+
+  test("Appearance tab remembers legacy auto-create setting as show rate labels", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const annotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+    const viewerSettings = { ...(annotations.viewerSettings ?? {}) };
+    delete viewerSettings.showRateLabels;
+    viewerSettings.autoCreateTrafficRateAnnotations = true;
+    await topoViewerPage.writeAnnotationsFile(SIMPLE_FILE, {
+      ...annotations,
+      viewerSettings
+    });
+    await topoViewerPage.waitForCanvasReady();
+
+    const modal = await openModal(page);
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
+    await page.waitForTimeout(200);
+
+    await expect(modal.getByLabel("Show rate labels")).toBeChecked();
+  });
+
+  test("Appearance tab enables show rate labels when auto-created annotations exist", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const annotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+    await topoViewerPage.writeAnnotationsFile(SIMPLE_FILE, {
+      ...annotations,
+      trafficRateAnnotations: [
+        ...(annotations.trafficRateAnnotations ?? []),
+        {
+          id: "traffic-rate-autocreated-test",
+          label: "autocreated",
+          nodeId: "srl2",
+          interfaceName: "e1-1",
+          mode: "text",
+          textMetric: "tx",
+          position: { x: 120, y: 120 },
+          width: 50,
+          height: 30,
+          borderWidth: 0
+        }
+      ],
+      viewerSettings: {
+        ...(annotations.viewerSettings ?? {}),
+        showRateLabels: false,
+        autoCreateTrafficRateAnnotations: false
+      }
+    });
+    await topoViewerPage.waitForCanvasReady();
+
+    const modal = await openModal(page);
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
+    await page.waitForTimeout(200);
+
+    await expect(modal.getByLabel("Show rate labels")).toBeChecked();
   });
 
   test("Appearance settings persist after reload", async ({ page, topoViewerPage }) => {
@@ -157,6 +217,7 @@ test.describe("Lab Settings Modal", () => {
 
     await modal.getByLabel("Node size").fill("80");
     await modal.getByLabel("Interface size").fill("150");
+    await modal.getByLabel("Show rate labels").check();
 
     await modal.locator('[data-testid="lab-settings-appearance-subtab-grid"]').click();
     await page.waitForTimeout(150);
@@ -179,7 +240,9 @@ test.describe("Lab Settings Modal", () => {
         style: "telemetry-style",
         gridStyle: "quadratic",
         telemetryNodeSizePx: 80,
-        telemetryInterfaceSizePercent: 150
+        telemetryInterfaceSizePercent: 150,
+        showRateLabels: true,
+        autoCreateTrafficRateAnnotations: true
       });
 
     await topoViewerPage.gotoFile(SIMPLE_FILE);
@@ -197,12 +260,99 @@ test.describe("Lab Settings Modal", () => {
     await expect(reloadedStyleSelect).toContainText("Telemetry Style");
     await expect(reloadedModal.getByLabel("Node size")).toHaveValue("80");
     await expect(reloadedModal.getByLabel("Interface size")).toHaveValue("150");
+    await expect(reloadedModal.getByLabel("Show rate labels")).toBeChecked();
 
     await reloadedModal.locator('[data-testid="lab-settings-appearance-subtab-grid"]').click();
     await page.waitForTimeout(150);
     await expect(
       reloadedModal.locator('[data-testid="lab-settings-grid-style"] button[value="quadratic"]')
     ).toHaveAttribute("aria-pressed", ARIA_TRUE);
+  });
+
+  test("show rate labels adds missing link endpoint labels", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const before = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+    expect(
+      before.trafficRateAnnotations?.some(
+        (annotation: { nodeId?: string; interfaceName?: string }) =>
+          annotation.nodeId === "srl2" && annotation.interfaceName === "e1-1"
+      )
+    ).toBeFalsy();
+
+    const modal = await openModal(page);
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
+    await page.waitForTimeout(200);
+
+    const styleSelect = modal
+      .locator('[data-testid="lab-settings-telemetry-style"] [role="combobox"]')
+      .first();
+    await styleSelect.click();
+    await chooseOption(page, /^Default$/);
+
+    await modal.getByLabel("Show rate labels").check();
+    await page.locator(SEL_LAB_SETTINGS_SAVE_BTN).click();
+    await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+    await expect
+      .poll(
+        async () => {
+          const annotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+          return annotations.trafficRateAnnotations ?? [];
+        },
+        { timeout: 5000 }
+      )
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            nodeId: "srl2",
+            interfaceName: "e1-1",
+            label: "autocreated",
+            mode: "text",
+            textMetric: "tx"
+          })
+        ])
+      );
+  });
+
+  test("show rate labels off removes auto-created link endpoint labels", async ({
+    page,
+    topoViewerPage
+  }) => {
+    let modal = await openModal(page);
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
+    await page.waitForTimeout(200);
+    await modal.getByLabel("Show rate labels").check();
+    await page.locator(SEL_LAB_SETTINGS_SAVE_BTN).click();
+    await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+    await expect
+      .poll(
+        async () => {
+          const annotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+          return annotations.trafficRateAnnotations ?? [];
+        },
+        { timeout: 5000 }
+      )
+      .toEqual(expect.arrayContaining([expect.objectContaining({ label: "autocreated" })]));
+
+    modal = await openModal(page);
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
+    await page.waitForTimeout(200);
+    await modal.getByLabel("Show rate labels").uncheck();
+    await page.locator(SEL_LAB_SETTINGS_SAVE_BTN).click();
+    await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+    await expect
+      .poll(
+        async () => {
+          const annotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+          return annotations.trafficRateAnnotations ?? [];
+        },
+        { timeout: 5000 }
+      )
+      .toEqual(expect.not.arrayContaining([expect.objectContaining({ label: "autocreated" })]));
   });
 
   test("shows current lab name in Basic tab", async ({ page }) => {

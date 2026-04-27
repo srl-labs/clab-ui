@@ -1,7 +1,7 @@
 // Core graph SVG export helpers.
 import type { Edge, Node, ReactFlowInstance } from "@xyflow/react";
 
-import { buildSvgDefs } from "./constants";
+import { buildSvgDefs, GRAPH_LAYER_CLASS } from "./constants";
 import { renderEdgesToSvg, type EdgeSvgRenderOptions } from "./edgesToSvg";
 import { renderNodesToSvg, type CustomIconMap, type NodeSvgRenderOptions } from "./nodesToSvg";
 
@@ -69,7 +69,7 @@ export function buildGraphSvg(
 
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`;
   svg += buildSvgDefs();
-  svg += `<g transform="${transform}">`;
+  svg += `<g class="${GRAPH_LAYER_CLASS}" transform="${transform}">`;
   svg += edgesSvg;
   svg += nodesSvg;
   svg += `</g></svg>`;

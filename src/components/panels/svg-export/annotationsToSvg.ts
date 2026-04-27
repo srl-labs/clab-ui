@@ -15,6 +15,7 @@ import {
 } from "../../../annotations/constants";
 import { applyAlphaToColor } from "../../../utils/color";
 import { renderMarkdown } from "../../../utils/markdownRenderer";
+import { GRAPH_LAYER_CLASS } from "./constants";
 
 // ============================================================================
 // Constants
@@ -514,24 +515,41 @@ function parseAndImportElement(doc: Document, parser: DOMParser, svgStr: string)
   return imported instanceof Element ? imported : null;
 }
 
+function elementHasClass(element: Element, className: string): boolean {
+  return (element.getAttribute("class") ?? "").split(/\s+/).includes(className);
+}
+
+function isAnnotationLayer(element: Element): boolean {
+  return (
+    elementHasClass(element, ANNOTATION_GROUPS_LAYER) ||
+    elementHasClass(element, ANNOTATION_SHAPES_LAYER) ||
+    elementHasClass(element, ANNOTATION_TEXT_LAYER)
+  );
+}
+
 /**
  * Extract the full transform attribute from the SVG's main group.
  * Returns the complete transform string including all translates and scale.
  */
 function extractGraphTransform(svgEl: Element): string {
-  // Find the main content group with transform (should have scale for exports)
-  const groups = svgEl.querySelectorAll("g[transform]");
-  for (let i = 0; i < groups.length; i++) {
-    const group = groups[i];
+  const explicitGraphLayer = svgEl.querySelector(`g.${GRAPH_LAYER_CLASS}[transform]`);
+  if (explicitGraphLayer instanceof Element) {
+    return explicitGraphLayer.getAttribute("transform") ?? "";
+  }
+
+  for (const group of Array.from(svgEl.querySelectorAll("g[transform]"))) {
+    if (isAnnotationLayer(group)) continue;
+    if (group.querySelector("g.export-node, g.export-edge") === null) continue;
+
     const transform = group.getAttribute("transform") ?? "";
-    // Look for the main group which has scale in its transform
     if (transform.includes("scale(")) {
       return transform;
     }
   }
 
-  // Fallback: find any group with a translate transform
-  const firstGroup = svgEl.querySelector("g[transform]");
+  const firstGroup = Array.from(svgEl.querySelectorAll("g[transform]")).find(
+    (group) => !isAnnotationLayer(group)
+  );
   return firstGroup?.getAttribute("transform") ?? "";
 }
 

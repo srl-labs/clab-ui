@@ -2,10 +2,16 @@
 import type { Edge, Node } from "@xyflow/react";
 
 import { TRAFFIC_RATE_NODE_TYPE } from "../../../annotations/annotationNodeConverters";
+import { GRAPH_LAYER_CLASS } from "./constants";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SVG_MIME_TYPE = "image/svg+xml";
 const CELL_ID_PREAMBLE = "cell-";
+const ANNOTATION_LAYER_CLASSES = new Set([
+  "annotation-groups-layer",
+  "annotation-shapes-layer",
+  "annotation-text-layer"
+]);
 type TrafficThresholdUnit = "kbit" | "mbit" | "gbit";
 type GrafanaTrafficRateMetric = "rx" | "tx" | "combined";
 
@@ -345,41 +351,48 @@ function parseNumericAttr(el: Element, attrName: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseTransformFunctionArgs(transformAttr: string, functionName: string): number[] {
-  const normalizedAttr = transformAttr.toLowerCase();
-  const normalizedFunctionName = functionName.toLowerCase();
-  const startIdx = normalizedAttr.indexOf(`${normalizedFunctionName}(`);
-  if (startIdx < 0) return [];
+function isAnnotationLayer(element: Element): boolean {
+  const classes = (element.getAttribute("class") ?? "").split(/\s+/);
+  return classes.some((className) => ANNOTATION_LAYER_CLASSES.has(className));
+}
 
-  const argsStart = startIdx + normalizedFunctionName.length + 1;
-  const argsEnd = transformAttr.indexOf(")", argsStart);
-  if (argsEnd < 0) return [];
+function findGraphTransformGroup(svgEl: Element): Element | null {
+  const explicitGraphLayer = svgEl.querySelector(`g.${GRAPH_LAYER_CLASS}[transform]`);
+  if (explicitGraphLayer instanceof Element) return explicitGraphLayer;
 
-  return transformAttr
-    .slice(argsStart, argsEnd)
+  for (const group of Array.from(svgEl.querySelectorAll("g[transform]"))) {
+    if (isAnnotationLayer(group)) continue;
+    if (group.querySelector("g.export-node, g.export-edge") !== null) return group;
+  }
+
+  return null;
+}
+
+function parseTransformArgs(rawArgs: string): number[] {
+  return rawArgs
     .split(/[,\s]+/)
     .map((part) => Number.parseFloat(part))
     .filter((value) => Number.isFinite(value));
 }
 
-function findGraphTransformGroup(svgEl: Element): Element | null {
-  return (
-    Array.from(svgEl.children).find(
-      (child) => child.tagName.toLowerCase() === "g" && child.hasAttribute("transform")
-    ) ?? null
-  );
-}
+function parseTransformString(transformAttr: string): GraphTransform {
+  let tx = 0;
+  let ty = 0;
+  let scale = 1;
 
-function parseGraphTransform(svgEl: Element): GraphTransform {
-  const transformedRoot = findGraphTransformGroup(svgEl);
-  const transformAttr = transformedRoot?.getAttribute("transform") ?? "";
+  const translateRegex = /translate\(\s*([^)]+?)\s*\)/gi;
+  let translateMatch: RegExpExecArray | null;
+  while ((translateMatch = translateRegex.exec(transformAttr)) !== null) {
+    const args = parseTransformArgs(translateMatch[1]);
+    tx += args[0] ?? 0;
+    ty += args[1] ?? 0;
+  }
 
-  const translateArgs = parseTransformFunctionArgs(transformAttr, "translate");
-  const scaleArgs = parseTransformFunctionArgs(transformAttr, "scale");
-
-  const tx = translateArgs[0] ?? 0;
-  const ty = translateArgs[1] ?? 0;
-  const scale = scaleArgs[0] ?? 1;
+  const scaleMatch = /scale\(\s*([^)]+?)\s*\)/i.exec(transformAttr);
+  if (scaleMatch !== null) {
+    const scaleArgs = parseTransformArgs(scaleMatch[1]);
+    scale = scaleArgs[0] ?? 1;
+  }
 
   return {
     tx: Number.isFinite(tx) ? tx : 0,
@@ -388,8 +401,41 @@ function parseGraphTransform(svgEl: Element): GraphTransform {
   };
 }
 
+function parseGraphTransform(svgEl: Element): GraphTransform {
+  const transformedRoot = findGraphTransformGroup(svgEl);
+  return parseTransformString(transformedRoot?.getAttribute("transform") ?? "");
+}
+
+function formatTransform(transform: GraphTransform): string {
+  return `translate(${formatTransformNumber(transform.tx)}, ${formatTransformNumber(transform.ty)}) scale(${formatTransformNumber(transform.scale)})`;
+}
+
 function formatTransformNumber(value: number): string {
   return Number(value.toFixed(6)).toString();
+}
+
+function getCanvasTransformGroups(svgEl: Element, graphLayer: Element): Element[] {
+  const groups = new Set<Element>([graphLayer]);
+  for (const className of ANNOTATION_LAYER_CLASSES) {
+    for (const layer of Array.from(svgEl.querySelectorAll(`g.${className}[transform]`))) {
+      groups.add(layer);
+    }
+  }
+  return Array.from(groups);
+}
+
+function normalizeCanvasLayerTransforms(
+  svgEl: Element,
+  graphLayer: Element,
+  minX: number,
+  minY: number
+): void {
+  for (const layer of getCanvasTransformGroups(svgEl, graphLayer)) {
+    const layerTransform = parseTransformString(layer.getAttribute("transform") ?? "");
+    layerTransform.tx -= minX;
+    layerTransform.ty -= minY;
+    layer.setAttribute("transform", formatTransform(layerTransform));
+  }
 }
 
 function includePathBounds(bounds: Bounds, transform: GraphTransform, pathData: string): void {
@@ -451,7 +497,7 @@ export function trimGrafanaSvgToTopologyContent(svgContent: string, padding = 12
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgContent, SVG_MIME_TYPE);
   const svgEl = doc.documentElement;
-  const transformedRoot = findGraphTransformGroup(svgEl);
+  const graphLayer = findGraphTransformGroup(svgEl);
   const transform = parseGraphTransform(svgEl);
   const bounds = createBounds();
 
@@ -467,13 +513,8 @@ export function trimGrafanaSvgToTopologyContent(svgContent: string, padding = 12
   const width = Math.max(1, bounds.maxX - bounds.minX + safePadding * 2);
   const height = Math.max(1, bounds.maxY - bounds.minY + safePadding * 2);
 
-  if (transformedRoot !== null) {
-    const normalizedTx = transform.tx - minX;
-    const normalizedTy = transform.ty - minY;
-    transformedRoot.setAttribute(
-      "transform",
-      `translate(${formatTransformNumber(normalizedTx)}, ${formatTransformNumber(normalizedTy)}) scale(${formatTransformNumber(transform.scale)})`
-    );
+  if (graphLayer !== null) {
+    normalizeCanvasLayerTransforms(svgEl, graphLayer, minX, minY);
     svgEl.setAttribute("viewBox", `0 0 ${width} ${height}`);
   } else {
     svgEl.setAttribute("viewBox", `${minX} ${minY} ${width} ${height}`);

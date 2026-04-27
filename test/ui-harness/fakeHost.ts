@@ -34,6 +34,14 @@ function cloneFiles(): Map<string, string> {
   return new Map(Object.entries(fixtureFiles));
 }
 
+function recordHarnessMessage(message: unknown): void {
+  const harnessWindow = window as unknown as {
+    __CLAB_UI_HARNESS_MESSAGES__?: unknown[];
+  };
+  harnessWindow.__CLAB_UI_HARNESS_MESSAGES__ ??= [];
+  harnessWindow.__CLAB_UI_HARNESS_MESSAGES__.push(message);
+}
+
 function toFixtureName(value: string | null): SnapshotFixtureName {
   return value === "empty" ? "empty" : "basic";
 }
@@ -223,11 +231,7 @@ export function createFakeClabUiHost(initialFixture: string | null): FakeClabUiH
     },
 
     postMessage(message: unknown): void {
-      const harnessWindow = window as unknown as {
-        __CLAB_UI_HARNESS_MESSAGES__?: unknown[];
-      };
-      harnessWindow.__CLAB_UI_HARNESS_MESSAGES__ ??= [];
-      harnessWindow.__CLAB_UI_HARNESS_MESSAGES__.push(message);
+      recordHarnessMessage(message);
     },
 
     subscribe(handler: (event: MessageEvent<unknown>) => void): () => void {
@@ -266,7 +270,20 @@ export function createFakeClabUiHost(initialFixture: string | null): FakeClabUiH
       uploadIcon() {},
       deleteIcon() {},
       reconcileIcons() {},
-      exportGrafanaBundle() {},
+      exportGrafanaBundle(payload) {
+        recordHarnessMessage({ command: "export-svg-grafana-bundle", ...payload });
+        window.setTimeout(() => {
+          const event: ClabUiTopoViewerEvent = {
+            type: "svgExportResult",
+            requestId: payload.requestId,
+            success: true,
+            files: [`${payload.baseName}.svg`, `${payload.baseName}.dashboard.json`]
+          };
+          for (const subscriber of Array.from(topoViewerSubscribers)) {
+            subscriber(event);
+          }
+        }, 0);
+      },
       dumpCssVars() {},
       subscribe(handler) {
         topoViewerSubscribers.add(handler);

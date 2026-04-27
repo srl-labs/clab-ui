@@ -3,6 +3,9 @@
  * These values are extracted from the React Flow node/edge components
  */
 
+/** Root graph layer class used to distinguish topology content from annotation layers. */
+export const GRAPH_LAYER_CLASS = "export-graph-layer";
+
 // ============================================================================
 // Node Constants
 // ============================================================================

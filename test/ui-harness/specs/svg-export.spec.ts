@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { test, expect } from "../fixtures/topoviewer";
 
 const SIMPLE_FILE = "simple.clab.yml";
@@ -18,6 +20,87 @@ async function readDownloadAsString(download: any): Promise<string> {
   const stream = await download.createReadStream();
   const chunks = await stream.toArray();
   return Buffer.concat(chunks).toString("utf-8");
+}
+
+async function waitForGrafanaBundleSvg(page: Page): Promise<string> {
+  const handle = await page.waitForFunction(() => {
+    const messages = ((window as any).__CLAB_UI_HARNESS_MESSAGES__ ?? []) as unknown[];
+    const message = messages.find((candidate) => {
+      if (typeof candidate !== "object" || candidate === null) return false;
+      const record = candidate as Record<string, unknown>;
+      return (
+        record.command === "export-svg-grafana-bundle" && typeof record.svgContent === "string"
+      );
+    }) as { svgContent?: string } | undefined;
+    return message?.svgContent ?? null;
+  });
+  return (await handle.jsonValue()) as string;
+}
+
+async function inspectSvgNodeViewportFit(page: Page, svgString: string): Promise<{
+  hasGraphLayer: boolean;
+  nodeCount: number;
+  violations: string[];
+}> {
+  return page.evaluate((svgContent) => {
+    const doc = new DOMParser().parseFromString(svgContent, "image/svg+xml");
+    const svgEl = doc.documentElement;
+    const viewBox = (svgEl.getAttribute("viewBox") ?? "0 0 0 0")
+      .split(/[,\s]+/)
+      .map((part) => Number.parseFloat(part));
+    const [viewX, viewY, viewWidth, viewHeight] = viewBox;
+    const graphLayer = doc.querySelector("g.export-graph-layer[transform]");
+
+    function parseTransform(transform: string): { tx: number; ty: number; scale: number } {
+      let tx = 0;
+      let ty = 0;
+      const translateRegex = /translate\(\s*([^)]+?)\s*\)/gi;
+      let translateMatch: RegExpExecArray | null;
+      while ((translateMatch = translateRegex.exec(transform)) !== null) {
+        const args = translateMatch[1]
+          .split(/[,\s]+/)
+          .map((part) => Number.parseFloat(part))
+          .filter((value) => Number.isFinite(value));
+        tx += args[0] ?? 0;
+        ty += args[1] ?? 0;
+      }
+
+      const scaleMatch = /scale\(\s*([^)]+?)\s*\)/i.exec(transform);
+      const scale = scaleMatch === null ? 1 : Number.parseFloat(scaleMatch[1]);
+      return { tx, ty, scale: Number.isFinite(scale) && scale !== 0 ? scale : 1 };
+    }
+
+    if (!(graphLayer instanceof Element)) {
+      return { hasGraphLayer: false, nodeCount: 0, violations: ["missing graph layer"] };
+    }
+
+    const graphTransform = parseTransform(graphLayer.getAttribute("transform") ?? "");
+    const nodeRects = Array.from(
+      doc.querySelectorAll("g.export-node > g > rect[x][y][width][height]")
+    );
+    const tolerance = 1;
+    const violations = nodeRects
+      .map((rect) => {
+        const nodeId = rect.closest("g.export-node")?.getAttribute("data-id") ?? "unknown";
+        const x =
+          Number.parseFloat(rect.getAttribute("x") ?? "0") * graphTransform.scale +
+          graphTransform.tx;
+        const y =
+          Number.parseFloat(rect.getAttribute("y") ?? "0") * graphTransform.scale +
+          graphTransform.ty;
+        const width = Number.parseFloat(rect.getAttribute("width") ?? "0") * graphTransform.scale;
+        const height = Number.parseFloat(rect.getAttribute("height") ?? "0") * graphTransform.scale;
+        const outside =
+          x < viewX - tolerance ||
+          y < viewY - tolerance ||
+          x + width > viewX + viewWidth + tolerance ||
+          y + height > viewY + viewHeight + tolerance;
+        return outside ? nodeId : null;
+      })
+      .filter((nodeId): nodeId is string => nodeId !== null);
+
+    return { hasGraphLayer: true, nodeCount: nodeRects.length, violations };
+  }, svgString);
 }
 
 /**
@@ -187,6 +270,33 @@ test.describe("SVG Export Modal", () => {
     // Sanity: exported SVG still contains expected annotation layers.
     expect(svgString).toContain(LAYER_GROUPS);
     expect(svgString).toContain(LAYER_TEXT);
+  });
+
+  test("Grafana bundle trim keeps connected nodes inside the SVG viewBox", async ({
+    page,
+    topoViewerPage
+  }) => {
+    await topoViewerPage.gotoFile(DATACENTER_FILE);
+    await topoViewerPage.waitForCanvasReady();
+
+    await page.locator(SEL_NAVBAR_CAPTURE).click();
+    await page.waitForTimeout(300);
+
+    const modal = page.locator(SEL_SVG_EXPORT_MODAL);
+    await expect(modal).toBeVisible();
+    await modal.getByRole("checkbox", { name: "Grafana bundle" }).check();
+    await page.evaluate(() => {
+      (window as any).__CLAB_UI_HARNESS_MESSAGES__ = [];
+    });
+
+    await page.locator(SEL_SVG_EXPORT_BTN).click();
+
+    const svgString = await waitForGrafanaBundleSvg(page);
+    const fit = await inspectSvgNodeViewportFit(page, svgString);
+
+    expect(fit.hasGraphLayer).toBe(true);
+    expect(fit.nodeCount).toBeGreaterThan(0);
+    expect(fit.violations).toEqual([]);
   });
 
   test("modal closes with Escape key", async ({ page, topoViewerPage }) => {

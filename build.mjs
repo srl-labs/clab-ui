@@ -9,6 +9,8 @@ const __dirname = path.dirname(__filename);
 const distDir = path.join(__dirname, "dist");
 const cssSource = path.join(__dirname, "src/styles/global.css");
 const cssOutput = path.join(distDir, "styles/global.css");
+const monacoAssetsSource = path.join(__dirname, "src/monaco/assets.json");
+const monacoAssetsOutput = path.join(distDir, "monaco-assets.json");
 const packageJsonPath = path.join(__dirname, "package.json");
 const tscBin = path.join(__dirname, "node_modules/typescript/bin/tsc");
 const copiedCssAssets = [
@@ -29,7 +31,11 @@ const entryPoints = {
   "inspect/index": "src/inspect/index.ts",
   "welcome/index": "src/welcome/index.ts",
   "node-impairments/index": "src/node-impairments/index.ts",
-  "wireshark-vnc/index": "src/wireshark-vnc/index.ts"
+  "wireshark-vnc/index": "src/wireshark-vnc/index.ts",
+  "monaco/core": "src/monaco/core.ts",
+  "monaco/editor-worker": "src/monaco/editor-worker.ts",
+  "monaco/json-worker": "src/monaco/json-worker.ts",
+  "monaco/yaml-worker": "src/monaco/yaml-worker.ts"
 };
 
 const cssExternalPlugin = {
@@ -97,6 +103,10 @@ async function copyCss() {
   );
 }
 
+async function copyMonacoAssetsManifest() {
+  await fs.copyFile(monacoAssetsSource, monacoAssetsOutput);
+}
+
 function buildTypes() {
   execFileSync(process.execPath, [tscBin, "-p", "tsconfig.build.json"], {
     cwd: __dirname,
@@ -105,5 +115,5 @@ function buildTypes() {
 }
 
 await prepareDist();
-await Promise.all([buildJavaScript(), copyCss()]);
+await Promise.all([buildJavaScript(), copyCss(), copyMonacoAssetsManifest()]);
 buildTypes();

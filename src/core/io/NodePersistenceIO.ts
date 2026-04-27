@@ -29,6 +29,24 @@ function getYamlSeqIn(
   return YAML.isSeq(value) ? value : undefined;
 }
 
+function createBlockMap(): YAML.YAMLMap {
+  const map = new YAML.YAMLMap();
+  map.flow = false;
+  return map;
+}
+
+function createBlockSeq(): YAML.YAMLSeq {
+  const seq = new YAML.YAMLSeq();
+  seq.flow = false;
+  return seq;
+}
+
+function markEmptyMapAsBlock(map: YAML.YAMLMap): void {
+  if (map.items.length === 0) {
+    map.flow = false;
+  }
+}
+
 /**
  * Gets the nodes map from a YAML document, returning an error result if not found.
  */
@@ -48,23 +66,29 @@ function getNodesMapOrError(
  */
 function ensureTopologyContainers(doc: YAML.Document.Parsed): YAML.YAMLMap {
   if (!doc.contents || !YAML.isMap(doc.contents)) {
-    doc.contents = YAML.parseDocument("{}").contents;
+    doc.contents = createBlockMap() as unknown as YAML.ParsedNode;
+  } else {
+    markEmptyMapAsBlock(doc.contents);
   }
 
   const topology = doc.get("topology", true);
   if (!YAML.isMap(topology)) {
-    doc.set("topology", new YAML.YAMLMap());
+    doc.set("topology", createBlockMap());
+  } else {
+    markEmptyMapAsBlock(topology);
   }
 
   let nodesMap = getYamlMapIn(doc, ["topology", "nodes"]);
   if (nodesMap === undefined) {
-    nodesMap = new YAML.YAMLMap();
+    nodesMap = createBlockMap();
     doc.setIn(["topology", "nodes"], nodesMap);
+  } else {
+    markEmptyMapAsBlock(nodesMap);
   }
 
   const linksSeq = getYamlSeqIn(doc, ["topology", "links"]);
   if (linksSeq === undefined) {
-    doc.setIn(["topology", "links"], new YAML.YAMLSeq());
+    doc.setIn(["topology", "links"], createBlockSeq());
   }
 
   return nodesMap;

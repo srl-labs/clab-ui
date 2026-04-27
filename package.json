@@ -1,6 +1,6 @@
 {
   "name": "@srl-labs/clab-ui",
-  "version": "0.0.28",
+  "version": "0.0.29",
   "private": false,
   "description": "Shared UI package for containerlab webviews and topology editing.",
   "license": "Apache-2.0",
@@ -67,6 +67,23 @@
       "types": "./dist/wireshark-vnc/index.d.ts",
       "import": "./dist/wireshark-vnc/index.js"
     },
+    "./monaco/core": {
+      "types": "./dist/monaco/core.d.ts",
+      "import": "./dist/monaco/core.js"
+    },
+    "./monaco/editor-worker": {
+      "types": "./dist/monaco/editor-worker.d.ts",
+      "import": "./dist/monaco/editor-worker.js"
+    },
+    "./monaco/json-worker": {
+      "types": "./dist/monaco/json-worker.d.ts",
+      "import": "./dist/monaco/json-worker.js"
+    },
+    "./monaco/yaml-worker": {
+      "types": "./dist/monaco/yaml-worker.d.ts",
+      "import": "./dist/monaco/yaml-worker.js"
+    },
+    "./monaco-assets.json": "./dist/monaco-assets.json",
     "./styles/global.css": "./dist/styles/global.css"
   },
   "scripts": {

@@ -124,6 +124,37 @@ test("schema completions suggest root and node properties", () => {
   assert(nodeLabels.includes("node config"));
 });
 
+test("schema completions do not fall back to root properties inside node configs", () => {
+  const directNodeLabels = completionLabels(
+    [
+      "topology:",
+      "  nodes:",
+      "    srl1:",
+      "      kind: nokia_srlinux",
+      "      type: ixrd1",
+      "      image: ghcr.io/nokia/srlinux:latest",
+      "    client1:",
+      "      kind: linux",
+      "      image: ghcr.io/srl-labs/network-multitool:latest",
+      "      type: iasd                  ",
+      "    asdasd:",
+      "      "
+    ].join("\n"),
+    12,
+    7
+  );
+  assert(directNodeLabels.includes("kind"));
+  assert(directNodeLabels.includes("image"));
+  assert(!directNodeLabels.includes("topology"));
+
+  const nestedUnknownLabels = completionLabels(
+    "topology:\n  nodes:\n    asdasd:\n      below asdad:\n        ",
+    5,
+    9
+  );
+  assert(!nestedUnknownLabels.includes("topology"));
+});
+
 test("schema completions suggest enum and kind-specific type values", () => {
   const kindLabels = completionLabels("topology:\n  nodes:\n    srl1:\n      kind: ", 4, 13);
   assert(kindLabels.includes("nokia_srlinux"));

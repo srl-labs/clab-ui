@@ -506,6 +506,36 @@ function getSchemaAtPath(
   return currentSchema;
 }
 
+function isDirectNodeConfigPath(path: string[]): boolean {
+  const topologyIndex = path.indexOf("topology");
+  if (topologyIndex < 0) return false;
+  const container = path[topologyIndex + 1];
+  return (
+    (container === "nodes" || container === "groups" || container === "kinds") &&
+    path.length === topologyIndex + 3
+  );
+}
+
+function getFallbackSchemaAtPath(root: SchemaRecord, pathSegments: string[]): SchemaRecord | null {
+  if (pathSegments.length === 0) return root;
+
+  if (isDirectNodeConfigPath(pathSegments)) {
+    const definitions = root.definitions;
+    const nodeConfig = isRecord(definitions) ? definitions["node-config"] : null;
+    return isRecord(nodeConfig) ? deref(nodeConfig, root) : null;
+  }
+
+  return null;
+}
+
+function getCompletionSchemaAtPath(
+  root: SchemaRecord,
+  pathSegments: string[],
+  yamlData: unknown
+): SchemaRecord | null {
+  return getSchemaAtPath(pathSegments, root, yamlData) ?? getFallbackSchemaAtPath(root, pathSegments);
+}
+
 export function getSchemaHoverInfo(
   pathSegments: string[],
   schema: SchemaRecord,
@@ -821,7 +851,7 @@ function getPropertySchemaForValue(
   valueKey: string,
   yamlData: unknown
 ): SchemaRecord | null {
-  const parentSchema = getSchemaAtPath(parentPath, root, yamlData);
+  const parentSchema = getCompletionSchemaAtPath(root, parentPath, yamlData);
   const yamlSiblings = getYamlDataAtPath(yamlData, parentPath);
   if (!parentSchema) return null;
   return lookupProperty(parentSchema, valueKey, root, isRecord(yamlSiblings) ? yamlSiblings : null);
@@ -883,7 +913,9 @@ export function buildContainerlabSchemaCompletionItems({
     );
   }
 
-  const parentSchema = getSchemaAtPath(parentPath, root, yamlData) ?? root;
+  const parentSchema = getCompletionSchemaAtPath(root, parentPath, yamlData);
+  if (!parentSchema) return [];
+
   const yamlSiblings = getYamlDataAtPath(yamlData, parentPath);
   const properties = collectPropertySchemas(
     parentSchema,

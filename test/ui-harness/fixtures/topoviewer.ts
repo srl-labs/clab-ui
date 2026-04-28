@@ -107,6 +107,7 @@ interface BrowserDevApi {
   getAnnotationsFromFile?: (filename: string) => Promise<unknown>;
   listTopologyFiles?: () => Array<{ filename: string; hasAnnotations: boolean }>;
   resetFiles?: () => Promise<void>;
+  emitCurrentSnapshot?: () => Promise<void>;
   writeYamlFile?: (filename: string, content: string) => Promise<void>;
   writeAnnotationsFile?: (filename: string, content: unknown) => Promise<void>;
   getCurrentFile?: () => unknown;
@@ -538,6 +539,9 @@ interface TopoViewerPage {
 
   /** Write annotations content to a file (for live update testing) */
   writeAnnotationsFile(filename: TopologyFileName, content: object): Promise<void>;
+
+  /** Emit a host snapshot for the current topology without changing files */
+  emitCurrentSnapshot(): Promise<void>;
 
   /** Read YAML content from a file (for verifying persistence) */
   readYamlFile(filename: TopologyFileName): Promise<string>;
@@ -1769,6 +1773,12 @@ export const test = base.extend<{ topoViewerPage: TopoViewerPage }>({
           },
           { file: filename, nextContent: content }
         );
+      },
+
+      emitCurrentSnapshot: async () => {
+        await page.evaluate(async () => {
+          await (window as { __DEV__?: BrowserDevApi }).__DEV__?.emitCurrentSnapshot?.();
+        });
       },
 
       readYamlFile: async (filename: string) => {

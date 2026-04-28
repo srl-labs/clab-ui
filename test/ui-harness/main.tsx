@@ -45,6 +45,7 @@ harnessWindow.__DEV__ = {
   listTopologyFiles: () => host.harness.listTopologyFiles(),
   loadTopologyFile: (filename: string) => host.harness.loadTopologyFile(filename),
   resetFiles: () => host.harness.resetFiles(),
+  emitCurrentSnapshot: () => host.harness.emitCurrentSnapshot(),
   writeYamlFile: (filename: string, content: string) => host.harness.writeYamlFile(filename, content),
   writeAnnotationsFile: (filename: string, content: unknown) =>
     host.harness.writeAnnotationsFile(filename, content)

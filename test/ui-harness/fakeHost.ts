@@ -109,6 +109,7 @@ export interface FakeClabUiHost extends ClabUiHost {
     readAnnotationsFile(filename: string): Promise<unknown>;
     readYamlFile(filename: string): Promise<string>;
     resetFiles(): Promise<void>;
+    emitCurrentSnapshot(): Promise<void>;
     writeAnnotationsFile(filename: string, content: unknown): Promise<void>;
     writeYamlFile(filename: string, content: string): Promise<void>;
   };
@@ -214,6 +215,10 @@ export function createFakeClabUiHost(initialFixture: string | null): FakeClabUiH
       },
 
       resetFiles,
+
+      async emitCurrentSnapshot() {
+        emitSnapshot(await core.getSnapshot());
+      },
 
       async writeAnnotationsFile(filename: string, content: unknown) {
         files.set(annotationsPathFor(normalizePath(filename)), JSON.stringify(content, null, 2));

@@ -1,5 +1,5 @@
 // Lab settings with Basic and Management tabs.
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import Tabs from "@mui/material/Tabs";
@@ -7,7 +7,10 @@ import Tab from "@mui/material/Tab";
 
 import { useTopologySessionClient } from "../../../host";
 import { useLabSettingsState } from "../../../hooks/editor";
-import { saveAnnotationNodesFromGraph, saveViewerSettings } from "../../../services";
+import {
+  saveAnnotationNodesAndViewerSettings,
+  saveViewerSettings
+} from "../../../services";
 import { useGraphStore, useTopoViewerStore } from "../../../stores";
 import type { GridSettingsControlsProps } from "../GridSettingsPopover";
 import { BasicTab, MgmtTab, AppearanceTab, type LabSettings } from "../lab-settings";
@@ -53,6 +56,19 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
     (store) => store.telemetryInterfaceSizePercent
   );
   const showRateLabels = useTopoViewerStore((store) => store.showRateLabels);
+  const setShowRateLabels = useTopoViewerStore((store) => store.setShowRateLabels);
+  const [draftShowRateLabels, setDraftShowRateLabels] = useState(showRateLabels);
+  const showRateLabelsEditedRef = useRef(false);
+
+  useEffect(() => {
+    if (showRateLabelsEditedRef.current) return;
+    setDraftShowRateLabels(showRateLabels);
+  }, [showRateLabels]);
+
+  const handleShowRateLabelsChange = useCallback((enabled: boolean) => {
+    showRateLabelsEditedRef.current = true;
+    setDraftShowRateLabels(enabled);
+  }, []);
 
   const handleSave = async () => {
     if (!areTopologySettingsReadOnly) {
@@ -62,28 +78,32 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
     const result = syncRateLabelAnnotationsForLinks(
       graphStore.nodes,
       graphStore.edges,
-      showRateLabels
+      draftShowRateLabels
     );
-    if (result.createdCount > 0 || result.removedCount > 0) {
-      graphStore.setNodes(result.nodes);
-      await saveAnnotationNodesFromGraph(sessionClient, result.nodes);
-    }
-    const style = linkLabelMode === "telemetry-style" ? "telemetry-style" : "default";
+    const style: "default" | "telemetry-style" =
+      linkLabelMode === "telemetry-style" ? "telemetry-style" : "default";
     const nextLastNonTelemetryLinkLabelMode =
       linkLabelMode === "telemetry-style" ? lastNonTelemetryLinkLabelMode : linkLabelMode;
-    await saveViewerSettings(sessionClient, {
+    const viewerSettings = {
       style,
       linkLabelMode,
       lastNonTelemetryLinkLabelMode: nextLastNonTelemetryLinkLabelMode,
       telemetryNodeSizePx,
       telemetryInterfaceSizePercent,
-      showRateLabels,
-      autoCreateTrafficRateAnnotations: showRateLabels,
+      showRateLabels: draftShowRateLabels,
+      autoCreateTrafficRateAnnotations: draftShowRateLabels,
       gridLineWidth,
       gridStyle,
       gridColor,
       gridBgColor
-    });
+    };
+    setShowRateLabels(draftShowRateLabels);
+    if (result.createdCount > 0 || result.removedCount > 0) {
+      graphStore.setNodes(result.nodes);
+      await saveAnnotationNodesAndViewerSettings(sessionClient, result.nodes, viewerSettings);
+    } else {
+      await saveViewerSettings(sessionClient, viewerSettings);
+    }
     onClose();
   };
 
@@ -164,6 +184,8 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
             onGridBgColorChange={onGridBgColorChange}
             onResetGridColors={onResetGridColors}
             isReadOnly={isAppearanceReadOnly}
+            showRateLabels={draftShowRateLabels}
+            onShowRateLabelsChange={handleShowRateLabelsChange}
           />
         </Box>
       )}

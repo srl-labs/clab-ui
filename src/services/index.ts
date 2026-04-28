@@ -18,7 +18,8 @@ export {
   saveNodeGroupMembership,
   saveAllNodeGroupMemberships,
   saveAnnotationNodesFromGraph,
-  saveAnnotationNodesWithMemberships
+  saveAnnotationNodesWithMemberships,
+  saveAnnotationNodesAndViewerSettings
 } from "./annotationSaveHelpers";
 
 export {

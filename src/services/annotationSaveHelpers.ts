@@ -14,7 +14,7 @@ import type {
 import type { TopologySessionClient } from "../session";
 
 import { buildAnnotationNodesPayload } from "./annotationPayloads";
-import { executeTopologyCommand } from "./topologyHostCommands";
+import { executeTopologyCommand, executeTopologyCommands } from "./topologyHostCommands";
 
 const WARN_COMMAND_FAILED = "[Host] Annotation command failed";
 
@@ -121,6 +121,31 @@ export async function saveViewerSettings(
     await executeTopologyCommand({ command: "setViewerSettings", payload: settings }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: setViewerSettings`, err);
+  }
+}
+
+export async function saveAnnotationNodesAndViewerSettings(
+  client: TopologySessionClient,
+  nodes: Node[],
+  settings: NonNullable<TopologyAnnotations["viewerSettings"]>
+): Promise<void> {
+  try {
+    await executeTopologyCommands(
+      [
+        {
+          command: "setAnnotations",
+          payload: buildAnnotationNodesPayload(nodes)
+        },
+        {
+          command: "setViewerSettings",
+          payload: settings
+        }
+      ],
+      {},
+      client
+    );
+  } catch (err) {
+    console.error(`${WARN_COMMAND_FAILED}: setAnnotations + setViewerSettings`, err);
   }
 }
 

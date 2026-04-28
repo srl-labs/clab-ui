@@ -316,6 +316,53 @@ test.describe("Lab Settings Modal", () => {
       );
   });
 
+  test("pending show rate labels selection survives host snapshot refresh before apply", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const modal = await openModal(page);
+    await modal.locator(SEL_LAB_SETTINGS_TAB_APPEARANCE).click();
+    await page.waitForTimeout(200);
+
+    const showRateLabels = modal.getByLabel("Show rate labels");
+    await expect(showRateLabels).not.toBeChecked();
+
+    await showRateLabels.check();
+    await expect(showRateLabels).toBeChecked();
+
+    await topoViewerPage.emitCurrentSnapshot();
+    await page.waitForTimeout(100);
+    await expect(showRateLabels).toBeChecked();
+
+    await page.locator(SEL_LAB_SETTINGS_SAVE_BTN).click();
+    await expect(modal).not.toBeVisible({ timeout: 3000 });
+
+    await expect
+      .poll(
+        async () => {
+          const annotations = await topoViewerPage.getAnnotationsFromFile(SIMPLE_FILE);
+          return {
+            viewerSettings: annotations.viewerSettings ?? {},
+            trafficRateAnnotations: annotations.trafficRateAnnotations ?? []
+          };
+        },
+        { timeout: 5000 }
+      )
+      .toMatchObject({
+        viewerSettings: {
+          showRateLabels: true,
+          autoCreateTrafficRateAnnotations: true
+        },
+        trafficRateAnnotations: expect.arrayContaining([
+          expect.objectContaining({
+            label: "autocreated",
+            mode: "text",
+            textMetric: "tx"
+          })
+        ])
+      });
+  });
+
   test("show rate labels off removes auto-created link endpoint labels", async ({
     page,
     topoViewerPage

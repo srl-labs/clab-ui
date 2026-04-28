@@ -103,6 +103,27 @@ async function inspectSvgNodeViewportFit(page: Page, svgString: string): Promise
   }, svgString);
 }
 
+async function inspectGrafanaTrafficPathStrokes(page: Page, svgString: string): Promise<{
+  pathCount: number;
+  invalidPaths: Array<{ id: string | null; stroke: string | null; styleStroke: string }>;
+}> {
+  return page.evaluate((svgContent) => {
+    const doc = new DOMParser().parseFromString(svgContent, "image/svg+xml");
+    const paths = Array.from(
+      doc.querySelectorAll("g.grafana-traffic-half > path:not(.grafana-traffic-hitbox)")
+    );
+    const invalidPaths = paths
+      .map((path) => ({
+        id: path.closest("g.grafana-traffic-half")?.getAttribute("data-cell-id") ?? null,
+        stroke: path.getAttribute("stroke"),
+        styleStroke: (path as SVGPathElement).style.stroke
+      }))
+      .filter((path) => path.stroke !== "gray" || path.styleStroke.length > 0);
+
+    return { pathCount: paths.length, invalidPaths };
+  }, svgString);
+}
+
 /**
  * SVG Export Modal E2E Tests (MUI Dialog version)
  *
@@ -297,6 +318,32 @@ test.describe("SVG Export Modal", () => {
     expect(fit.hasGraphLayer).toBe(true);
     expect(fit.nodeCount).toBeGreaterThan(0);
     expect(fit.violations).toEqual([]);
+  });
+
+  test("Grafana traffic paths use gray as their no-data baseline stroke", async ({
+    page,
+    topoViewerPage
+  }) => {
+    await topoViewerPage.gotoFile(DATACENTER_FILE);
+    await topoViewerPage.waitForCanvasReady();
+
+    await page.locator(SEL_NAVBAR_CAPTURE).click();
+    await page.waitForTimeout(300);
+
+    const modal = page.locator(SEL_SVG_EXPORT_MODAL);
+    await expect(modal).toBeVisible();
+    await modal.getByRole("checkbox", { name: "Grafana bundle" }).check();
+    await page.evaluate(() => {
+      (window as any).__CLAB_UI_HARNESS_MESSAGES__ = [];
+    });
+
+    await page.locator(SEL_SVG_EXPORT_BTN).click();
+
+    const svgString = await waitForGrafanaBundleSvg(page);
+    const trafficPaths = await inspectGrafanaTrafficPathStrokes(page, svgString);
+
+    expect(trafficPaths.pathCount).toBeGreaterThan(0);
+    expect(trafficPaths.invalidPaths).toEqual([]);
   });
 
   test("modal closes with Escape key", async ({ page, topoViewerPage }) => {

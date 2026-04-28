@@ -13,6 +13,7 @@ const ANNOTATION_LAYER_CLASSES = new Set([
   "annotation-text-layer"
 ]);
 const DEFAULT_GRAFANA_RATE_LABEL_FONT_SIZE = 10;
+const GRAFANA_TRAFFIC_NO_DATA_STROKE = "gray";
 const TRAFFIC_RATE_TEXT_REF_WIDTH = 50;
 const TRAFFIC_RATE_TEXT_REF_HEIGHT = 30;
 const TRAFFIC_RATE_TEXT_MAX_SCALE = 2;
@@ -736,6 +737,29 @@ function setCellIdAttributes(element: Element, shortCellId: string): void {
   element.setAttribute("data-cell-id", shortCellId);
 }
 
+function removeInlineStyleProperty(element: Element, propertyName: string): void {
+  const style = element.getAttribute("style");
+  if (style === null || style.length === 0) return;
+
+  const propertyPattern = new RegExp(`^\\s*${propertyName}\\s*:`, "i");
+  const remainingDeclarations = style
+    .split(";")
+    .map((declaration) => declaration.trim())
+    .filter((declaration) => declaration.length > 0 && !propertyPattern.test(declaration));
+
+  if (remainingDeclarations.length === 0) {
+    element.removeAttribute("style");
+    return;
+  }
+
+  element.setAttribute("style", remainingDeclarations.join("; "));
+}
+
+function setGrafanaTrafficNoDataStroke(element: Element): void {
+  element.setAttribute("stroke", GRAFANA_TRAFFIC_NO_DATA_STROKE);
+  removeInlineStyleProperty(element, "stroke");
+}
+
 function parsePathStart(pathData: string | null): { x: number; y: number } | null {
   if (pathData === null || pathData.length === 0) return null;
   const trimmed = pathData.trim();
@@ -1381,6 +1405,7 @@ function createTrafficHalfCell(
   }
   const path = clonedPath;
   path.setAttribute("d", halfPathData);
+  setGrafanaTrafficNoDataStroke(path);
   path.removeAttribute("id");
   path.removeAttribute("data-cell-id");
   group.appendChild(path);
@@ -1535,6 +1560,7 @@ function applyTrafficCellsToEdgeGroup(
   const trafficCellEl = resolveTrafficCellElement(trafficGroup);
   if (trafficCellEl.tagName.toLowerCase() !== "path") {
     setCellIdAttributes(trafficCellEl, mapping.trafficCellId);
+    setGrafanaTrafficNoDataStroke(trafficCellEl);
     return;
   }
 

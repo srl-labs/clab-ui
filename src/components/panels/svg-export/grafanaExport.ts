@@ -12,6 +12,11 @@ const ANNOTATION_LAYER_CLASSES = new Set([
   "annotation-shapes-layer",
   "annotation-text-layer"
 ]);
+const DEFAULT_GRAFANA_RATE_LABEL_FONT_SIZE = 10;
+const TRAFFIC_RATE_TEXT_REF_WIDTH = 50;
+const TRAFFIC_RATE_TEXT_REF_HEIGHT = 30;
+const TRAFFIC_RATE_TEXT_MAX_SCALE = 2;
+const TRAFFIC_RATE_LABEL_SAMPLE_TEXT = "775.3 Mbit/s";
 type TrafficThresholdUnit = "kbit" | "mbit" | "gbit";
 type GrafanaTrafficRateMetric = "rx" | "tx" | "combined";
 
@@ -39,6 +44,7 @@ export interface GrafanaTrafficRateLabelPlacement {
   x: number;
   y: number;
   dataRef: string;
+  fontSize?: number;
 }
 
 export interface GrafanaPanelYamlOptions {
@@ -195,6 +201,39 @@ function getTrafficRateNodeCenter(node: Node): { x: number; y: number } {
   };
 }
 
+function computeTrafficRateTextScale(width: number, height: number): number {
+  const widthScale = width / TRAFFIC_RATE_TEXT_REF_WIDTH;
+  const heightScale = height / TRAFFIC_RATE_TEXT_REF_HEIGHT;
+  const rawScale = Math.min(widthScale, heightScale);
+  return Math.max(0.01, Math.min(TRAFFIC_RATE_TEXT_MAX_SCALE, rawScale));
+}
+
+function computeFittedTrafficRateTextFontSize(
+  text: string,
+  width: number,
+  height: number,
+  baseSize: number
+): number {
+  const safeText = text.length > 0 ? text : " ";
+  const maxWidth = Math.max(1, width - 6);
+  const maxHeight = Math.max(1, height - 2);
+  const widthBound = maxWidth / (safeText.length * 0.62);
+  const heightBound = maxHeight / 1.1;
+  return Math.max(0.5, Math.min(baseSize, widthBound, heightBound));
+}
+
+function getTrafficRateNodeLabelFontSize(node: Node): number {
+  const width = getNodeDimension(node, "width", TRAFFIC_RATE_TEXT_REF_WIDTH);
+  const height = getNodeDimension(node, "height", TRAFFIC_RATE_TEXT_REF_HEIGHT);
+  const scale = computeTrafficRateTextScale(width, height);
+  return computeFittedTrafficRateTextFontSize(
+    TRAFFIC_RATE_LABEL_SAMPLE_TEXT,
+    width,
+    height,
+    26 * scale
+  );
+}
+
 function normalizeTrafficRateTextMetric(value: unknown): GrafanaTrafficRateMetric {
   if (value === "rx" || value === "tx" || value === "combined") return value;
   return "tx";
@@ -255,7 +294,8 @@ export function collectGrafanaTrafficRateLabelPlacements(
           nodeId,
           interfaceName,
           normalizeTrafficRateTextMetric(data.textMetric)
-        )
+        ),
+        fontSize: getTrafficRateNodeLabelFontSize(node)
       });
       break;
     }
@@ -1309,6 +1349,13 @@ function buildTrafficRateLabelPlacementMap(
   return result;
 }
 
+function getGrafanaRateLabelFontSize(
+  placement: GrafanaTrafficRateLabelPlacement | undefined
+): number {
+  if (placement === undefined) return DEFAULT_GRAFANA_RATE_LABEL_FONT_SIZE;
+  return asFinitePositiveNumber(placement.fontSize) ?? DEFAULT_GRAFANA_RATE_LABEL_FONT_SIZE;
+}
+
 function createTrafficHalfCell(
   doc: XMLDocument,
   sourcePath: Element,
@@ -1362,7 +1409,7 @@ function createTrafficHalfCell(
   const text = doc.createElementNS(SVG_NS, "text");
   text.setAttribute("x", fmt(mid.x));
   text.setAttribute("y", fmt(mid.y));
-  text.setAttribute("font-size", "10");
+  text.setAttribute("font-size", fmt(getGrafanaRateLabelFontSize(placement)));
   text.setAttribute("font-family", "Helvetica, Arial, sans-serif");
   setCellIdAttributes(text, labelCellId);
   text.style.color = "#FFFFFF";

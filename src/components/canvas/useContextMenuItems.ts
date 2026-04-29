@@ -2,6 +2,7 @@ import { useMemo, type RefObject } from "react";
 import type { Edge, Node } from "@xyflow/react";
 
 import type { useCanvasHandlers } from "../../hooks/canvas";
+import type { TopoViewerNodeAction } from "../../host";
 import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
 
@@ -42,7 +43,7 @@ interface ContextMenuItemsParams {
 
 interface ResolveContextMenuItemsParams extends ContextMenuItemsParams {
   onInterfaceCapture: (nodeName: string, interfaceName: string) => void;
-  onNodeAction: (action: "ssh" | "shell" | "logs", nodeName: string) => void;
+  onNodeAction: (action: TopoViewerNodeAction, nodeName: string) => void;
   type: "node" | "edge" | "pane" | null;
   targetId: string | null;
   menuPosition: { x: number; y: number };

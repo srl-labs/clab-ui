@@ -6,7 +6,12 @@
 import React from "react";
 
 import type { SaveCustomNodeData } from "../core/utilities/customNodeConversions";
-import { type ClabUiHost, useClabUiHost } from "../host";
+import {
+  type ClabUiHost,
+  type TopoViewerLifecycleAction,
+  type TopoViewerNodeAction,
+  useClabUiHost
+} from "../host";
 
 export interface ClabUiExtensionMessaging {
   sendCancelLabLifecycle(): void;
@@ -22,17 +27,9 @@ export interface ClabUiExtensionMessaging {
   }): void;
   sendIconReconcile(usedIcons: string[]): void;
   sendInterfaceCapture(nodeName: string, interfaceName: string): void;
-  sendLifecycleCommand(
-    action:
-      | "deployLab"
-      | "deployLabCleanup"
-      | "destroyLab"
-      | "destroyLabCleanup"
-      | "redeployLab"
-      | "redeployLabCleanup"
-  ): void;
+  sendLifecycleCommand(action: TopoViewerLifecycleAction): void;
   sendLinkImpairment(nodeName: string, interfaceName: string, data: unknown): void;
-  sendNodeAction(action: "ssh" | "shell" | "logs", nodeName: string): void;
+  sendNodeAction(action: TopoViewerNodeAction, nodeName: string): void;
   sendRequestIconList(): void;
   sendSaveCustomNode(data: SaveCustomNodeData): void;
   sendSetDefaultCustomNode(nodeName: string): void;

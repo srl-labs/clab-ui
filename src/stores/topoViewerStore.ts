@@ -22,7 +22,7 @@ export type DeploymentState = "deployed" | "undeployed" | "unknown";
 export type LinkLabelMode = "show-all" | "on-select" | "hide" | "telemetry-style";
 export type NonTelemetryLinkLabelMode = Exclude<LinkLabelMode, "telemetry-style">;
 export type GridStyle = "dotted" | "quadratic";
-export type ProcessingMode = "deploy" | "destroy" | null;
+export type ProcessingMode = "deploy" | "destroy" | "start" | "stop" | "restart" | null;
 export type LifecycleLogStream = "stdout" | "stderr";
 export type LifecycleStatus = "running" | "success" | "error" | null;
 
@@ -125,7 +125,7 @@ export interface TopoViewerActions {
   clearCustomNodeError: () => void;
 
   // Processing state
-  setProcessing: (isProcessing: boolean, mode?: "deploy" | "destroy") => void;
+  setProcessing: (isProcessing: boolean, mode?: Exclude<ProcessingMode, null>) => void;
   setLifecycleStatus: (status: LifecycleStatus, message?: string | null) => void;
   appendLifecycleLog: (line: string, stream?: LifecycleLogStream) => void;
   clearLifecycleLogs: () => void;

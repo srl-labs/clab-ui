@@ -80,6 +80,9 @@ const COMMAND_LABELS: Record<string, string> = {
   "containerlab.lab.destroy.cleanup": "Destroy (Cleanup)",
   "containerlab.lab.redeploy": "Redeploy",
   "containerlab.lab.redeploy.cleanup": "Redeploy (Cleanup)",
+  "containerlab.lab.start": "Start Nodes",
+  "containerlab.lab.stop": "Stop Nodes",
+  "containerlab.lab.restart": "Restart Nodes",
   "containerlab.lab.save": "Save Configs",
   "containerlab.lab.delete": "Delete Lab File",
   "containerlab.lab.sshToAllNodes": "SSH To All Nodes",
@@ -98,6 +101,7 @@ const COMMAND_LABELS: Record<string, string> = {
   "containerlab.lab.graph.drawio.interactive": "Graph (draw.io, Interactive)",
   "containerlab.node.start": "Start Node",
   "containerlab.node.stop": "Stop Node",
+  "containerlab.node.restart": "Restart Node",
   "containerlab.node.pause": "Pause Node",
   "containerlab.node.unpause": "Unpause Node",
   "containerlab.node.save": "Save Node Config",
@@ -166,6 +170,7 @@ const BUILTIN_CONTAINER_ACTION_COMMANDS: readonly string[] = [
   "containerlab.node.openBrowser",
   "containerlab.node.start",
   "containerlab.node.stop",
+  "containerlab.node.restart",
   "containerlab.node.pause",
   "containerlab.node.unpause",
   "containerlab.node.save",
@@ -481,6 +486,9 @@ function appendLabActions(
     pushAction(actions, seen, registry, "containerlab.lab.destroy.cleanup", [item], undefined, true);
     pushAction(actions, seen, registry, "containerlab.lab.redeploy", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.redeploy.cleanup", [item]);
+    pushAction(actions, seen, registry, "containerlab.lab.start", [item]);
+    pushAction(actions, seen, registry, "containerlab.lab.stop", [item]);
+    pushAction(actions, seen, registry, "containerlab.lab.restart", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.save", [item]);
     pushAction(actions, seen, registry, "containerlab.inspectOneLab", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.sshToAllNodes", [item]);

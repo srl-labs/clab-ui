@@ -229,9 +229,14 @@ const ACTION_ICON_BY_COMMAND: Record<string, SvgIconComponent> = {
   "containerlab.lab.togglefavorite": StarBorderIcon,
   "containerlab.lab.addtoworkspace": FolderOpenIcon,
   "containerlab.lab.save": SaveOutlinedIcon,
+  "containerlab.lab.start": PlayArrowIcon,
+  "containerlab.lab.stop": StopIcon,
+  "containerlab.lab.restart": RefreshIcon,
+  "containerlab.node.start": PlayArrowIcon,
   "containerlab.node.save": SaveOutlinedIcon,
   "containerlab.node.showlogs": ArticleOutlinedIcon,
   "containerlab.node.stop": StopIcon,
+  "containerlab.node.restart": RefreshIcon,
   "containerlab.node.pause": PauseCircleOutlineIcon,
   "containerlab.node.unpause": PlayCircleOutlineIcon,
   "containerlab.interface.setdelay": TuneIcon,
@@ -258,6 +263,10 @@ const ACTION_ICON_RULES: ReadonlyArray<CommandIconRule> = [
   },
   {
     match: (command) => command.includes("redeploy"),
+    icon: RefreshIcon
+  },
+  {
+    match: (command) => command.includes("restart"),
     icon: RefreshIcon
   },
   { match: (command) => command.includes("stop"), icon: StopIcon },
@@ -328,6 +337,7 @@ const ACTION_GROUP_RULES: ReadonlyArray<CommandActionGroupRule> = [
       command.includes("deploy") ||
       command.includes("destroy") ||
       command.includes("redeploy") ||
+      command.includes("restart") ||
       command.includes("start") ||
       command.includes("stop") ||
       command.includes("pause") ||

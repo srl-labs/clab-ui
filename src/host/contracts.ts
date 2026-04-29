@@ -24,9 +24,12 @@ export type TopoViewerLifecycleAction =
   | "destroyLab"
   | "destroyLabCleanup"
   | "redeployLab"
-  | "redeployLabCleanup";
+  | "redeployLabCleanup"
+  | "startLab"
+  | "stopLab"
+  | "restartLab";
 
-export type TopoViewerNodeAction = "ssh" | "shell" | "logs";
+export type TopoViewerNodeAction = "ssh" | "shell" | "logs" | "start" | "stop" | "restart";
 
 export interface TopoViewerSvgExportPayload {
   requestId: string;

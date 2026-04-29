@@ -17,6 +17,9 @@ export interface DeploymentCommands {
   onDestroyCleanup: () => void;
   onRedeploy: () => void;
   onRedeployCleanup: () => void;
+  onStartLab: () => void;
+  onStopLab: () => void;
+  onRestartLab: () => void;
 }
 
 // Keep deployment commands - they need extension to run containerlab CLI
@@ -38,7 +41,10 @@ export function useDeploymentCommands(): DeploymentCommands {
     onRedeployCleanup: useCallback(
       () => sendLifecycleCommand("redeployLabCleanup"),
       [sendLifecycleCommand]
-    )
+    ),
+    onStartLab: useCallback(() => sendLifecycleCommand("startLab"), [sendLifecycleCommand]),
+    onStopLab: useCallback(() => sendLifecycleCommand("stopLab"), [sendLifecycleCommand]),
+    onRestartLab: useCallback(() => sendLifecycleCommand("restartLab"), [sendLifecycleCommand])
   };
 }
 

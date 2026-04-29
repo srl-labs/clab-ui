@@ -211,6 +211,24 @@ export const Navbar: React.FC<NavbarProps> = ({
     deploymentCommands.onRedeployCleanup();
   }, [setProcessing, deploymentCommands]);
 
+  const handleStartLab = React.useCallback(() => {
+    setDeployMenuPosition(null);
+    setProcessing(true, "start");
+    deploymentCommands.onStartLab();
+  }, [setProcessing, deploymentCommands]);
+
+  const handleStopLab = React.useCallback(() => {
+    setDeployMenuPosition(null);
+    setProcessing(true, "stop");
+    deploymentCommands.onStopLab();
+  }, [setProcessing, deploymentCommands]);
+
+  const handleRestartLab = React.useCallback(() => {
+    setDeployMenuPosition(null);
+    setProcessing(true, "restart");
+    deploymentCommands.onRestartLab();
+  }, [setProcessing, deploymentCommands]);
+
   // Primary action depends on mode
   const handlePrimaryAction = React.useCallback(() => {
     if (!isTopologyActive) return;
@@ -367,6 +385,37 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <CleaningServicesIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
                   </ListItemIcon>
                   <ListItemText>Redeploy (cleanup)</ListItemText>
+                </MenuItem>,
+                <Divider key="node-lifecycle-divider" sx={{ my: 0.5 }} />,
+                <MenuItem
+                  key="start-lab"
+                  onClick={handleStartLab}
+                  data-testid="navbar-deploy-item-start-lab"
+                >
+                  <ListItemIcon>
+                    <PlayArrowIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+                  </ListItemIcon>
+                  <ListItemText>Start Nodes</ListItemText>
+                </MenuItem>,
+                <MenuItem
+                  key="stop-lab"
+                  onClick={handleStopLab}
+                  data-testid="navbar-deploy-item-stop-lab"
+                >
+                  <ListItemIcon>
+                    <StopIcon fontSize="small" sx={{ color: ERROR_MAIN }} />
+                  </ListItemIcon>
+                  <ListItemText>Stop Nodes</ListItemText>
+                </MenuItem>,
+                <MenuItem
+                  key="restart-lab"
+                  onClick={handleRestartLab}
+                  data-testid="navbar-deploy-item-restart-lab"
+                >
+                  <ListItemIcon>
+                    <ReplayIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+                  </ListItemIcon>
+                  <ListItemText>Restart Nodes</ListItemText>
                 </MenuItem>
               ]
             : [

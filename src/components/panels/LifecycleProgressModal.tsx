@@ -35,10 +35,19 @@ interface LifecycleProgressModalProps {
 }
 
 function getModeLabel(mode: ProcessingMode): string {
-  if (mode === "destroy") {
-    return "Destroying";
+  switch (mode) {
+    case "destroy":
+      return "Destroying";
+    case "start":
+      return "Starting";
+    case "stop":
+      return "Stopping";
+    case "restart":
+      return "Restarting";
+    case "deploy":
+    default:
+      return "Deploying";
   }
-  return "Deploying";
 }
 
 function getStatusLabel(status: LifecycleStatus): string {

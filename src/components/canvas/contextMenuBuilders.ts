@@ -14,14 +14,18 @@ import InfoIcon from "@mui/icons-material/Info";
 import LanIcon from "@mui/icons-material/Lan";
 import LayersIcon from "@mui/icons-material/Layers";
 import LinkIcon from "@mui/icons-material/Link";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import RemoveIcon from "@mui/icons-material/Remove";
+import ReplayIcon from "@mui/icons-material/Replay";
 import SpeedIcon from "@mui/icons-material/Speed";
+import StopIcon from "@mui/icons-material/Stop";
 import TerminalIcon from "@mui/icons-material/Terminal";
 import TextFieldsIcon from "@mui/icons-material/TextFields";
 import TuneIcon from "@mui/icons-material/Tune";
 
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
 import { WiresharkIcon } from "../context-menu/WiresharkIcon";
+import type { TopoViewerNodeAction } from "../../host";
 import { getViewportCenter } from "../../utils/viewportUtils";
 import {
   FREE_TEXT_NODE_TYPE,
@@ -39,7 +43,7 @@ interface MenuBuilderContext {
   targetNodeType?: string;
   isEditMode: boolean;
   isLocked: boolean;
-  onNodeAction: (action: "ssh" | "shell" | "logs", nodeName: string) => void;
+  onNodeAction: (action: TopoViewerNodeAction, nodeName: string) => void;
   closeContextMenu: () => void;
   editNode: (id: string) => void;
   editNetwork?: (id: string) => void;
@@ -274,6 +278,34 @@ function buildTrafficRateContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
 function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
   const { targetId, closeContextMenu, onNodeAction, showNodeInfo } = ctx;
   return [
+    {
+      id: "start-node",
+      label: "Start",
+      icon: React.createElement(PlayArrowIcon, { fontSize: "small" }),
+      onClick: () => {
+        onNodeAction("start", targetId);
+        closeContextMenu();
+      }
+    },
+    {
+      id: "stop-node",
+      label: "Stop",
+      icon: React.createElement(StopIcon, { fontSize: "small" }),
+      onClick: () => {
+        onNodeAction("stop", targetId);
+        closeContextMenu();
+      }
+    },
+    {
+      id: "restart-node",
+      label: "Restart",
+      icon: React.createElement(ReplayIcon, { fontSize: "small" }),
+      onClick: () => {
+        onNodeAction("restart", targetId);
+        closeContextMenu();
+      }
+    },
+    { id: "divider-node-lifecycle", label: "", divider: true },
     {
       id: "ssh-node",
       label: "SSH",

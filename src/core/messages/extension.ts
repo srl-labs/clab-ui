@@ -10,7 +10,10 @@ export const LIFECYCLE_COMMANDS = {
   REDEPLOY_LAB: "redeployLab",
   DEPLOY_LAB_CLEANUP: "deployLabCleanup",
   DESTROY_LAB_CLEANUP: "destroyLabCleanup",
-  REDEPLOY_LAB_CLEANUP: "redeployLabCleanup"
+  REDEPLOY_LAB_CLEANUP: "redeployLabCleanup",
+  START_LAB: "startLab",
+  STOP_LAB: "stopLab",
+  RESTART_LAB: "restartLab"
 } as const;
 
 export const MSG_CANCEL_LAB_LIFECYCLE = "cancelLabLifecycle" as const;
@@ -27,7 +30,10 @@ export function isLifecycleCommand(command: string): command is LifecycleCommand
 export const NODE_COMMANDS = {
   NODE_CONNECT_SSH: "clab-node-connect-ssh",
   NODE_ATTACH_SHELL: "clab-node-attach-shell",
-  NODE_VIEW_LOG: "clab-node-view-logs"
+  NODE_VIEW_LOG: "clab-node-view-logs",
+  NODE_START: "clab-node-start",
+  NODE_STOP: "clab-node-stop",
+  NODE_RESTART: "clab-node-restart"
 } as const;
 
 const NODE_COMMANDS_SET: ReadonlySet<string> = new Set(Object.values(NODE_COMMANDS));

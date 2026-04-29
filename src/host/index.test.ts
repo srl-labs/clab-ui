@@ -48,11 +48,15 @@ test("createWindowClabUiHost resolves VS Code API and posts semantic commands", 
   const host = createWindowClabUiHost({ targetWindow: targetWindow as unknown as Window });
 
   host.explorer.connect();
+  host.topoViewer.runLifecycle("restartLab");
   host.topoViewer.runNodeAction("ssh", "leaf1");
+  host.topoViewer.runNodeAction("restart", "leaf1");
 
   assert.deepEqual(messages, [
     { command: "ready" },
-    { command: "clab-node-connect-ssh", nodeName: "leaf1" }
+    { command: "restartLab" },
+    { command: "clab-node-connect-ssh", nodeName: "leaf1" },
+    { command: "clab-node-restart", nodeName: "leaf1" }
   ]);
 });
 

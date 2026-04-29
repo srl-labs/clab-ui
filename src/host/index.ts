@@ -367,6 +367,12 @@ export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiH
           command = "clab-node-connect-ssh";
         } else if (action === "shell") {
           command = "clab-node-attach-shell";
+        } else if (action === "start") {
+          command = "clab-node-start";
+        } else if (action === "stop") {
+          command = "clab-node-stop";
+        } else if (action === "restart") {
+          command = "clab-node-restart";
         }
         postMessage({ command, nodeName });
       },

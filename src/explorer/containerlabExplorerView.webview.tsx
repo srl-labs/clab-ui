@@ -946,6 +946,7 @@ function toContextMenuItem(
     label: action.label,
     icon: <ActionIcon fontSize="small" />,
     danger: Boolean(action.destructive),
+    disabled: action.disabled,
     onClick: () => onInvokeAction(action)
   };
 }
@@ -1415,9 +1416,13 @@ function ExplorerEndpointActionButton({
     <IconButton
       size="small"
       className="explorer-node-actions-trigger"
+      disabled={action.disabled}
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
+        if (action.disabled === true) {
+          return;
+        }
         onInvokeAction(action);
       }}
       aria-label={ariaLabel}
@@ -1906,10 +1911,14 @@ function SectionToolbarActions({ actions, onInvokeAction }: Readonly<SectionTool
             <IconButton
               size="small"
               aria-label={action.label}
+              disabled={action.disabled}
               sx={TOOLBAR_ICON_BUTTON_SX}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                if (action.disabled === true) {
+                  return;
+                }
                 onInvokeAction(action);
               }}
             >
@@ -2377,6 +2386,9 @@ export function ContainerlabExplorerView() {
 
   const invokeAction = useCallback(
     (action: ExplorerAction) => {
+      if (action.disabled === true) {
+        return;
+      }
       void Promise.resolve(host.explorer.invokeAction(action.actionRef));
     },
     [host]

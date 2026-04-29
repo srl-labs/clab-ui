@@ -267,6 +267,10 @@ export function createExplorerController(options: ExplorerControllerOptions): Ex
         await publishError("Action is no longer available. Refresh and try again.");
         return;
       }
+      if (binding.disabled === true) {
+        await publishError("Action is disabled for the current node state.");
+        return;
+      }
 
       try {
         await options.executeAction(binding);

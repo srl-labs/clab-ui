@@ -37,10 +37,12 @@ import {
 import type { ReactFlowCanvasProps } from "./types";
 
 const DIVIDER_ID = "divider-1";
+type NodeRuntimeActionState = "running" | "stopped" | "paused" | "undeployed";
 
 interface MenuBuilderContext {
   targetId: string;
   targetNodeType?: string;
+  targetRuntimeState?: NodeRuntimeActionState;
   isEditMode: boolean;
   isLocked: boolean;
   onNodeAction: (action: TopoViewerNodeAction, nodeName: string) => void;
@@ -123,6 +125,26 @@ function getExtraDataString(
   if (extraData === undefined) return undefined;
   const value = extraData[key];
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function isNodeActionDisabled(
+  action: TopoViewerNodeAction,
+  runtimeState: NodeRuntimeActionState | undefined
+): boolean {
+  if (runtimeState === undefined) {
+    return false;
+  }
+
+  switch (action) {
+    case "ssh":
+    case "shell":
+    case "logs":
+    case "stop":
+    case "restart":
+      return runtimeState !== "running";
+    default:
+      return false;
+  }
 }
 
 /**
@@ -276,7 +298,7 @@ function buildTrafficRateContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
 }
 
 function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, closeContextMenu, onNodeAction, showNodeInfo } = ctx;
+  const { targetId, targetRuntimeState, closeContextMenu, onNodeAction, showNodeInfo } = ctx;
   return [
     {
       id: "start-node",
@@ -291,6 +313,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       id: "stop-node",
       label: "Stop",
       icon: React.createElement(StopIcon, { fontSize: "small" }),
+      disabled: isNodeActionDisabled("stop", targetRuntimeState),
       onClick: () => {
         onNodeAction("stop", targetId);
         closeContextMenu();
@@ -300,6 +323,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       id: "restart-node",
       label: "Restart",
       icon: React.createElement(ReplayIcon, { fontSize: "small" }),
+      disabled: isNodeActionDisabled("restart", targetRuntimeState),
       onClick: () => {
         onNodeAction("restart", targetId);
         closeContextMenu();
@@ -310,6 +334,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       id: "ssh-node",
       label: "SSH",
       icon: React.createElement(TerminalIcon, { fontSize: "small" }),
+      disabled: isNodeActionDisabled("ssh", targetRuntimeState),
       onClick: () => {
         onNodeAction("ssh", targetId);
         closeContextMenu();
@@ -319,6 +344,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       id: "shell-node",
       label: "Shell",
       icon: React.createElement(TerminalIcon, { fontSize: "small" }),
+      disabled: isNodeActionDisabled("shell", targetRuntimeState),
       onClick: () => {
         onNodeAction("shell", targetId);
         closeContextMenu();
@@ -328,6 +354,7 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       id: "logs-node",
       label: "Logs",
       icon: React.createElement(ArticleIcon, { fontSize: "small" }),
+      disabled: isNodeActionDisabled("logs", targetRuntimeState),
       onClick: () => {
         onNodeAction("logs", targetId);
         closeContextMenu();

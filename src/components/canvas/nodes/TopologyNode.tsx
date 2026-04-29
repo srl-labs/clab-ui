@@ -29,6 +29,7 @@ import {
   buildNodeLabelStyle,
   HIDDEN_HANDLE_STYLE,
   getNodeDirectionRotation,
+  getNodeRuntimeIconOpacity,
   getNodeRuntimeBadgeState,
   type NodeRuntimeBadgeState
 } from "./nodeStyles";
@@ -191,6 +192,15 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
     return generateEncodedSVG(svgType, color);
   }, [role, iconColor, customIconMap]);
 
+  const runtimeBadgeState = useMemo(
+    () => getNodeRuntimeBadgeState(deploymentState, state),
+    [deploymentState, state]
+  );
+  const runtimeIconOpacity = useMemo(
+    () => getNodeRuntimeIconOpacity(runtimeBadgeState),
+    [runtimeBadgeState]
+  );
+
   // Build icon style with dynamic properties
   const iconStyle = useMemo((): React.CSSProperties => {
     const style: React.CSSProperties = {
@@ -200,6 +210,8 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
       backgroundImage: `url(${iconUrl})`,
       borderRadius: typeof iconCornerRadius === "number" ? `${iconCornerRadius}px` : 4,
       transform: directionRotation !== 0 ? `rotate(${directionRotation}deg)` : undefined,
+      opacity: runtimeIconOpacity,
+      transition: "opacity 120ms ease-in-out",
       // Use outline for selection - doesn't affect layout
       outline: selected ? SELECTED_OUTLINE : "none",
       outlineOffset: 1
@@ -214,7 +226,15 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
     }
 
     return style;
-  }, [iconUrl, iconCornerRadius, directionRotation, selected, easterEggGlow, iconSize]);
+  }, [
+    iconUrl,
+    iconCornerRadius,
+    directionRotation,
+    runtimeIconOpacity,
+    selected,
+    easterEggGlow,
+    iconSize
+  ]);
 
   // Container style based on link target mode
   const containerStyle = useMemo(
@@ -229,10 +249,6 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
   // Build class names for CSS-based hover effects
   const iconClassName = isLinkTarget ? "topology-node-icon link-target" : "topology-node-icon";
 
-  const runtimeBadgeState = useMemo(
-    () => getNodeRuntimeBadgeState(deploymentState, state),
-    [deploymentState, state]
-  );
   const runtimeBadgeColors = useMemo(
     () => getRuntimeBadgeColors(runtimeBadgeState),
     [runtimeBadgeState]

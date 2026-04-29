@@ -85,3 +85,79 @@ test("runtime edge updates carry netem state from label-matched interfaces", () 
   assert.equal(update?.extraData.clabSourceInterfaceState, "up");
   assert.deepEqual(update?.extraData.clabSourceNetem, { delay: "10ms" });
 });
+
+test("runtime edge updates mark stopped node interfaces unavailable", () => {
+  const edge: TopoEdge = {
+    id: "srl1:ethernet-1/1--srl2:ethernet-1/1",
+    source: "srl1",
+    target: "srl2",
+    data: {
+      id: "srl1:ethernet-1/1--srl2:ethernet-1/1",
+      source: "srl1",
+      target: "srl2",
+      sourceEndpoint: "ethernet-1/1",
+      targetEndpoint: "ethernet-1/1",
+      extraData: {
+        clabSourceInterfaceState: "up",
+        clabTargetInterfaceState: "up"
+      }
+    }
+  } as TopoEdge;
+  const [runningSource, runningTarget] = runtimeContainers;
+  assert.ok(runningSource);
+  assert.ok(runningTarget);
+
+  const stoppedContainers: HostRuntimeContainer[] = [
+    {
+      ...runningSource,
+      state: "exited",
+      interfaces: []
+    },
+    runningTarget
+  ];
+
+  const [update] = buildRuntimeEdgeStatsUpdates([edge], stoppedContainers, {
+    currentLabName: "demo",
+    topology: undefined
+  });
+
+  assert.equal(update?.extraData.clabSourceInterfaceState, "");
+  assert.equal(update?.extraData.clabTargetInterfaceState, "up");
+});
+
+test("runtime edge updates ignore stale interface state on stopped containers", () => {
+  const edge: TopoEdge = {
+    id: "srl1:ethernet-1/1--srl2:ethernet-1/1",
+    source: "srl1",
+    target: "srl2",
+    data: {
+      id: "srl1:ethernet-1/1--srl2:ethernet-1/1",
+      source: "srl1",
+      target: "srl2",
+      sourceEndpoint: "ethernet-1/1",
+      targetEndpoint: "ethernet-1/1",
+      extraData: {
+        clabSourceInterfaceState: "up"
+      }
+    }
+  } as TopoEdge;
+  const [runningSource, runningTarget] = runtimeContainers;
+  assert.ok(runningSource);
+  assert.ok(runningTarget);
+
+  const stoppedContainers: HostRuntimeContainer[] = [
+    {
+      ...runningSource,
+      state: "exited",
+      interfaces: runningSource.interfaces?.map((iface) => ({ ...iface, state: "up" }))
+    },
+    runningTarget
+  ];
+
+  const [update] = buildRuntimeEdgeStatsUpdates([edge], stoppedContainers, {
+    currentLabName: "demo",
+    topology: undefined
+  });
+
+  assert.equal(update?.extraData.clabSourceInterfaceState, "");
+});

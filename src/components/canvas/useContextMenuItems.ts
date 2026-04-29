@@ -4,6 +4,7 @@ import type { Edge, Node } from "@xyflow/react";
 import type { useCanvasHandlers } from "../../hooks/canvas";
 import type { TopoViewerNodeAction } from "../../host";
 import { useExtensionMessaging } from "../../messaging/extensionMessaging";
+import { useDeploymentState, type DeploymentState } from "../../stores/topoViewerStore";
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
 
 import {
@@ -11,6 +12,10 @@ import {
   buildNodeContextMenu,
   buildPaneContextMenu
 } from "./contextMenuBuilders";
+import {
+  getNodeRuntimeBadgeState,
+  type NodeRuntimeBadgeState
+} from "./nodes/nodeStyles";
 import type { AnnotationHandlers } from "./types";
 
 /** Parameters for useContextMenuItems hook */
@@ -51,6 +56,33 @@ interface ResolveContextMenuItemsParams extends ContextMenuItemsParams {
   edges: Edge[];
   isEditMode: boolean;
   isLocked: boolean;
+  deploymentState: DeploymentState;
+}
+
+function getStringField(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function toRecord(value: unknown): Record<string, unknown> {
+  return typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
+}
+
+function resolveNodeRuntimeState(
+  node: Node | undefined,
+  deploymentState: DeploymentState
+): NodeRuntimeBadgeState | undefined {
+  if (node?.type !== "topology-node") {
+    return undefined;
+  }
+
+  const nodeData = toRecord(node.data);
+  const extraData = toRecord(nodeData.extraData);
+  const rawState = getStringField(nodeData, "state") ?? getStringField(extraData, "state");
+  if (deploymentState === "deployed" && rawState === undefined) {
+    return undefined;
+  }
+  return getNodeRuntimeBadgeState(deploymentState, rawState);
 }
 
 function buildNodeItems(
@@ -58,10 +90,12 @@ function buildNodeItems(
 ): ContextMenuItem[] {
   const targetNode = params.nodes.find((node) => node.id === params.targetId);
   const targetNodeType = targetNode?.type;
+  const targetRuntimeState = resolveNodeRuntimeState(targetNode, params.deploymentState);
 
   return buildNodeContextMenu({
     targetId: params.targetId,
     targetNodeType,
+    targetRuntimeState,
     isEditMode: params.isEditMode,
     isLocked: params.isLocked,
     onNodeAction: params.onNodeAction,
@@ -149,6 +183,7 @@ function resolveContextMenuItems(params: ResolveContextMenuItemsParams): Context
  */
 export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenuItem[] {
   const { sendInterfaceCapture, sendNodeAction } = useExtensionMessaging();
+  const deploymentState = useDeploymentState();
   const {
     handlers,
     state,
@@ -188,7 +223,8 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
       nodes: nodesRef.current,
       edges: edgesRef.current,
       isEditMode: state.mode === "edit",
-      isLocked: state.isLocked
+      isLocked: state.isLocked,
+      deploymentState
     });
   }, [
     type,
@@ -196,6 +232,7 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
     menuPosition,
     state.mode,
     state.isLocked,
+    deploymentState,
     handlers.closeContextMenu,
     handlers.reactFlowInstance,
     editNode,

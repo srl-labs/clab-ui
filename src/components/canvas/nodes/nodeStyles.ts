@@ -124,6 +124,17 @@ export function buildNodeLabelStyle(params: {
 
 export type NodeRuntimeBadgeState = "running" | "stopped" | "paused" | "undeployed";
 
+export function getNodeRuntimeIconOpacity(state: NodeRuntimeBadgeState): number {
+  switch (state) {
+    case "stopped":
+      return 0.45;
+    case "paused":
+      return 0.65;
+    default:
+      return 1;
+  }
+}
+
 export function getNodeRuntimeBadgeState(
   deploymentState: "deployed" | "undeployed" | "unknown",
   rawState: string | undefined

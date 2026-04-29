@@ -48,6 +48,7 @@ export interface ExplorerSnapshotOptions {
 export interface ExplorerActionInvocation {
   commandId: string;
   args: unknown[];
+  disabled?: boolean;
 }
 
 export interface ExplorerContributedMenuItem {
@@ -182,6 +183,15 @@ const BUILTIN_CONTAINER_ACTION_COMMANDS: readonly string[] = [
   "containerlab.node.copyKind",
   "containerlab.node.copyImage"
 ];
+const STOPPED_CONTAINER_ENABLED_COMMANDS = new Set<string>([
+  "containerlab.node.start",
+  "containerlab.node.copyName",
+  "containerlab.node.copyID",
+  "containerlab.node.copyIPv4Address",
+  "containerlab.node.copyIPv6Address",
+  "containerlab.node.copyKind",
+  "containerlab.node.copyImage"
+]);
 
 function labelToText(label: string | vscode.TreeItemLabel | undefined): string {
   if (!label) {
@@ -230,6 +240,27 @@ function isUndeployedLab(contextValue: string | undefined): boolean {
 
 function isFavoriteLab(contextValue: string | undefined): boolean {
   return typeof contextValue === "string" && contextValue.includes("Favorite");
+}
+
+function isRunningContainerStatus(status: string): boolean {
+  return status === "running" || status === "up" || status.startsWith("up ");
+}
+
+function isStoppedContainerItem(item: ExplorerTreeItemLike): boolean {
+  const state = String(item.state ?? "").trim().toLowerCase();
+  if (state.length > 0) {
+    return state !== "running";
+  }
+
+  const status = String(item.status ?? "").trim().toLowerCase();
+  if (status.length === 0) {
+    return false;
+  }
+  return !isRunningContainerStatus(status);
+}
+
+function isContainerActionDisabled(commandId: string, item: ExplorerTreeItemLike): boolean {
+  return isStoppedContainerItem(item) && !STOPPED_CONTAINER_ENABLED_COMMANDS.has(commandId);
 }
 
 function shouldHideNodeDescription(contextValue: string | undefined): boolean {
@@ -323,17 +354,19 @@ class ExplorerActionRegistry {
     label: string,
     args: unknown[] = [],
     destructive = false,
-    iconId?: string
+    iconId?: string,
+    disabled = false
   ): ExplorerAction {
     const actionRef = `action:${this.counter++}`;
-    this.bindings.set(actionRef, { commandId, args });
+    this.bindings.set(actionRef, { commandId, args, disabled });
     return {
       id: `${commandId}:${label}:${actionRef}`,
       actionRef,
       label,
       commandId,
       iconId,
-      destructive
+      destructive,
+      disabled
     };
   }
 
@@ -350,7 +383,8 @@ function pushAction(
   args: unknown[] = [],
   label?: string,
   destructive?: boolean,
-  iconId?: string
+  iconId?: string,
+  disabled?: boolean
 ): void {
   const resolvedLabel = commandLabel(commandId, label);
   const key = `${commandId}:${resolvedLabel}`;
@@ -365,7 +399,8 @@ function pushAction(
       resolvedLabel,
       args,
       destructive ?? DESTRUCTIVE_COMMANDS.has(commandId),
-      iconId
+      iconId,
+      disabled
     )
   );
 }
@@ -530,7 +565,17 @@ function appendContainerActions(
   commandIcons: ReadonlyMap<string, string>
 ): void {
   for (const commandId of BUILTIN_CONTAINER_ACTION_COMMANDS) {
-    pushAction(actions, seen, registry, commandId, [item]);
+    pushAction(
+      actions,
+      seen,
+      registry,
+      commandId,
+      [item],
+      undefined,
+      undefined,
+      undefined,
+      isContainerActionDisabled(commandId, item)
+    );
   }
 
   const existingCommands = new Set(actions.map((action) => action.commandId));
@@ -547,7 +592,8 @@ function appendContainerActions(
       [item],
       commandLabels.get(contributedAction.commandId) ?? contributedAction.label,
       undefined,
-      commandIcons.get(contributedAction.commandId) ?? contributedAction.iconId
+      commandIcons.get(contributedAction.commandId) ?? contributedAction.iconId,
+      isContainerActionDisabled(contributedAction.commandId, item)
     );
     existingCommands.add(contributedAction.commandId);
   }

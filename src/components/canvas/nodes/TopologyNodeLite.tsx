@@ -6,11 +6,15 @@ import type { NodeProps } from "@xyflow/react";
 
 import type { TopologyNodeData } from "../types";
 import { SELECTION_COLOR, DEFAULT_ICON_COLOR } from "../types";
-import { useTopoViewerStore } from "../../../stores/topoViewerStore";
+import { useDeploymentState, useTopoViewerStore } from "../../../stores/topoViewerStore";
 import { clampTelemetryNodeSizePx } from "../../../utils/telemetryInterfaceLabels";
 
 import { LiteNodeShell } from "./NodeLiteBase";
-import { getNodeDirectionRotation } from "./nodeStyles";
+import {
+  getNodeDirectionRotation,
+  getNodeRuntimeBadgeState,
+  getNodeRuntimeIconOpacity
+} from "./nodeStyles";
 
 function toTopologyNodeData(data: NodeProps["data"]): TopologyNodeData {
   return {
@@ -22,6 +26,7 @@ function toTopologyNodeData(data: NodeProps["data"]): TopologyNodeData {
 
 const TopologyNodeLiteComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const nodeData = toTopologyNodeData(data);
+  const deploymentState = useDeploymentState();
   const telemetryNodeSizePx = useTopoViewerStore((state) => state.telemetryNodeSizePx);
   const iconSize = useMemo(
     () => clampTelemetryNodeSizePx(telemetryNodeSizePx),
@@ -30,6 +35,8 @@ const TopologyNodeLiteComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const color = nodeData.iconColor ?? DEFAULT_ICON_COLOR;
   const corner = nodeData.iconCornerRadius ?? 4;
   const rotation = getNodeDirectionRotation(nodeData.direction);
+  const runtimeBadgeState = getNodeRuntimeBadgeState(deploymentState, nodeData.state);
+  const runtimeIconOpacity = getNodeRuntimeIconOpacity(runtimeBadgeState);
 
   const iconStyle: React.CSSProperties = {
     width: iconSize,
@@ -37,6 +44,7 @@ const TopologyNodeLiteComponent: React.FC<NodeProps> = ({ data, selected }) => {
     backgroundColor: color,
     borderRadius: corner,
     transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
+    opacity: runtimeIconOpacity,
     outline: selected ? `2px solid ${SELECTION_COLOR}` : "none",
     outlineOffset: 1
   };

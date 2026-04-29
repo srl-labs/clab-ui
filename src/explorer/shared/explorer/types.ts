@@ -19,6 +19,7 @@ export interface ExplorerAction {
   commandId: string;
   iconId?: string;
   destructive?: boolean;
+  disabled?: boolean;
 }
 
 export interface ExplorerNode {

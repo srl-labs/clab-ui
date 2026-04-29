@@ -32,6 +32,12 @@ export interface TopologyRuntimeUpdateContext {
   topology: ClabTopology["topology"] | undefined;
 }
 
+interface RuntimeInterfaceLookupResult {
+  iface: InterfaceInfo | undefined;
+  containerMatched: boolean;
+  hasRunningContainer: boolean;
+}
+
 function normalizeName(value: string | undefined): string {
   return (value ?? "").trim().toLowerCase();
 }
@@ -75,6 +81,11 @@ function shortContainerName(container: HostRuntimeContainer): string {
 
 function hasRuntimeInterfaces(container: HostRuntimeContainer): boolean {
   return (container.interfaces ?? []).length > 0;
+}
+
+function isRunningRuntimeContainer(container: HostRuntimeContainer): boolean {
+  const state = normalizeName(container.state);
+  return state.includes("run") || state.includes("healthy");
 }
 
 function sortContainersByInterfacePriority(
@@ -246,14 +257,31 @@ function findInterfaceInfo(
   ifaceName: string,
   labName: string
 ): InterfaceInfo | undefined {
+  return findRuntimeInterface(containers, nodeName, ifaceName, labName).iface;
+}
+
+function findRuntimeInterface(
+  containers: HostRuntimeContainer[],
+  nodeName: string,
+  ifaceName: string,
+  labName: string
+): RuntimeInterfaceLookupResult {
   const candidates = matchingContainers(containers, nodeName, labName, true);
   for (const container of candidates) {
     const match = (container.interfaces ?? []).find((iface) => interfacesMatch(iface, ifaceName));
     if (match) {
-      return toInterfaceInfo(match);
+      return {
+        iface: toInterfaceInfo(match),
+        containerMatched: true,
+        hasRunningContainer: isRunningRuntimeContainer(container)
+      };
     }
   }
-  return undefined;
+  return {
+    iface: undefined,
+    containerMatched: candidates.length > 0,
+    hasRunningContainer: candidates.some((container) => isRunningRuntimeContainer(container))
+  };
 }
 
 function normalizeInterfaceName(value: unknown, fallback: unknown): string {
@@ -276,19 +304,46 @@ function normalizeNodeIdentifier(...values: unknown[]): string {
 }
 
 function buildInterfaceExtraData(
-  sourceIface: InterfaceInfo | undefined,
-  targetIface: InterfaceInfo | undefined
+  sourceRuntime: RuntimeInterfaceLookupResult,
+  targetRuntime: RuntimeInterfaceLookupResult
 ): Record<string, unknown> {
   const updatedExtraData: Record<string, unknown> = {};
 
-  if (sourceIface) {
-    applyInterfaceToExtraData(updatedExtraData, "Source", sourceIface);
-  }
-  if (targetIface) {
-    applyInterfaceToExtraData(updatedExtraData, "Target", targetIface);
-  }
+  applyRuntimeInterfaceToExtraData(updatedExtraData, "Source", sourceRuntime);
+  applyRuntimeInterfaceToExtraData(updatedExtraData, "Target", targetRuntime);
 
   return updatedExtraData;
+}
+
+function applyRuntimeInterfaceToExtraData(
+  extraData: Record<string, unknown>,
+  prefix: "Source" | "Target",
+  runtime: RuntimeInterfaceLookupResult
+): void {
+  if (!runtime.containerMatched) {
+    return;
+  }
+
+  if (!runtime.hasRunningContainer) {
+    applyUnavailableInterfaceToExtraData(extraData, prefix);
+    return;
+  }
+
+  if (runtime.iface) {
+    applyInterfaceToExtraData(extraData, prefix, runtime.iface);
+    return;
+  }
+
+  applyUnavailableInterfaceToExtraData(extraData, prefix);
+}
+
+function applyUnavailableInterfaceToExtraData(
+  extraData: Record<string, unknown>,
+  prefix: "Source" | "Target"
+): void {
+  extraData[`clab${prefix}InterfaceState`] = "";
+  extraData[`clab${prefix}Stats`] = undefined;
+  extraData[`clab${prefix}Netem`] = undefined;
 }
 
 function applyInterfaceToExtraData(
@@ -331,8 +386,8 @@ function lookupEdgeInterfaces(
   extraData: Record<string, unknown>,
   currentLabName: string
 ): {
-  sourceIface: InterfaceInfo | undefined;
-  targetIface: InterfaceInfo | undefined;
+  sourceRuntime: RuntimeInterfaceLookupResult;
+  targetRuntime: RuntimeInterfaceLookupResult;
 } {
   const sourceIfaceName = normalizeInterfaceName(
     extraData.clabSourcePort,
@@ -355,13 +410,13 @@ function lookupEdgeInterfaces(
   );
 
   return {
-    sourceIface: findInterfaceInfo(
+    sourceRuntime: findRuntimeInterface(
       containers,
       sourceNodeIdentifier,
       sourceIfaceName,
       currentLabName
     ),
-    targetIface: findInterfaceInfo(
+    targetRuntime: findRuntimeInterface(
       containers,
       targetNodeIdentifier,
       targetIfaceName,
@@ -425,20 +480,24 @@ export function buildRuntimeEdgeStatsUpdates(
   for (const edge of edges) {
     const edgeData = edge.data;
     const extraData = edgeData?.extraData ?? {};
-    const { sourceIface, targetIface } = lookupEdgeInterfaces(
+    const { sourceRuntime, targetRuntime } = lookupEdgeInterfaces(
       containers,
       edge,
       edgeData,
       extraData,
       context.currentLabName
     );
-    const updatedExtraData = buildInterfaceExtraData(sourceIface, targetIface);
+    const updatedExtraData = buildInterfaceExtraData(sourceRuntime, targetRuntime);
     const edgeClass = computeEdgeClassForUpdate(
       context.topology,
       extraData,
       edge,
-      sourceIface?.state,
-      targetIface?.state
+      typeof updatedExtraData.clabSourceInterfaceState === "string"
+        ? updatedExtraData.clabSourceInterfaceState
+        : undefined,
+      typeof updatedExtraData.clabTargetInterfaceState === "string"
+        ? updatedExtraData.clabTargetInterfaceState
+        : undefined
     );
     if (Object.keys(updatedExtraData).length === 0) {
       continue;

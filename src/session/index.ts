@@ -24,6 +24,11 @@ export {
   setHostContext,
   setHostRevision
 } from "../services/topologyHostClient";
+export {
+  applyRuntimeEdgeStatsToGraph,
+  clearTopologyGraph,
+  type ApplyRuntimeEdgeStatsOptions
+} from "../services/runtimeGraphUpdates";
 export * from "../topology/hostProtocol";
 export * from "../topology/runtime";
 

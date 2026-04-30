@@ -131,6 +131,15 @@ const REACTFLOW_NODE_MIME_TYPE = "application/reactflow-node";
 const ACTION_HOVER_BG = "action.hover";
 const TEXT_SECONDARY = "text.secondary";
 const MONACO_PRELOAD_DELAY_MS = 750;
+const CANVAS_DRAG_FALLBACK_KEY = "__CLAB_UI_CANVAS_DRAG_DATA__";
+
+type CanvasDragPayload = Record<string, unknown>;
+type CanvasDragWindow = Window & {
+  [CANVAS_DRAG_FALLBACK_KEY]?: {
+    payload: CanvasDragPayload;
+    timestamp: number;
+  };
+};
 
 function isSourceTab(tabId: string): boolean {
   return tabId === "yaml" || tabId === "json";
@@ -182,8 +191,9 @@ const SourceEditorTab: React.FC<{
 
 const PaletteDraggableCard: React.FC<{
   onDragStart: (event: React.DragEvent) => void;
+  onDragEnd?: () => void;
   children: React.ReactNode;
-}> = ({ onDragStart, children }) => (
+}> = ({ onDragStart, onDragEnd, children }) => (
   <Tooltip
     title="Drag to canvas"
     placement="top"
@@ -194,6 +204,7 @@ const PaletteDraggableCard: React.FC<{
       variant="outlined"
       draggable
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       sx={{
         p: 1,
         cursor: "grab",
@@ -230,6 +241,21 @@ type AnnotationPayload = {
   shapeType?: string;
 };
 
+function setCanvasDragPayload(event: React.DragEvent, payload: CanvasDragPayload): void {
+  const serialized = JSON.stringify(payload);
+  event.dataTransfer.setData(REACTFLOW_NODE_MIME_TYPE, serialized);
+  event.dataTransfer.setData("text/plain", serialized);
+  event.dataTransfer.effectAllowed = "move";
+  (window as CanvasDragWindow)[CANVAS_DRAG_FALLBACK_KEY] = {
+    payload,
+    timestamp: Date.now()
+  };
+}
+
+function clearCanvasDragPayload(): void {
+  delete (window as CanvasDragWindow)[CANVAS_DRAG_FALLBACK_KEY];
+}
+
 interface DraggableNodeProps {
   template: CustomNodeTemplate;
   customIconMap: Map<string, string>;
@@ -250,14 +276,10 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({
   const isDefaultNode = isDefault === true;
   const onDragStart = useCallback(
     (event: React.DragEvent) => {
-      event.dataTransfer.setData(
-        REACTFLOW_NODE_MIME_TYPE,
-        JSON.stringify({
-          type: "node",
-          templateName: template.name
-        })
-      );
-      event.dataTransfer.effectAllowed = "move";
+      setCanvasDragPayload(event, {
+        type: "node",
+        templateName: template.name
+      });
     },
     [template.name]
   );
@@ -268,7 +290,7 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({
   );
 
   return (
-    <PaletteDraggableCard onDragStart={onDragStart}>
+    <PaletteDraggableCard onDragStart={onDragStart} onDragEnd={clearCanvasDragPayload}>
       <Box sx={{ flexShrink: 0 }}>
         <IconPreview src={iconUrl} size={28} cornerRadius={template.iconCornerRadius} />
       </Box>
@@ -347,14 +369,13 @@ const PaletteSimpleDraggable: React.FC<PaletteSimpleDraggableProps> = ({
 }) => {
   const onDragStart = useCallback(
     (event: React.DragEvent) => {
-      event.dataTransfer.setData(REACTFLOW_NODE_MIME_TYPE, JSON.stringify(dragPayload));
-      event.dataTransfer.effectAllowed = "move";
+      setCanvasDragPayload(event, dragPayload);
     },
     [dragPayload]
   );
 
   return (
-    <PaletteDraggableCard onDragStart={onDragStart}>
+    <PaletteDraggableCard onDragStart={onDragStart} onDragEnd={clearCanvasDragPayload}>
       <Box sx={{ color: TEXT_SECONDARY }}>{icon}</Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography

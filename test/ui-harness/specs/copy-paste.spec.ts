@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { test, expect } from "../fixtures/topoviewer";
 import { shiftClick } from "../helpers/react-flow-helpers";
 
@@ -24,6 +26,39 @@ import { shiftClick } from "../helpers/react-flow-helpers";
 
 const SIMPLE_FILE = "simple.clab.yml";
 const EMPTY_FILE = "empty.clab.yml";
+
+async function blockBrowserClipboard(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    Object.defineProperty(window.navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: async () => {
+          throw new DOMException("clipboard read blocked", "NotAllowedError");
+        },
+        writeText: async () => {
+          throw new DOMException("clipboard write blocked", "NotAllowedError");
+        }
+      }
+    });
+  });
+}
+
+async function selectContextPanelText(page: Page): Promise<void> {
+  const panelPaper = page.locator('[data-testid="context-panel"] .MuiDrawer-paper');
+  if (!(await panelPaper.isVisible().catch(() => false))) {
+    await page.locator('[data-testid="panel-toggle-btn"]').click();
+  }
+  await expect(panelPaper).toBeVisible();
+  await page.evaluate(() => {
+    const panel = document.querySelector('[data-testid="context-panel"]');
+    if (panel == null) throw new Error("Context panel not found");
+    const range = document.createRange();
+    range.selectNodeContents(panel);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  });
+}
 
 test.describe("Copy, Paste, and Cut Operations", () => {
   test.beforeEach(async ({ topoViewerPage }) => {
@@ -77,6 +112,54 @@ test.describe("Copy, Paste, and Cut Operations", () => {
     const newNodeId = nodeIds.find((id) => !initialNodeIds.includes(id));
     expect(newNodeId).toBeDefined();
     console.log(`[INFO] Pasted node ID: ${newNodeId}`);
+  });
+
+  test("copy and paste falls back to in-memory clipboard when browser clipboard is blocked", async ({
+    topoViewerPage,
+    page
+  }) => {
+    const initialNodeIds = await topoViewerPage.getNodeIds();
+    expect(initialNodeIds.length).toBe(2);
+
+    await blockBrowserClipboard(page);
+
+    await topoViewerPage.selectNode("srl1");
+    await topoViewerPage.copy();
+    await topoViewerPage.paste();
+
+    await expect
+      .poll(() => topoViewerPage.getNodeCount(), {
+        timeout: 5000,
+        message: "expected paste to use the in-memory fallback clipboard"
+      })
+      .toBe(3);
+
+    const nodeIds = await topoViewerPage.getNodeIds();
+    expect(nodeIds.some((id) => !initialNodeIds.includes(id))).toBe(true);
+  });
+
+  test("graph copy is not overwritten by selected drawer text", async ({ topoViewerPage, page }) => {
+    const initialNodeIds = await topoViewerPage.getNodeIds();
+    expect(initialNodeIds.length).toBe(2);
+
+    await topoViewerPage.selectNode("srl1");
+    await expect.poll(() => topoViewerPage.getSelectedNodeIds()).toContain("srl1");
+
+    await selectContextPanelText(page);
+    await page.keyboard.press("Control+C");
+    await page.keyboard.press("Control+V");
+
+    await expect
+      .poll(() => topoViewerPage.getNodeCount(), {
+        timeout: 5000,
+        message: "expected paste to use graph clipboard instead of selected drawer text"
+      })
+      .toBe(3);
+
+    const nodeIds = await topoViewerPage.getNodeIds();
+    expect(nodeIds.some((id) => !initialNodeIds.includes(id))).toBe(true);
+    const selectedText = await page.evaluate(() => window.getSelection()?.toString() ?? "");
+    expect(selectedText).toBe("");
   });
 
   test("paste creates new node with unique ID", async ({ topoViewerPage, page }) => {

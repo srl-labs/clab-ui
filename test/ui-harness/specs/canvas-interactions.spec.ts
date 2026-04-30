@@ -1,4 +1,41 @@
+import type { Page } from "@playwright/test";
+
 import { test, expect } from "../fixtures/topoviewer";
+
+const CANVAS_DRAG_FALLBACK_KEY = "__CLAB_UI_CANVAS_DRAG_DATA__";
+
+async function dispatchCanvasDrop(
+  page: Page,
+  payload: Record<string, unknown>,
+  mode: "text" | "fallback"
+): Promise<void> {
+  await page.evaluate(
+    ({ dragPayload, dragMode, fallbackKey }) => {
+      const canvas = document.querySelector<HTMLElement>(".react-flow-canvas");
+      if (!canvas) throw new Error("Canvas container not found");
+      const rect = canvas.getBoundingClientRect();
+      const dataTransfer = new DataTransfer();
+      if (dragMode === "text") {
+        dataTransfer.setData("text/plain", JSON.stringify(dragPayload));
+      } else {
+        (window as unknown as Record<string, unknown>)[fallbackKey] = {
+          payload: dragPayload,
+          timestamp: Date.now()
+        };
+      }
+      canvas.dispatchEvent(
+        new DragEvent("drop", {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          dataTransfer
+        })
+      );
+    },
+    { dragPayload: payload, dragMode: mode, fallbackKey: CANVAS_DRAG_FALLBACK_KEY }
+  );
+}
 
 test.describe("Canvas Interactions", () => {
   test.beforeEach(async ({ topoViewerPage }) => {
@@ -75,5 +112,66 @@ test.describe("Canvas Interactions", () => {
     // Node count should still be the same
     const nodeCountAfter = await topoViewerPage.getNodeCount();
     expect(nodeCountAfter).toBe(nodeCount);
+  });
+
+  test("Ctrl+A is scoped to the canvas and does not select side-panel text", async ({
+    page,
+    topoViewerPage
+  }) => {
+    await topoViewerPage.setEditMode();
+    await topoViewerPage.unlock();
+    await topoViewerPage.clearSelection();
+
+    const panelPaper = page.locator('[data-testid="context-panel"] .MuiDrawer-paper');
+    if (!(await panelPaper.isVisible().catch(() => false))) {
+      await page.locator('[data-testid="panel-toggle-btn"]').click();
+    }
+    await expect(panelPaper).toBeVisible();
+    await panelPaper.click({ position: { x: 20, y: 20 } });
+    await page.keyboard.press("Control+A");
+
+    await expect.poll(() => topoViewerPage.getSelectedNodeIds()).toEqual([]);
+    const selectedText = await page.evaluate(() => window.getSelection()?.toString() ?? "");
+    expect(selectedText).toBe("");
+
+    const canvas = topoViewerPage.getCanvas();
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.keyboard.press("Control+A");
+
+    await expect
+      .poll(() => topoViewerPage.getSelectedNodeIds(), {
+        timeout: 3000,
+        message: "expected Ctrl+A to select topology nodes from canvas focus"
+      })
+      .toEqual(expect.arrayContaining(await topoViewerPage.getNodeIds()));
+  });
+
+  test("canvas drop accepts text/plain and stripped-dataTransfer fallback payloads", async ({
+    page,
+    topoViewerPage
+  }) => {
+    await topoViewerPage.resetFiles();
+    await topoViewerPage.gotoFile("empty.clab.yml");
+    await topoViewerPage.waitForCanvasReady();
+    await topoViewerPage.setEditMode();
+    await topoViewerPage.unlock();
+
+    await dispatchCanvasDrop(page, { type: "network", networkType: "bridge" }, "text");
+    await expect
+      .poll(() => topoViewerPage.getNetworkNodeIds(), {
+        timeout: 5000,
+        message: "expected text/plain drag payload to create a network"
+      })
+      .toHaveLength(1);
+
+    await dispatchCanvasDrop(page, { type: "network", networkType: "dummy" }, "fallback");
+    await expect
+      .poll(() => topoViewerPage.getNetworkNodeIds(), {
+        timeout: 5000,
+        message: "expected fallback drag payload to create a network"
+      })
+      .toHaveLength(2);
   });
 });

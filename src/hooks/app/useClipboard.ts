@@ -26,6 +26,7 @@ import {
 
 /** Version string for clipboard format compatibility */
 const CLIPBOARD_VERSION = "1.0";
+const MEMORY_CLIPBOARD_INVALID_BROWSER_TTL_MS = 5 * 60 * 1000;
 
 /** Serialized node data for clipboard */
 interface SerializedNode {
@@ -102,7 +103,10 @@ export interface UseClipboardReturn {
   /** Copy selected nodes and edges to clipboard */
   copy: () => Promise<boolean>;
   /** Paste clipboard contents at position */
-  paste: (position?: { x: number; y: number }) => Promise<boolean>;
+  paste: (
+    position?: { x: number; y: number },
+    options?: { preferMemory?: boolean }
+  ) => Promise<boolean>;
   /** Check if browser clipboard has compatible data */
   hasClipboardData: () => Promise<boolean>;
 }
@@ -197,19 +201,29 @@ function resolveNodeType(type: string | undefined): TopoNode["type"] {
 // ============================================================================
 
 /** Read and validate clipboard data */
-async function readClipboardData(): Promise<ClipboardData | null> {
+async function readClipboardData(
+  fallbackData: ClipboardData | null,
+  options: { preferFallback?: boolean; useFallbackOnInvalidData?: boolean } = {}
+): Promise<ClipboardData | null> {
+  if (options.preferFallback && fallbackData) {
+    return fallbackData;
+  }
+
   try {
     const text = await window.navigator.clipboard.readText();
     const clipboardData: unknown = JSON.parse(text);
 
     if (!isClipboardData(clipboardData)) {
       log.warn("[Clipboard] Invalid clipboard data format");
+      if (options.useFallbackOnInvalidData === true) {
+        return fallbackData;
+      }
       return null;
     }
     return clipboardData;
   } catch (err) {
     log.warn(`[Clipboard] Failed to read clipboard: ${String(err)}`);
-    return null;
+    return fallbackData;
   }
 }
 
@@ -559,6 +573,9 @@ function finalizePaste(
 
 interface PerformPasteParams extends PasteCallbacks {
   position?: { x: number; y: number };
+  preferMemory?: boolean;
+  useMemoryOnInvalidBrowserData?: boolean;
+  memoryClipboardData: ClipboardData | null;
   rfInstance?: ReactFlowInstance | null;
   getNodes: () => Array<{ id: string }>;
   addNode: (node: TopoNode) => void;
@@ -567,7 +584,10 @@ interface PerformPasteParams extends PasteCallbacks {
 }
 
 async function performPaste(params: PerformPasteParams): Promise<boolean> {
-  const clipboardData = await readClipboardData();
+  const clipboardData = await readClipboardData(params.memoryClipboardData, {
+    preferFallback: params.preferMemory === true,
+    useFallbackOnInvalidData: params.useMemoryOnInvalidBrowserData === true
+  });
   if (!clipboardData || clipboardData.nodes.length === 0) {
     if (clipboardData?.nodes.length === 0) log.info("[Clipboard] No nodes to paste");
     return false;
@@ -620,6 +640,8 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
   } = options;
   const { addNode, addEdge } = useGraphActions();
   const lastPasteTimeRef = useRef(0);
+  const memoryClipboardDataRef = useRef<ClipboardData | null>(null);
+  const browserClipboardWriteFailedRef = useRef(false);
   const getCurrentNodes = useCallback(() => useGraphStore.getState().nodes, []);
 
   /**
@@ -709,15 +731,19 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
       timestamp: Date.now()
     };
 
+    memoryClipboardDataRef.current = clipboardData;
+
     try {
       await window.navigator.clipboard.writeText(JSON.stringify(clipboardData));
+      browserClipboardWriteFailedRef.current = false;
       log.info(
         `[Clipboard] Copied ${serializedNodes.length} nodes, ${serializedEdges.length} edges`
       );
       return true;
     } catch (err) {
-      log.error(`[Clipboard] Failed to write to clipboard: ${String(err)}`);
-      return false;
+      browserClipboardWriteFailedRef.current = true;
+      log.warn(`[Clipboard] Browser clipboard write failed; using in-memory copy: ${String(err)}`);
+      return true;
     }
   }, [rfInstance, getNodeMembership]);
 
@@ -725,10 +751,21 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
    * Paste clipboard contents at the given position (or viewport center).
    */
   const paste = useCallback(
-    async (position?: { x: number; y: number }): Promise<boolean> => {
+    async (
+      position?: { x: number; y: number },
+      pasteOptions?: { preferMemory?: boolean }
+    ): Promise<boolean> => {
       if (shouldThrottlePaste(Date.now(), lastPasteTimeRef)) return false;
+      const shouldUseMemoryOnInvalidBrowserData =
+        browserClipboardWriteFailedRef.current ||
+        (memoryClipboardDataRef.current !== null &&
+          Date.now() - memoryClipboardDataRef.current.timestamp <
+            MEMORY_CLIPBOARD_INVALID_BROWSER_TTL_MS);
       return performPaste({
         position,
+        preferMemory: pasteOptions?.preferMemory,
+        useMemoryOnInvalidBrowserData: shouldUseMemoryOnInvalidBrowserData,
+        memoryClipboardData: memoryClipboardDataRef.current,
         rfInstance,
         getNodes: getCurrentNodes,
         addNode,
@@ -760,7 +797,7 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
       const data: unknown = JSON.parse(text);
       return isClipboardData(data);
     } catch {
-      return false;
+      return memoryClipboardDataRef.current !== null;
     }
   }, []);
 

@@ -72,7 +72,7 @@ export const ShortcutsSection: React.FC = () => {
         <ShortcutRow label="Delete element" shortcut="Alt + Click" />
         <ShortcutRow label="Context menu" shortcut="Right Click" />
         <ShortcutRow label="Select all" shortcut="Ctrl + A" />
-        <ShortcutRow label="Multi-select" shortcut="Ctrl + Click" />
+        <ShortcutRow label="Multi-select" shortcut="Shift + Click" />
         <ShortcutRow label="Copy selected" shortcut="Ctrl + C" />
         <ShortcutRow label="Paste" shortcut="Ctrl + V" />
         <ShortcutRow label="Duplicate selected" shortcut="Ctrl + D" />

@@ -1,7 +1,7 @@
 /**
  * useKeyboardShortcuts - Hook for keyboard shortcuts
  */
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
 
 import { log } from "../../utils/logger";
 import { useGraphStore } from "../../stores/graphStore";
@@ -66,12 +66,47 @@ const EDITABLE_SELECTOR = [
   ".monaco-inputbox",
   ".monaco-findInput"
 ].join(",");
+const CANVAS_SELECTOR = ".react-flow-canvas, .react-flow";
+const PANEL_SELECTOR = "[data-testid='context-panel'], .MuiDrawer-root, .MuiDrawer-paper";
+
+type ShortcutInteractionArea = "canvas" | "panel" | "other";
 
 function isEditableElement(element: Element | null): boolean {
   if (element == null) return false;
   if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return true;
   if (element instanceof HTMLElement && element.isContentEditable) return true;
   return element.matches(EDITABLE_SELECTOR) || Boolean(element.closest(EDITABLE_SELECTOR));
+}
+
+function elementMatchesSelector(element: Element | null, selector: string): boolean {
+  if (element == null) return false;
+  return element.matches(selector) || Boolean(element.closest(selector));
+}
+
+function eventPathMatchesSelector(event: Event, selector: string): boolean {
+  const target = event.target;
+  if (target instanceof Element && elementMatchesSelector(target, selector)) return true;
+
+  for (const entry of event.composedPath()) {
+    if (entry instanceof Element && elementMatchesSelector(entry, selector)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function classifyInteractionTarget(target: EventTarget | null): ShortcutInteractionArea {
+  if (!(target instanceof Element)) return "other";
+  if (elementMatchesSelector(target, CANVAS_SELECTOR)) return "canvas";
+  if (elementMatchesSelector(target, PANEL_SELECTOR)) return "panel";
+  return "other";
+}
+
+function clearNativeSelection(): void {
+  const selection = window.getSelection();
+  if (selection && !selection.isCollapsed) {
+    selection.removeAllRanges();
+  }
 }
 
 function hasMonacoFocus(): boolean {
@@ -106,6 +141,86 @@ function isInputElement(event: KeyboardEvent): boolean {
   return false;
 }
 
+function isClipboardEventInEditableContext(event: ClipboardEvent): boolean {
+  if (hasMonacoFocus()) return true;
+
+  if (event.target instanceof Element && isEditableElement(event.target)) {
+    return true;
+  }
+
+  for (const entry of event.composedPath()) {
+    if (entry instanceof Element && isEditableElement(entry)) {
+      return true;
+    }
+  }
+
+  if (document.activeElement instanceof Element && isEditableElement(document.activeElement)) {
+    return true;
+  }
+
+  return false;
+}
+
+function isModifiedKey(event: KeyboardEvent, key: string): boolean {
+  return (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === key;
+}
+
+function hasActiveGraphSelection(
+  selectedNode: string | null,
+  selectedEdge: string | null,
+  selectedAnnotationIds?: Set<string>
+): boolean {
+  if (hasSelectedId(selectedNode) || hasSelectedId(selectedEdge)) return true;
+  if (selectedAnnotationIds && selectedAnnotationIds.size > 0) return true;
+
+  const { nodes, edges } = useGraphStore.getState();
+  return (
+    nodes.some((node) => node.selected === true) || edges.some((edge) => edge.selected === true)
+  );
+}
+
+function shouldHandleTopologyShortcut(
+  event: Event,
+  lastInteractionArea: ShortcutInteractionArea,
+  selectedNode: string | null,
+  selectedEdge: string | null,
+  selectedAnnotationIds?: Set<string>
+): boolean {
+  if (eventPathMatchesSelector(event, CANVAS_SELECTOR)) return true;
+  if (document.activeElement instanceof Element) {
+    if (elementMatchesSelector(document.activeElement, CANVAS_SELECTOR)) return true;
+  }
+  if (hasActiveGraphSelection(selectedNode, selectedEdge, selectedAnnotationIds)) return true;
+  return lastInteractionArea === "canvas";
+}
+
+function handleNonEditableSelectAll(
+  event: KeyboardEvent,
+  lastInteractionArea: ShortcutInteractionArea,
+  selectedNode: string | null,
+  selectedEdge: string | null,
+  selectedAnnotationIds?: Set<string>
+): boolean {
+  if (!isModifiedKey(event, "a")) return false;
+
+  if (
+    shouldHandleTopologyShortcut(
+      event,
+      lastInteractionArea,
+      selectedNode,
+      selectedEdge,
+      selectedAnnotationIds
+    )
+  ) {
+    return handleSelectAll(event);
+  }
+
+  clearNativeSelection();
+  event.preventDefault();
+  event.stopPropagation();
+  return true;
+}
+
 /**
  * Handle Ctrl+Z: Undo
  */
@@ -117,7 +232,7 @@ function handleUndo(
 ): boolean {
   if (mode !== "edit") return false;
   if (!(event.ctrlKey || event.metaKey)) return false;
-  if (event.key !== "z" || event.shiftKey) return false;
+  if (event.key.toLowerCase() !== "z" || event.shiftKey) return false;
   if (!canUndo || !onUndo) return false;
 
   log.info("[Keyboard] Undo");
@@ -140,8 +255,9 @@ function handleRedo(
   if (!canRedo || !onRedo) return false;
 
   // Ctrl+Y or Ctrl+Shift+Z
-  const isCtrlY = event.key === "y";
-  const isCtrlShiftZ = event.key === "z" && event.shiftKey;
+  const key = event.key.toLowerCase();
+  const isCtrlY = key === "y";
+  const isCtrlShiftZ = key === "z" && event.shiftKey;
   if (!isCtrlY && !isCtrlShiftZ) return false;
 
   log.info("[Keyboard] Redo");
@@ -160,30 +276,27 @@ function handleCopy(
   onCopyAnnotations?: () => void
 ): boolean {
   if (!(event.ctrlKey || event.metaKey)) return false;
-  if (event.key !== "c") return false;
+  if (event.key.toLowerCase() !== "c") return false;
 
-  let handled = false;
+  if (onCopy) {
+    log.info("[Keyboard] Copy selected elements");
+    event.preventDefault();
+    event.stopPropagation();
+    clearNativeSelection();
+    onCopy();
+    return true;
+  }
 
-  // Copy annotations if any are selected
   if (selectedAnnotationIds && selectedAnnotationIds.size > 0 && onCopyAnnotations) {
     log.info("[Keyboard] Copy annotations");
-    onCopyAnnotations();
-    handled = true;
-  }
-
-  // Also copy graph elements if any are selected
-  // Note: Selection state is managed by ReactFlow
-  // The onCopy handler should check selection state internally
-  if (onCopy) {
-    log.info("[Keyboard] Copy graph elements");
-    onCopy();
-    handled = true;
-  }
-
-  if (handled) {
     event.preventDefault();
+    event.stopPropagation();
+    clearNativeSelection();
+    onCopyAnnotations();
+    return true;
   }
-  return handled;
+
+  return false;
 }
 
 /**
@@ -194,35 +307,30 @@ function handlePaste(
   mode: "edit" | "view",
   isLocked: boolean,
   onPaste?: () => void,
-  onPasteAnnotations?: () => void,
-  hasAnnotationClipboard?: () => boolean,
-  hasGraphClipboard?: () => boolean
+  onPasteAnnotations?: () => void
 ): boolean {
   if (mode !== "edit") return false;
   if (isLocked) return false;
   if (!(event.ctrlKey || event.metaKey)) return false;
-  if (event.key !== "v") return false;
+  if (event.key.toLowerCase() !== "v") return false;
 
-  let handled = false;
-
-  // Paste annotations if clipboard has any
-  if (onPasteAnnotations && hasAnnotationClipboard && hasAnnotationClipboard()) {
-    log.info("[Keyboard] Paste annotations");
-    onPasteAnnotations();
-    handled = true;
-  }
-
-  // Also paste graph elements if clipboard has any
-  if (onPaste && (!hasGraphClipboard || hasGraphClipboard())) {
-    log.info("[Keyboard] Paste graph elements");
-    onPaste();
-    handled = true;
-  }
-
-  if (handled) {
+  if (onPaste) {
+    log.info("[Keyboard] Paste elements");
     event.preventDefault();
+    event.stopPropagation();
+    onPaste();
+    return true;
   }
-  return handled;
+
+  if (onPasteAnnotations) {
+    log.info("[Keyboard] Paste annotations");
+    event.preventDefault();
+    event.stopPropagation();
+    onPasteAnnotations();
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -239,30 +347,27 @@ function handleDuplicate(
   if (mode !== "edit") return false;
   if (isLocked) return false;
   if (!(event.ctrlKey || event.metaKey)) return false;
-  if (event.key !== "d") return false;
+  if (event.key.toLowerCase() !== "d") return false;
 
-  let handled = false;
+  if (onDuplicate) {
+    log.info("[Keyboard] Duplicate selected elements");
+    event.preventDefault();
+    event.stopPropagation();
+    clearNativeSelection();
+    onDuplicate();
+    return true;
+  }
 
-  // Duplicate annotations if any are selected
   if (selectedAnnotationIds && selectedAnnotationIds.size > 0 && onDuplicateAnnotations) {
     log.info("[Keyboard] Duplicate annotations");
-    onDuplicateAnnotations();
-    handled = true;
-  }
-
-  // Also duplicate graph elements if any are selected
-  // Note: Selection state is managed by ReactFlow
-  // The onDuplicate handler should check selection state internally
-  if (onDuplicate) {
-    log.info("[Keyboard] Duplicate graph elements");
-    onDuplicate();
-    handled = true;
-  }
-
-  if (handled) {
     event.preventDefault();
+    event.stopPropagation();
+    clearNativeSelection();
+    onDuplicateAnnotations();
+    return true;
   }
-  return handled;
+
+  return false;
 }
 
 /**
@@ -281,8 +386,9 @@ function handleCreateGroup(
   if (!onCreateGroup) return false;
 
   log.info("[Keyboard] Creating group from selected nodes");
-  onCreateGroup();
   event.preventDefault();
+  event.stopPropagation();
+  onCreateGroup();
   return true;
 }
 
@@ -293,7 +399,7 @@ function handleCreateGroup(
  * false when the key combination doesn't match.
  */
 function handleSelectAll(event: KeyboardEvent): boolean {
-  if (!(event.ctrlKey || event.metaKey) || event.key !== "a") return false;
+  if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "a") return false;
 
   const target = event.target;
   if (target instanceof HTMLElement) {
@@ -308,6 +414,8 @@ function handleSelectAll(event: KeyboardEvent): boolean {
 
   log.info("[Keyboard] Select all nodes and edges");
   event.preventDefault();
+  event.stopPropagation();
+  clearNativeSelection();
   return true;
 }
 
@@ -566,33 +674,46 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
     onDuplicateAnnotations,
     onDeleteAnnotations,
     onClearAnnotationSelection,
-    hasAnnotationClipboard,
-    hasGraphClipboard,
     onCreateGroup
   } = options;
+
+  const lastInteractionAreaRef = useRef<ShortcutInteractionArea>("other");
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (isInputElement(event)) return;
 
+      if (
+        handleNonEditableSelectAll(
+          event,
+          lastInteractionAreaRef.current,
+          selectedNode,
+          selectedEdge,
+          selectedAnnotationIds
+        )
+      ) {
+        return;
+      }
+
+      if (
+        !shouldHandleTopologyShortcut(
+          event,
+          lastInteractionAreaRef.current,
+          selectedNode,
+          selectedEdge,
+          selectedAnnotationIds
+        )
+      ) {
+        return;
+      }
+
       // Undo/Redo must be checked before other shortcuts
       if (handleUndo(event, mode, canUndo, onUndo)) return;
       if (handleRedo(event, mode, canRedo, onRedo)) return;
       // Copy/Paste/Duplicate (with annotation support)
       if (handleCopy(event, onCopy, selectedAnnotationIds, onCopyAnnotations)) return;
-      if (
-        handlePaste(
-          event,
-          mode,
-          isLocked,
-          onPaste,
-          onPasteAnnotations,
-          hasAnnotationClipboard,
-          hasGraphClipboard
-        )
-      )
-        return;
+      if (handlePaste(event, mode, isLocked, onPaste, onPasteAnnotations)) return;
       if (
         handleDuplicate(
           event,
@@ -654,14 +775,79 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
       onDuplicateAnnotations,
       onDeleteAnnotations,
       onClearAnnotationSelection,
-      hasAnnotationClipboard,
-      hasGraphClipboard,
       onCreateGroup
     ]
   );
 
+  const handleClipboardEvent = useCallback(
+    (event: ClipboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (isClipboardEventInEditableContext(event)) return;
+
+      const shouldHandleTopology = shouldHandleTopologyShortcut(
+        event,
+        lastInteractionAreaRef.current,
+        selectedNode,
+        selectedEdge,
+        selectedAnnotationIds
+      );
+      const isPanelEvent =
+        lastInteractionAreaRef.current === "panel" || eventPathMatchesSelector(event, PANEL_SELECTOR);
+
+      if (event.type === "copy") {
+        if (shouldHandleTopology && onCopy) {
+          event.preventDefault();
+          event.stopPropagation();
+          clearNativeSelection();
+          onCopy();
+          return;
+        }
+
+        if (isPanelEvent) {
+          event.preventDefault();
+          event.stopPropagation();
+          clearNativeSelection();
+        }
+        return;
+      }
+
+      if (event.type !== "paste") return;
+      if (mode !== "edit" || isLocked) return;
+
+      if (shouldHandleTopology && onPaste) {
+        event.preventDefault();
+        event.stopPropagation();
+        onPaste();
+        return;
+      }
+
+      if (isPanelEvent) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    },
+    [mode, isLocked, selectedNode, selectedEdge, selectedAnnotationIds, onCopy, onPaste]
+  );
+
   useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    const handlePointerDown = (event: PointerEvent) => {
+      lastInteractionAreaRef.current = classifyInteractionTarget(event.target);
+    };
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    return () => window.removeEventListener("pointerdown", handlePointerDown, true);
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [handleKeyDown]);
+
+  useEffect(() => {
+    window.addEventListener("copy", handleClipboardEvent, true);
+    window.addEventListener("paste", handleClipboardEvent, true);
+    return () => {
+      window.removeEventListener("copy", handleClipboardEvent, true);
+      window.removeEventListener("paste", handleClipboardEvent, true);
+    };
+  }, [handleClipboardEvent]);
 }

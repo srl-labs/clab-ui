@@ -143,7 +143,7 @@ export function useClipboardHandlers(config: ClipboardHandlersConfig): Clipboard
     lastDuplicateTimeRef.current = now;
     void clipboard.copy().then(async (success) => {
       if (success) {
-        await clipboard.paste();
+        await clipboard.paste(undefined, { preferMemory: true });
       }
     });
   }, [clipboard]);

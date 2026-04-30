@@ -477,6 +477,16 @@ function useWrappedOnInit(
 }
 
 const CANVAS_DROP_MIME_TYPE = "application/reactflow-node";
+const CANVAS_DROP_TEXT_MIME_TYPE = "text/plain";
+const CANVAS_DRAG_FALLBACK_KEY = "__CLAB_UI_CANVAS_DRAG_DATA__";
+const CANVAS_DRAG_FALLBACK_MAX_AGE_MS = 30_000;
+
+type CanvasDragWindow = Window & {
+  [CANVAS_DRAG_FALLBACK_KEY]?: {
+    payload: unknown;
+    timestamp: number;
+  };
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -504,8 +514,7 @@ function isCanvasDropData(value: unknown): value is CanvasDropData {
   return true;
 }
 
-function parseCanvasDropData(event: React.DragEvent): CanvasDropData | null {
-  const dataStr = event.dataTransfer.getData(CANVAS_DROP_MIME_TYPE);
+function parseCanvasDropDataString(dataStr: string): CanvasDropData | null {
   if (!dataStr) return null;
   try {
     const parsed: unknown = JSON.parse(dataStr);
@@ -513,6 +522,25 @@ function parseCanvasDropData(event: React.DragEvent): CanvasDropData | null {
   } catch {
     return null;
   }
+}
+
+function parseCanvasDropData(event: React.DragEvent): CanvasDropData | null {
+  const dataTransfer = event.dataTransfer;
+  const customPayload = parseCanvasDropDataString(dataTransfer.getData(CANVAS_DROP_MIME_TYPE));
+  if (customPayload) return customPayload;
+
+  const textPayload = parseCanvasDropDataString(dataTransfer.getData(CANVAS_DROP_TEXT_MIME_TYPE));
+  if (textPayload) return textPayload;
+
+  const fallback = (window as CanvasDragWindow)[CANVAS_DRAG_FALLBACK_KEY];
+  if (!fallback || Date.now() - fallback.timestamp > CANVAS_DRAG_FALLBACK_MAX_AGE_MS) {
+    return null;
+  }
+  return isCanvasDropData(fallback.payload) ? fallback.payload : null;
+}
+
+function clearCanvasDragFallback(): void {
+  delete (window as CanvasDragWindow)[CANVAS_DRAG_FALLBACK_KEY];
 }
 
 function getSnappedDropPosition(
@@ -599,9 +627,13 @@ function handleCanvasDropEvent(params: {
   const { event, mode, isLocked, reactFlowInstanceRef, handlers } = params;
   event.preventDefault();
 
-  if (isLocked) return;
+  if (isLocked) {
+    clearCanvasDragFallback();
+    return;
+  }
 
   const data = parseCanvasDropData(event);
+  clearCanvasDragFallback();
   if (!data) return;
   // Deployed labs run in view mode, but unlocked users can still place annotation overlays.
   if (mode !== "edit" && data.type !== "annotation") return;

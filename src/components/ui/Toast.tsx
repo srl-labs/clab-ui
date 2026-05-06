@@ -29,7 +29,7 @@ export const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismis
         <Alert
           onClose={() => onDismiss(toast.id)}
           severity={toast.type ?? "info"}
-          variant="standard"
+          variant="filled"
         >
           {toast.message}
         </Alert>

@@ -153,7 +153,7 @@ const ToggleHandle: React.FC<{
               theme.transitions.create(sideConfig.positionProp, {
                 duration: theme.transitions.duration.short
               }),
-        zIndex: 15,
+        zIndex: 1201,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -316,7 +316,7 @@ export const ContextPanel: React.FC<ContextPanelProps> = ({
         sx={{
           position: "absolute",
           inset: 0,
-          zIndex: 10,
+          zIndex: 1200,
           pointerEvents: "none",
           "& .MuiDrawer-paper": {
             position: "absolute",

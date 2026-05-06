@@ -111,11 +111,15 @@ const OverlayIndicator: React.FC<{ children: React.ReactNode }> = ({ children })
       left: "50%",
       transform: "translateX(-50%)",
       border: 1,
+      borderColor: "divider",
       borderRadius: 1,
       px: 1.5,
       py: 0.75,
       fontSize: 12,
-      zIndex: 1000,
+      bgcolor: "background.paper",
+      color: "text.primary",
+      boxShadow: 4,
+      zIndex: 1300,
       pointerEvents: "none"
     }}
   >

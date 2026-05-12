@@ -6,16 +6,17 @@ import type React from "react";
 import { useCallback, useEffect, useState } from "react";
 
 import { useTopoViewerStore } from "../../stores/topoViewerStore";
+import type { LayoutName } from "../../components/canvas/layout/types";
 
 /**
  * Canvas ref interface for layout controls.
  */
 export interface CanvasRef {
-  runLayout(name: string): void;
+  applyLayout(name: string): void;
 }
 
 export type GridStyle = "dotted" | "quadratic";
-export type LayoutOption = "preset" | "force" | "geo";
+export type LayoutOption = LayoutName;
 export const DEFAULT_GRID_LINE_WIDTH = 0.5;
 export const DEFAULT_GRID_STYLE: GridStyle = "dotted";
 
@@ -194,7 +195,7 @@ export function useLayoutControls(canvasRef: React.RefObject<CanvasRef | null>):
       const cyApi = canvasRef.current;
       if (!cyApi) return;
       const normalized = normalizeLayoutName(nextLayout);
-      cyApi.runLayout(normalized);
+      cyApi.applyLayout(normalized);
     },
     [canvasRef]
   );

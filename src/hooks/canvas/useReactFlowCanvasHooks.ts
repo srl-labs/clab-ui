@@ -234,7 +234,7 @@ function scheduleFitView(rfRef: React.RefObject<ReactFlowInstance | null>): void
 }
 
 function isLayoutName(value: string): value is LayoutName {
-  return value === "preset" || value === "force";
+  return value === "preset" || value === "force" || value === "auto" || value === "geo" || value === "radial";
 }
 
 export function useCanvasRefMethods(
@@ -247,11 +247,15 @@ export function useCanvasRefMethods(
   return useMemo(
     () => ({
       fit: () => reactFlowInstanceRef.current?.fitView({ padding: 0.2, duration: 200 }),
-      runLayout: (layoutName: string) => {
-        const resolvedLayout = isLayoutName(layoutName) ? layoutName : "preset";
-        setNodes(applyLayout(resolvedLayout, nodes, edges));
-        scheduleFitView(reactFlowInstanceRef);
+      applyLayout: (layoutName: string) => {
+        const name = isLayoutName(layoutName) ? layoutName : "preset";
+        applyLayout(name, nodes, edges).then(({ nodes: laidNodes, edges: laidEdges }) => {
+          setNodes(laidNodes);
+          setEdges(laidEdges);
+          scheduleFitView(reactFlowInstanceRef);
+        });
       },
+
       getReactFlowInstance: () => reactFlowInstanceRef.current,
       getNodes: () => nodes,
       getEdges: () => edges,

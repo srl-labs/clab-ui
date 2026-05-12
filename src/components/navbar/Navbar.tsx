@@ -582,6 +582,14 @@ export const Navbar: React.FC<NavbarProps> = ({
             <ListItemIcon>{layout === "force" && <CheckIcon fontSize="small" />}</ListItemIcon>
             <ListItemText>Force</ListItemText>
           </MenuItem>
+          <MenuItem onClick={() => handleLayoutSelect("auto")} data-testid="navbar-layout-auto">
+            <ListItemIcon>{layout === "auto" && <CheckIcon fontSize="small" />}</ListItemIcon>
+            <ListItemText>Auto</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => handleLayoutSelect("radial")} data-testid="navbar-layout-radial">
+            <ListItemIcon>{layout === "radial" && <CheckIcon fontSize="small" />}</ListItemIcon>
+            <ListItemText>Radial</ListItemText>
+          </MenuItem>
           <MenuItem onClick={() => handleLayoutSelect("geo")} data-testid="navbar-layout-geo">
             <ListItemIcon>{layout === "geo" && <CheckIcon fontSize="small" />}</ListItemIcon>
             <ListItemText>Geo</ListItemText>

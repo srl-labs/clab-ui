@@ -26,7 +26,7 @@ export function classifyComponent(
   component: string[],
   adj: Map<string, string[]>,
   componentEdgeCount: number
-): "hierarchical" | "mesh" | "star" {
+): "hierarchical" | "mesh" | "star" | "ring" {
   const n = component.length;
   if (n <= 2) return "hierarchical";
 
@@ -36,7 +36,7 @@ export function classifyComponent(
   const allSameDegree = minDeg === maxDeg;
 
   // Ring: every node has degree 2, exactly n edges
-  if (allSameDegree && minDeg === 2 && componentEdgeCount === n) return "mesh";
+  if (allSameDegree && minDeg === 2 && componentEdgeCount === n) return "ring";
 
   // Full mesh (clique): n*(n-1)/2 edges
   if (componentEdgeCount === (n * (n - 1)) / 2) return "mesh";

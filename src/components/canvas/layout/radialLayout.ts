@@ -17,7 +17,7 @@
 import type { Node, Edge } from "@xyflow/react";
 import { isLayoutableNode, applyPositionMap } from "./types";
 import type { LayoutOptions } from "./types";
-import { buildAdjacency, findComponent } from "./graphAnalysis";
+import { classifyComponent, buildAdjacency, findComponent } from "./graphAnalysis";
 import { forceLayoutComponent } from "./forceLayout";
 
 export function applyRadialLayout(
@@ -58,22 +58,12 @@ export function applyRadialLayout(
     const n = component.length;
 
     // --- Classify: mesh or hierarchical? ---
-    const degrees = component.map(id => degree.get(id) ?? 0);
-    const minDeg = Math.min(...degrees);
-    const maxDeg = Math.max(...degrees);
-    const allSame = minDeg === maxDeg;
-    const isMesh =
-      n > 2 &&
-      (
-        (allSame && minDeg === 2 && edgeCount === n) ||
-        edgeCount === (n * (n - 1)) / 2 ||
-        (allSame && minDeg >= 2 && edgeCount > n - 1)
-      );
+    const topology = classifyComponent(component, adj, edgeCount);
 
-    if (isMesh) {
+    if (topology === "mesh" || topology === "ring") {
       // Mesh → force layout on a circle, same as ELK path
       for (const id of component) meshNodeIds.add(id);
-      const isRing = allSame && minDeg === 2 && edgeCount === n;
+      const isRing = topology === "ring";
       const radius = Math.max(nodeSpacing * n / (2 * Math.PI), nodeSpacing * 1.5);
       const cx = cursorX + radius + padding;
       const cy = padding + radius;

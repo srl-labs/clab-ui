@@ -80,9 +80,8 @@ export async function applyAutoLayout(
       // Pure star → hub at center, leaves on ring (deterministic, no simulation)
       for (const id of component) meshNodeIds.add(id);
       pendingMeshComponents.push({ component, compEdges, isRing: false, isStar: true });
-    } else if (topology === "mesh") {
-      const n = component.length;
-      const isRing = n === componentEdgeCount && component.every(id => (adj.get(id)?.length ?? 0) === 2);
+    } else if (topology === "mesh" || topology === "ring") {
+      const isRing = topology === "ring";
       for (const id of component) meshNodeIds.add(id);
       pendingMeshComponents.push({ component, compEdges, isRing, isStar: false });
     } else {

@@ -127,9 +127,22 @@ export const AnnotationModeIndicator: React.FC<{ message: string }> = ({ message
   <OverlayIndicator>{message}</OverlayIndicator>
 );
 
-export const LinkCreationIndicator: React.FC<{ linkSourceNode: string }> = ({ linkSourceNode }) => (
-  <OverlayIndicator>
-    Creating link from <strong>{linkSourceNode}</strong> — Click on target node or press Escape to
-    cancel
-  </OverlayIndicator>
-);
+export const LinkCreationIndicator: React.FC<{
+  linkSourceNode: string;
+  linkTargetNode?: string | null;
+}> = ({ linkSourceNode, linkTargetNode }) => {
+  const hasTarget = linkTargetNode != null && linkTargetNode.length > 0;
+  return (
+    <OverlayIndicator>
+      Creating link from <strong>{linkSourceNode}</strong>
+      {hasTarget ? (
+        <>
+          {" → "}
+          <strong>{linkTargetNode}</strong>
+        </>
+      ) : null}
+      {" — "}
+      {hasTarget ? "Click to confirm" : "Click on target node"} or press Escape to cancel
+    </OverlayIndicator>
+  );
+};

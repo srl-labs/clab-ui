@@ -957,8 +957,13 @@ function renderLinkCreationLine(params: {
   );
 }
 
-function renderLinkIndicator(linkSourceNode: string): React.ReactElement {
-  return <LinkCreationIndicator linkSourceNode={linkSourceNode} />;
+function renderLinkIndicator(
+  linkSourceNode: string,
+  linkTargetNode: string | null
+): React.ReactElement {
+  return (
+    <LinkCreationIndicator linkSourceNode={linkSourceNode} linkTargetNode={linkTargetNode} />
+  );
 }
 
 function renderAnnotationIndicator(message: string): React.ReactElement {
@@ -1028,7 +1033,9 @@ function buildCanvasOverlays(params: {
         linkCreationSeed
       })
     : null;
-  const linkIndicator = canShowLinkIndicator ? renderLinkIndicator(linkSourceNode) : null;
+  const linkIndicator = canShowLinkIndicator
+    ? renderLinkIndicator(linkSourceNode, linkTargetNodeId)
+    : null;
   const annotationIndicator = canShowAnnotationIndicator
     ? renderAnnotationIndicator(addModeMessage)
     : null;

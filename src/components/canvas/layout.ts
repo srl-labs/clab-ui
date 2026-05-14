@@ -2,7 +2,12 @@
  * Layout algorithms for React Flow topology viewer
  */
 export type { LayoutName, LayoutOptions } from "./layout/types";
-export { hasPresetPositions, isLayoutableNode, applyPositionMap } from "./layout/types";
+export {
+  hasPresetPositions,
+  isLayoutableNode,
+  applyPositionMap,
+  normalizeLayoutableNodePositions
+} from "./layout/types";
 export { applyForceLayout } from "./layout/forceLayout";
 export { applyAutoLayout } from "./layout/autoLayout";
 export { applyRadialLayout } from "./layout/radialLayout";

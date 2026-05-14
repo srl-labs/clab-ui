@@ -402,8 +402,13 @@ function buildMergedNodes(
   freeShapeAnnotations: FreeShapeAnnotation[],
   trafficRateAnnotations: TrafficRateAnnotation[]
 ): Node[] {
-  const topoWithMembership = applyGroupMembershipToNodes(
+  const topoWithPositions = applyAnnotationPositionsToNodes(
     newNodes,
+    nodeAnnotations,
+    networkNodeAnnotations
+  );
+  const topoWithMembership = applyGroupMembershipToNodes(
+    topoWithPositions,
     nodeAnnotations,
     groupStyleAnnotations
   );
@@ -420,6 +425,42 @@ function buildMergedNodes(
   );
   const mergedNodes = [...topoWithGeoCoordinates, ...annotationNodes];
   return Array.from(new Map(mergedNodes.map((n) => [n.id, n])).values());
+}
+
+function applyAnnotationPositionsToNodes(
+  nodes: TopoNode[],
+  nodeAnnotations: NodeAnnotation[] | undefined,
+  networkNodeAnnotations: NetworkNodeAnnotation[] | undefined
+): TopoNode[] {
+  if (
+    (!nodeAnnotations || nodeAnnotations.length === 0) &&
+    (!networkNodeAnnotations || networkNodeAnnotations.length === 0)
+  ) {
+    return nodes;
+  }
+
+  const positionMap = new Map<string, { x: number; y: number }>();
+  for (const annotation of nodeAnnotations ?? []) {
+    const position = toPosition(annotation.position);
+    if (position) positionMap.set(annotation.id, position);
+  }
+  for (const annotation of networkNodeAnnotations ?? []) {
+    const position = toPosition(annotation.position);
+    if (position) positionMap.set(annotation.id, position);
+  }
+
+  if (positionMap.size === 0) return nodes;
+
+  let changed = false;
+  const nextNodes = nodes.map((node) => {
+    const position = positionMap.get(node.id);
+    if (!position) return node;
+    if (node.position.x === position.x && node.position.y === position.y) return node;
+    changed = true;
+    return { ...node, position };
+  });
+
+  return changed ? nextNodes : nodes;
 }
 
 function normalizeAnnotations(annotations?: TopologyAnnotations): Required<TopologyAnnotations> {

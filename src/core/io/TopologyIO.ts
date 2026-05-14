@@ -8,8 +8,21 @@
 
 import * as YAML from "yaml";
 
-import type { ClabTopology, NodeAnnotation, TopologyAnnotations } from "../types/topology";
-import { applyInterfacePatternMigrations } from "../utilities";
+import type {
+  ClabTopology,
+  NetworkNodeAnnotation,
+  NodeAnnotation,
+  TopologyAnnotations
+} from "../types/topology";
+import {
+  PREFIX_DUMMY,
+  PREFIX_MACVLAN,
+  PREFIX_VXLAN,
+  PREFIX_VXLAN_STITCH,
+  STR_HOST,
+  STR_MGMT_NET,
+  applyInterfacePatternMigrations
+} from "../utilities";
 
 import type { FileSystemAdapter, SaveResult, IOLogger } from "./types";
 import { noopLogger, ERROR_SERVICE_NOT_INIT, ERROR_NO_YAML_PATH } from "./types";
@@ -106,6 +119,84 @@ function createNodeAnnotationWithPosition(
     annotation.geoCoordinates = geoCoordinates;
   }
   return annotation;
+}
+
+function inferGeneratedNetworkAnnotationType(
+  id: string
+): NetworkNodeAnnotation["type"] | undefined {
+  if (id.startsWith(`${STR_HOST}:`)) return STR_HOST;
+  if (id.startsWith(`${STR_MGMT_NET}:`)) return STR_MGMT_NET;
+  if (id.startsWith(PREFIX_MACVLAN)) return "macvlan";
+  if (id.startsWith(PREFIX_VXLAN_STITCH)) return "vxlan-stitch";
+  if (id.startsWith(PREFIX_VXLAN)) return "vxlan";
+  if (id.startsWith(PREFIX_DUMMY)) return "dummy";
+  return undefined;
+}
+
+function createNetworkNodeAnnotationWithPosition(
+  id: string,
+  type: NetworkNodeAnnotation["type"],
+  fallbackNodeAnnotation?: NodeAnnotation,
+  position?: { x: number; y: number },
+  geoCoordinates?: { lat: number; lng: number }
+): NetworkNodeAnnotation {
+  const annotation: NetworkNodeAnnotation = {
+    id,
+    type,
+    label: fallbackNodeAnnotation?.label ?? id,
+    position: position ?? fallbackNodeAnnotation?.position ?? { x: 0, y: 0 }
+  };
+  const coordinates = geoCoordinates ?? fallbackNodeAnnotation?.geoCoordinates;
+  if (coordinates) {
+    annotation.geoCoordinates = coordinates;
+  }
+  if (fallbackNodeAnnotation?.group) {
+    annotation.group = fallbackNodeAnnotation.group;
+  }
+  if (fallbackNodeAnnotation?.level) {
+    annotation.level = fallbackNodeAnnotation.level;
+  }
+  return annotation;
+}
+
+/**
+ * Move generated external endpoint positions out of nodeAnnotations.
+ *
+ * Older saves could store ids like "macvlan:ens33" as regular node annotations,
+ * but the parser resolves those nodes only from networkNodeAnnotations.
+ */
+export function migrateGeneratedNetworkNodeAnnotations(annotations: TopologyAnnotations): boolean {
+  const nodeAnnotations = annotations.nodeAnnotations ?? [];
+  if (nodeAnnotations.length === 0) return false;
+
+  annotations.networkNodeAnnotations ??= [];
+  const regularNodeAnnotations: NodeAnnotation[] = [];
+  let modified = false;
+
+  for (const annotation of nodeAnnotations) {
+    const generatedNetworkType = inferGeneratedNetworkAnnotationType(annotation.id);
+    if (!generatedNetworkType) {
+      regularNodeAnnotations.push(annotation);
+      continue;
+    }
+
+    modified = true;
+    const existingNetworkAnnotation = annotations.networkNodeAnnotations.find(
+      (entry) => entry.id === annotation.id
+    );
+    if (existingNetworkAnnotation) {
+      continue;
+    }
+    annotations.networkNodeAnnotations.push(
+      createNetworkNodeAnnotationWithPosition(annotation.id, generatedNetworkType, annotation)
+    );
+  }
+
+  if (modified) {
+    annotations.nodeAnnotations = regularNodeAnnotations;
+  }
+
+  return modified;
 }
 
 /**
@@ -597,12 +688,30 @@ export class TopologyIO {
     try {
       await this.annotationsIO.modifyAnnotations(this.yamlFilePath, (annotations) => {
         annotations.nodeAnnotations ??= [];
+        annotations.networkNodeAnnotations ??= [];
+        migrateGeneratedNetworkNodeAnnotations(annotations);
 
         for (const { id, position, geoCoordinates } of positions) {
           // Check if this is a network node (exists in networkNodeAnnotations)
-          const networkNode = annotations.networkNodeAnnotations?.find((n) => n.id === id);
+          const networkNode = annotations.networkNodeAnnotations.find((n) => n.id === id);
           if (networkNode) {
             updateNodeAnnotationPosition(networkNode, position, geoCoordinates);
+            continue;
+          }
+
+          const generatedNetworkType = inferGeneratedNetworkAnnotationType(id);
+          if (generatedNetworkType) {
+            const staleNodeAnnotation = annotations.nodeAnnotations.find((n) => n.id === id);
+            annotations.networkNodeAnnotations.push(
+              createNetworkNodeAnnotationWithPosition(
+                id,
+                generatedNetworkType,
+                staleNodeAnnotation,
+                position,
+                geoCoordinates
+              )
+            );
+            annotations.nodeAnnotations = annotations.nodeAnnotations.filter((n) => n.id !== id);
             continue;
           }
 

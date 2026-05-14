@@ -1469,6 +1469,7 @@ export const AppContent: React.FC<AppContentProps> = ({
       onAddTrafficRateAtPosition: annotationActions.createTrafficRateAtPosition,
       onDropCreateNode: handleDropCreateNode,
       onDropCreateNetwork: handleDropCreateNetwork,
+      onTopologyNodePositionCommit: layoutControls.markLayoutPreset,
       onLockedAction: handleLockedAction
     }),
     [
@@ -1494,6 +1495,7 @@ export const AppContent: React.FC<AppContentProps> = ({
       annotationActions,
       handleDropCreateNode,
       handleDropCreateNetwork,
+      layoutControls.markLayoutPreset,
       handleLockedAction
     ]
   );

@@ -231,6 +231,8 @@ export interface ReactFlowCanvasProps {
   onDropCreateNode?: (position: { x: number; y: number }, templateName: string) => void;
   /** Callback for drag-drop network creation from palette */
   onDropCreateNetwork?: (position: { x: number; y: number }, networkType: string) => void;
+  /** Called after a topology/network node position is manually committed. */
+  onTopologyNodePositionCommit?: () => void;
   /** Callback when a locked action is attempted */
   onLockedAction?: () => void;
 }

@@ -120,6 +120,7 @@ export function snapToGrid(value: number): number {
 export function useLayoutControls(canvasRef: React.RefObject<CanvasRef | null>): {
   layout: LayoutOption;
   setLayout: (layout: LayoutOption) => void;
+  markLayoutPreset: () => void;
   isGeoLayout: boolean;
   gridLineWidth: number;
   setGridLineWidth: (width: number) => void;
@@ -200,9 +201,14 @@ export function useLayoutControls(canvasRef: React.RefObject<CanvasRef | null>):
     [canvasRef]
   );
 
+  const markLayoutPreset = useCallback(() => {
+    setLayoutState("preset");
+  }, []);
+
   return {
     layout,
     setLayout,
+    markLayoutPreset,
     isGeoLayout: layout === "geo",
     gridLineWidth,
     setGridLineWidth,

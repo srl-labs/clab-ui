@@ -26,7 +26,7 @@ import { TopologyParser } from "../parsing/TopologyParser";
 import { applyInterfacePatternMigrations } from "../utilities";
 import type { FileSystemAdapter, IOLogger } from "../io/types";
 import { AnnotationsIO } from "../io/AnnotationsIO";
-import { TopologyIO } from "../io/TopologyIO";
+import { TopologyIO, migrateGeneratedNetworkNodeAnnotations } from "../io/TopologyIO";
 import { TransactionalFileSystemAdapter } from "../io/TransactionalFileSystemAdapter";
 import { createEmptyAnnotations } from "../annotations/types";
 
@@ -600,9 +600,14 @@ export class TopologyHostCore implements TopologyHost {
     const parsed = normalizeParsedTopologyValue(yamlDoc.toJS());
     this.currentClabTopology = parsed;
 
-    const annotationsContent = await this.readAnnotationsContent();
+    let annotationsContent = await this.readAnnotationsContent();
 
     let annotations = await this.annotationsIO.loadAnnotations(this.yamlFilePath, true);
+    if (migrateGeneratedNetworkNodeAnnotations(annotations)) {
+      await this.annotationsIO.saveAnnotations(this.yamlFilePath, annotations);
+      annotationsContent = await this.readAnnotationsContent();
+      this.logger.info("[TopologyHost] Migrated generated network node annotations");
+    }
     const annotationsUpdated = await this.reconcileAnnotationsForRenamedNodes(parsed);
     if (annotationsUpdated) {
       annotations = await this.annotationsIO.loadAnnotations(this.yamlFilePath, true);
@@ -611,6 +616,7 @@ export class TopologyHostCore implements TopologyHost {
     if (legacyMigration.modified) {
       await this.annotationsIO.saveAnnotations(this.yamlFilePath, legacyMigration.annotations);
       annotations = legacyMigration.annotations;
+      annotationsContent = await this.readAnnotationsContent();
       this.logger.info("[TopologyHost] Migrated legacy annotations to current format");
     }
 
@@ -628,6 +634,9 @@ export class TopologyHostCore implements TopologyHost {
     const finalParseResult = migrationsApplied
       ? this.parseTopology(yamlContent, annotations, parsed)
       : parseResult;
+    if (migrationsApplied) {
+      annotationsContent = await this.readAnnotationsContent();
+    }
     const topology = finalParseResult.topology;
     const labName = finalParseResult.labName;
 

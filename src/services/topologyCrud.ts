@@ -9,6 +9,7 @@ import type { Node } from "@xyflow/react";
 import type { NodeSaveData } from "../core/io/NodePersistenceIO";
 import type { LinkSaveData } from "../core/io/LinkPersistenceIO";
 import type { TopologySessionClient } from "../session";
+import type { TopologyHostCommand } from "../core/types/messages";
 import { collectNodeGroupMemberships } from "../annotations/groupMembership";
 import { useGraphStore } from "../stores/graphStore";
 import { BRIDGE_NETWORK_TYPES } from "../utils/networkNodeTypes";
@@ -23,6 +24,18 @@ export type { NodeSaveData, LinkSaveData };
 const WARN_COMMAND_FAILED = "[Host] Topology command failed";
 
 export { buildNetworkNodeAnnotations };
+
+export interface NodePositionSaveEntry {
+  id: string;
+  position?: { x: number; y: number };
+  geoCoordinates?: { lat: number; lng: number };
+}
+
+export function buildSavePositionsCommand(
+  positions: NodePositionSaveEntry[]
+): Extract<TopologyHostCommand, { command: "savePositions" }> {
+  return { command: "savePositions", payload: positions };
+}
 
 export async function createNode(
   client: TopologySessionClient,
@@ -149,15 +162,11 @@ export async function createNetworkNode(
  */
 export async function saveNodePositions(
   client: TopologySessionClient,
-  positions: Array<{
-    id: string;
-    position?: { x: number; y: number };
-    geoCoordinates?: { lat: number; lng: number };
-  }>
+  positions: NodePositionSaveEntry[]
 ): Promise<void> {
   try {
     await executeTopologyCommand(
-      { command: "savePositions", payload: positions },
+      buildSavePositionsCommand(positions),
       { applySnapshot: false },
       client
     );
@@ -172,11 +181,7 @@ export async function saveNodePositions(
  */
 export async function saveNodePositionsWithAnnotations(
   client: TopologySessionClient,
-  positions: Array<{
-    id: string;
-    position?: { x: number; y: number };
-    geoCoordinates?: { lat: number; lng: number };
-  }>,
+  positions: NodePositionSaveEntry[],
   nodes?: Node[]
 ): Promise<void> {
   try {
@@ -202,11 +207,7 @@ export async function saveNodePositionsWithAnnotations(
  */
 export async function saveNodePositionsWithMemberships(
   client: TopologySessionClient,
-  positions: Array<{
-    id: string;
-    position?: { x: number; y: number };
-    geoCoordinates?: { lat: number; lng: number };
-  }>
+  positions: NodePositionSaveEntry[]
 ): Promise<void> {
   try {
     const memberships = collectNodeGroupMemberships(useGraphStore.getState().nodes);

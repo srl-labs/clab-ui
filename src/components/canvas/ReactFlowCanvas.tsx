@@ -1077,6 +1077,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       onAddTrafficRateAtPosition,
       onDropCreateNode,
       onDropCreateNetwork,
+      onTopologyNodePositionCommit,
       onLockedAction
     },
     ref
@@ -1414,6 +1415,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
         getGroupMembers: annotationHandlers?.getGroupMembers,
         onNodeDropped: annotationHandlers?.onNodeDropped
       },
+      onTopologyNodePositionCommit,
       reactFlowInstanceRef,
       geoLayout: {
         isGeoLayout,

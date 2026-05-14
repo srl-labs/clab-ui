@@ -18,6 +18,11 @@ export interface LayoutOptions {
   nodeSpacing?: number;
 }
 
+export interface LayoutPositionEntry {
+  id: string;
+  position: { x: number; y: number };
+}
+
 /**
  * D3 simulation node extending SimulationNodeDatum
  */
@@ -62,6 +67,29 @@ export function applyPositionMap(
     if (!newPos) return node;
     return { ...node, position: newPos };
   });
+}
+
+/**
+ * Normalize generated layout positions for all layoutable nodes.
+ *
+ * The returned nodes and positions intentionally use the same coordinates so
+ * host snapshots do not snap the graph back to a slightly different layout.
+ */
+export function normalizeLayoutableNodePositions(
+  nodes: Node[],
+  normalizePosition: (position: { x: number; y: number }) => { x: number; y: number }
+): { nodes: Node[]; positions: LayoutPositionEntry[] } {
+  const positions: LayoutPositionEntry[] = [];
+  const normalizedNodes = nodes.map((node) => {
+    if (!isLayoutableNode(node)) return node;
+    const normalizedPosition = normalizePosition(node.position);
+    const position = { x: normalizedPosition.x, y: normalizedPosition.y };
+    positions.push({ id: node.id, position });
+    if (position.x === node.position.x && position.y === node.position.y) return node;
+    return { ...node, position };
+  });
+
+  return { nodes: normalizedNodes, positions };
 }
 
 /**

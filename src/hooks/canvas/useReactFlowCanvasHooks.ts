@@ -5,11 +5,18 @@ import type React from "react";
 import { useRef, useEffect, useCallback, useMemo, useState } from "react";
 import type { Node, Edge, ReactFlowInstance } from "@xyflow/react";
 
-import { applyLayout, type LayoutName } from "../../components/canvas/layout";
+import {
+  applyLayout,
+  normalizeLayoutableNodePositions,
+  type LayoutName
+} from "../../components/canvas/layout";
+import { useTopologySessionClient } from "../../host";
+import { saveNodePositions } from "../../services";
 import { useGraphStore } from "../../stores/graphStore";
 import { log } from "../../utils/logger";
 import { allocateEndpointsForLink } from "../../utils/endpointAllocator";
 import { buildEdgeId } from "../../utils/edgeId";
+import { snapToGrid } from "../../utils/grid";
 
 /**
  * Hook for delete node/edge handlers
@@ -234,7 +241,17 @@ function scheduleFitView(rfRef: React.RefObject<ReactFlowInstance | null>): void
 }
 
 function isLayoutName(value: string): value is LayoutName {
-  return value === "preset" || value === "force" || value === "auto" || value === "geo" || value === "radial";
+  return (
+    value === "preset" ||
+    value === "force" ||
+    value === "auto" ||
+    value === "geo" ||
+    value === "radial"
+  );
+}
+
+function shouldPersistLayoutPositions(layoutName: LayoutName): boolean {
+  return layoutName === "auto" || layoutName === "force" || layoutName === "radial";
 }
 
 export function useCanvasRefMethods(
@@ -244,14 +261,22 @@ export function useCanvasRefMethods(
   setNodes: React.Dispatch<React.SetStateAction<Node[]>>,
   setEdges: React.Dispatch<React.SetStateAction<Edge[]>>
 ) {
+  const sessionClient = useTopologySessionClient();
   return useMemo(
     () => ({
       fit: () => reactFlowInstanceRef.current?.fitView({ padding: 0.2, duration: 200 }),
       applyLayout: (layoutName: string) => {
         const name = isLayoutName(layoutName) ? layoutName : "preset";
         applyLayout(name, nodes, edges).then(({ nodes: laidNodes, edges: laidEdges }) => {
-          setNodes(laidNodes);
+          const shouldPersist = shouldPersistLayoutPositions(name);
+          const { nodes: normalizedNodes, positions } = shouldPersist
+            ? normalizeLayoutableNodePositions(laidNodes, snapToGrid)
+            : { nodes: laidNodes, positions: [] };
+          setNodes(normalizedNodes);
           setEdges(laidEdges);
+          if (shouldPersist && positions.length > 0) {
+            void saveNodePositions(sessionClient, positions);
+          }
           scheduleFitView(reactFlowInstanceRef);
         });
       },
@@ -265,6 +290,6 @@ export function useCanvasRefMethods(
       updateNodes: (updater: (nodes: Node[]) => Node[]) => setNodes(updater),
       updateEdges: (updater: (edges: Edge[]) => Edge[]) => setEdges(updater)
     }),
-    [nodes, edges, setNodes, setEdges, reactFlowInstanceRef]
+    [nodes, edges, setNodes, setEdges, reactFlowInstanceRef, sessionClient]
   );
 }

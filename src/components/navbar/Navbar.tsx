@@ -51,6 +51,10 @@ import { ContainerlabLogo } from "./ContainerlabLogo";
 const ERROR_MAIN = "error.main";
 const SUCCESS_MAIN = "success.main";
 
+function isGeneratedLayoutOption(layout: LayoutOption): boolean {
+  return layout === "force" || layout === "auto" || layout === "radial";
+}
+
 function getToolbarAnchorPosition(
   appBar: HTMLDivElement | null,
   button: HTMLElement
@@ -130,6 +134,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const isEditMode = mode === "edit" && !isProcessing;
   const isViewerMode = mode === "view";
+  const isGeneratedLayoutDisabled = !isTopologyActive || isLocked;
 
   const appBarRef = React.useRef<HTMLDivElement>(null);
   const [linkLabelMenuPosition, setLinkLabelMenuPosition] = React.useState<{
@@ -259,10 +264,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleLayoutSelect = React.useCallback(
     (newLayout: LayoutOption) => {
+      if (isGeneratedLayoutOption(newLayout) && isGeneratedLayoutDisabled) {
+        setLayoutMenuPosition(null);
+        return;
+      }
       onLayoutChange(newLayout);
       setLayoutMenuPosition(null);
     },
-    [onLayoutChange]
+    [isGeneratedLayoutDisabled, onLayoutChange]
   );
 
   const handleFindNodeClick = React.useCallback(
@@ -578,15 +587,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             <ListItemIcon>{layout === "preset" && <CheckIcon fontSize="small" />}</ListItemIcon>
             <ListItemText>Preset</ListItemText>
           </MenuItem>
-          <MenuItem onClick={() => handleLayoutSelect("force")} data-testid="navbar-layout-force">
+          <MenuItem
+            onClick={() => handleLayoutSelect("force")}
+            disabled={isGeneratedLayoutDisabled}
+            data-testid="navbar-layout-force"
+          >
             <ListItemIcon>{layout === "force" && <CheckIcon fontSize="small" />}</ListItemIcon>
             <ListItemText>Force</ListItemText>
           </MenuItem>
-          <MenuItem onClick={() => handleLayoutSelect("auto")} data-testid="navbar-layout-auto">
+          <MenuItem
+            onClick={() => handleLayoutSelect("auto")}
+            disabled={isGeneratedLayoutDisabled}
+            data-testid="navbar-layout-auto"
+          >
             <ListItemIcon>{layout === "auto" && <CheckIcon fontSize="small" />}</ListItemIcon>
             <ListItemText>Auto</ListItemText>
           </MenuItem>
-          <MenuItem onClick={() => handleLayoutSelect("radial")} data-testid="navbar-layout-radial">
+          <MenuItem
+            onClick={() => handleLayoutSelect("radial")}
+            disabled={isGeneratedLayoutDisabled}
+            data-testid="navbar-layout-radial"
+          >
             <ListItemIcon>{layout === "radial" && <CheckIcon fontSize="small" />}</ListItemIcon>
             <ListItemText>Radial</ListItemText>
           </MenuItem>

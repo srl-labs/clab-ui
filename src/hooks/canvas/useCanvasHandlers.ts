@@ -85,6 +85,8 @@ interface CanvasHandlersConfig {
   ) => void;
   /** Handlers for group member movement */
   groupMemberHandlers?: GroupMemberHandlers;
+  /** Called after topology/network node positions are manually committed. */
+  onTopologyNodePositionCommit?: () => void;
   /** Optional shared React Flow instance ref */
   reactFlowInstanceRef?: React.RefObject<ReactFlowInstance | null>;
   /** Geo layout support */
@@ -291,6 +293,24 @@ function isNodePositionChange(change: NodeChange): change is NodePositionChange 
   return change.type === "position" && change.position !== undefined;
 }
 
+function hasTopologyPositionChange(changes: NodeChange[], nodes: Node[]): boolean {
+  const nodeTypes = new Map(nodes.map((node) => [node.id, node.type]));
+  return changes.filter(isNodePositionChange).some((change) => {
+    const nodeType = nodeTypes.get(change.id);
+    return nodeType === NODE_TYPE_TOPOLOGY || nodeType === NODE_TYPE_NETWORK;
+  });
+}
+
+function notifyTopologyPositionCommit(
+  changes: NodeChange[],
+  onTopologyNodePositionCommit: (() => void) | undefined
+): void {
+  if (!onTopologyNodePositionCommit) return;
+  if (hasTopologyPositionChange(changes, useGraphStore.getState().nodes)) {
+    onTopologyNodePositionCommit();
+  }
+}
+
 /** Clean up group tracking refs */
 function cleanupGroupRefs(
   nodeId: string,
@@ -462,6 +482,7 @@ function useNodeDragHandlers(
   onNodesChangeBase: OnNodesChange,
   setNodes: React.Dispatch<React.SetStateAction<Node[]>> | undefined,
   groupMemberHandlers?: GroupMemberHandlers,
+  onTopologyNodePositionCommit?: () => void,
   geoLayout?: CanvasHandlersConfig["geoLayout"]
 ) {
   // Track the last position of a dragging group to compute delta
@@ -631,6 +652,7 @@ function useNodeDragHandlers(
 
       applyLineDragSnapshots(lineDragStartRef.current);
       persistPositionChanges(sessionClient, changes);
+      notifyTopologyPositionCommit(changes, onTopologyNodePositionCommit);
     },
     [
       sessionClient,
@@ -638,6 +660,7 @@ function useNodeDragHandlers(
       nodes,
       onNodesChangeBase,
       groupMemberHandlers,
+      onTopologyNodePositionCommit,
       geoLayout,
       setNodes,
       flushPendingGroupMove
@@ -948,6 +971,7 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     setNodes,
     onEdgeCreated,
     groupMemberHandlers,
+    onTopologyNodePositionCommit,
     reactFlowInstanceRef,
     geoLayout
   } = config;
@@ -1021,6 +1045,7 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     onNodesChangeBase,
     setNodes,
     groupMemberHandlers,
+    onTopologyNodePositionCommit,
     geoLayout
   );
 

@@ -35,8 +35,8 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Browser harness smoke tests
-        run: npm run test:browser:smoke
+      - name: Browser harness tests
+        run: npm run test:browser
 
       - name: Upload Playwright report
         if: always()

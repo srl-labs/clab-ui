@@ -95,6 +95,7 @@
     "test:unit": "node --import tsx --test 'src/**/*.test.ts' 'src/**/*.test.tsx'",
     "dev:ui-harness": "vite --host 127.0.0.1 --config test/ui-harness/vite.config.ts",
     "test:browser": "playwright test --config test/ui-harness/playwright.config.ts",
+    "test:browser:smoke": "playwright test --config test/ui-harness/playwright.config.ts test/ui-harness/specs/canvas-interactions.spec.ts test/ui-harness/specs/node-creation-workflow.spec.ts test/ui-harness/specs/source-editor-monaco.spec.ts test/ui-harness/specs/file-io-persistence.spec.ts --project=chromium",
     "pack:preview": "npm pack --dry-run",
     "publish:ui": "npm publish",
     "prepack": "npm run build"

@@ -19,22 +19,52 @@ async function setEditorValue(
   lineNumber: number,
   column: number
 ): Promise<void> {
-  await page.evaluate(
-    ({ content, line, col }) => {
-      const debug = (
-        window as {
-          __clabMonacoDebug?: {
-            setValue: (value: string) => void;
-            setPosition: (lineNumber: number, column: number) => void;
-          };
-        }
-      ).__clabMonacoDebug;
-      if (!debug) throw new Error("Monaco debug API is not available");
-      debug.setValue(content);
-      debug.setPosition(line, col);
-    },
-    { content: value, line: lineNumber, col: column }
-  );
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.evaluate(
+      ({ content, line, col }) => {
+        const debug = (
+          window as {
+            __clabMonacoDebug?: {
+              setValue: (value: string) => void;
+              setPosition: (lineNumber: number, column: number) => void;
+            };
+          }
+        ).__clabMonacoDebug;
+        if (!debug) throw new Error("Monaco debug API is not available");
+        debug.setValue(content);
+        debug.setPosition(line, col);
+      },
+      { content: value, line: lineNumber, col: column }
+    );
+
+    await expect
+      .poll(async () => editorValue(page), {
+        timeout: 2000,
+        message: "Monaco editor should accept the requested test value"
+      })
+      .toBe(value);
+
+    await page.waitForTimeout(100);
+    if ((await editorValue(page)) === value) {
+      await page.evaluate(
+        ({ line, col }) => {
+          const debug = (
+            window as {
+              __clabMonacoDebug?: {
+                setPosition: (lineNumber: number, column: number) => void;
+              };
+            }
+          ).__clabMonacoDebug;
+          if (!debug) throw new Error("Monaco debug API is not available");
+          debug.setPosition(line, col);
+        },
+        { line: lineNumber, col: column }
+      );
+      return;
+    }
+  }
+
+  throw new Error("Monaco editor value did not remain stable after retries");
 }
 
 async function triggerSuggest(page: Page): Promise<void> {

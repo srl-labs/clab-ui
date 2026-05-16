@@ -18,6 +18,9 @@ interface TabNavigationProps {
 
 export const TabNavigation: React.FC<TabNavigationProps> = ({ tabs, activeTab, onTabChange }) => {
   const visibleTabs = tabs.filter((t) => t.hidden !== true);
+  const renderedTab = visibleTabs.some((tab) => tab.id === activeTab)
+    ? activeTab
+    : (visibleTabs[0]?.id ?? false);
 
   const handleChange = (_event: React.SyntheticEvent, newValue: string) => {
     onTabChange(newValue);
@@ -25,7 +28,7 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({ tabs, activeTab, o
 
   return (
     <>
-      <Tabs value={activeTab} onChange={handleChange} variant="scrollable" scrollButtons="auto">
+      <Tabs value={renderedTab} onChange={handleChange} variant="scrollable" scrollButtons="auto">
         {visibleTabs.map((tab) => (
           <Tab
             key={tab.id}

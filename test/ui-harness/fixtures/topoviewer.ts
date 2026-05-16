@@ -554,14 +554,26 @@ export const test = base.extend<{ topoViewerPage: TopoViewerPage }>({
 
     // Capture browser console logs for debugging on failure
     const consoleLogs: string[] = [];
+    const browserErrors: string[] = [];
+    const isExpectedHttpResourceError = (text: string): boolean =>
+      /^Failed to load resource: the server responded with a status of (401|403|404)(?: |$|\()/.test(
+        text
+      );
+
     page.on("console", (msg) => {
       const timestamp = new Date().toISOString();
       const type = msg.type().toUpperCase().padEnd(7);
-      consoleLogs.push(`[${timestamp}] [${type}] ${msg.text()}`);
+      const entry = `[${timestamp}] [${type}] ${msg.text()}`;
+      consoleLogs.push(entry);
+      if (msg.type() === "error" && !isExpectedHttpResourceError(msg.text())) {
+        browserErrors.push(entry);
+      }
     });
     page.on("pageerror", (error) => {
       const timestamp = new Date().toISOString();
-      consoleLogs.push(`[${timestamp}] [PAGEERROR] ${error.stack ?? error.message}`);
+      const entry = `[${timestamp}] [PAGEERROR] ${error.stack ?? error.message}`;
+      consoleLogs.push(entry);
+      browserErrors.push(entry);
     });
 
     const navigateToHarness = async (): Promise<void> => {
@@ -1300,32 +1312,27 @@ export const test = base.extend<{ topoViewerPage: TopoViewerPage }>({
       },
 
       undo: async () => {
-        await page
-          .waitForFunction(
-            () => (window as { __DEV__?: BrowserDevApi }).__DEV__?.undoRedo?.canUndo === true,
-            undefined,
-            { timeout: 2000 }
-          )
-          .catch(() => {});
-        await page.keyboard.down("Control");
-        await page.keyboard.press("z");
-        await page.keyboard.up("Control");
+        await page.waitForFunction(
+          () => (window as { __DEV__?: BrowserDevApi }).__DEV__?.undoRedo?.canUndo === true,
+          undefined,
+          { timeout: 10000 }
+        );
+        await page.locator('[data-testid="navbar-undo"]').click();
         await page.waitForTimeout(200);
       },
 
       redo: async () => {
-        await page
+        const canRedo = await page
           .waitForFunction(
             () => (window as { __DEV__?: BrowserDevApi }).__DEV__?.undoRedo?.canRedo === true,
             undefined,
             { timeout: 2000 }
           )
-          .catch(() => {});
-        await page.keyboard.down("Control");
-        await page.keyboard.down("Shift");
-        await page.keyboard.press("z");
-        await page.keyboard.up("Shift");
-        await page.keyboard.up("Control");
+          .then(() => true)
+          .catch(() => false);
+        if (canRedo) {
+          await page.locator('[data-testid="navbar-redo"]').click();
+        }
         await page.waitForTimeout(200);
       },
 
@@ -1805,6 +1812,10 @@ export const test = base.extend<{ topoViewerPage: TopoViewerPage }>({
         body: logsContent,
         contentType: "text/plain"
       });
+    }
+
+    if (browserErrors.length > 0) {
+      throw new Error(`Browser errors detected:\n${browserErrors.join("\n")}`);
     }
   }
 });

@@ -9,6 +9,13 @@ import {
   type TopologyRuntimeEdgeUpdate
 } from "../topology/runtime";
 import { useGraphStore } from "../stores/graphStore";
+import {
+  PENDING_NETEM_KEY,
+  type PendingNetemOverride,
+  areNetemEquivalent,
+  isPendingNetemFresh
+} from "../utils/netemOverrides";
+import type { NetemState } from "../core/parsing";
 
 export interface ApplyRuntimeEdgeStatsOptions {
   currentLabName: string;
@@ -50,11 +57,86 @@ function mergeRuntimeExtraData(
   currentExtraData: Record<string, unknown>,
   updateExtraData: Record<string, unknown>
 ): Record<string, unknown> {
+  const pending = toPendingNetemOverride(currentExtraData[PENDING_NETEM_KEY]);
+  if (pending) {
+    return mergeRuntimeExtraDataWithPending(currentExtraData, updateExtraData, pending);
+  }
+
   const hasChanges = Object.entries(updateExtraData).some(
     ([key, value]) => !valuesEqual(currentExtraData[key], value)
   );
 
   return hasChanges ? { ...currentExtraData, ...updateExtraData } : currentExtraData;
+}
+
+function mergeRuntimeExtraDataWithPending(
+  currentExtraData: Record<string, unknown>,
+  updateExtraData: Record<string, unknown>,
+  pending: PendingNetemOverride
+): Record<string, unknown> {
+  if (!isPendingNetemFresh(pending)) {
+    const merged = { ...currentExtraData, ...updateExtraData };
+    delete merged[PENDING_NETEM_KEY];
+    return merged;
+  }
+
+  if (!hasNetemUpdate(updateExtraData)) {
+    return { ...currentExtraData, ...updateExtraData };
+  }
+
+  if (!matchesPendingNetem(updateExtraData, pending)) {
+    const {
+      clabSourceNetem: _clabSourceNetem,
+      clabTargetNetem: _clabTargetNetem,
+      ...rest
+    } = updateExtraData;
+    return { ...currentExtraData, ...rest };
+  }
+
+  const merged = { ...currentExtraData, ...updateExtraData };
+  delete merged[PENDING_NETEM_KEY];
+  return merged;
+}
+
+function hasNetemUpdate(updateExtraData: Record<string, unknown>): boolean {
+  return (
+    Object.prototype.hasOwnProperty.call(updateExtraData, "clabSourceNetem") ||
+    Object.prototype.hasOwnProperty.call(updateExtraData, "clabTargetNetem")
+  );
+}
+
+function matchesPendingNetem(
+  updateExtraData: Record<string, unknown>,
+  pending: PendingNetemOverride
+): boolean {
+  const incomingSource = toNetemState(updateExtraData.clabSourceNetem);
+  const incomingTarget = toNetemState(updateExtraData.clabTargetNetem);
+  return (
+    areNetemEquivalent(incomingSource, pending.source) &&
+    areNetemEquivalent(incomingTarget, pending.target)
+  );
+}
+
+function toPendingNetemOverride(value: unknown): PendingNetemOverride | undefined {
+  if (!isRecord(value)) return undefined;
+  const appliedAt = value.appliedAt;
+  if (typeof appliedAt !== "number" || !Number.isFinite(appliedAt)) return undefined;
+  return {
+    source: toNetemState(value.source),
+    target: toNetemState(value.target),
+    appliedAt
+  };
+}
+
+function toNetemState(value: unknown): NetemState | undefined {
+  if (!isRecord(value)) return undefined;
+  const state: NetemState = {};
+  if (typeof value.delay === "string") state.delay = value.delay;
+  if (typeof value.jitter === "string") state.jitter = value.jitter;
+  if (typeof value.loss === "string") state.loss = value.loss;
+  if (typeof value.rate === "string") state.rate = value.rate;
+  if (typeof value.corruption === "string") state.corruption = value.corruption;
+  return Object.keys(state).length > 0 ? state : undefined;
 }
 
 function applyRuntimeUpdateToEdge(

@@ -4,8 +4,9 @@ import { afterEach, test } from "node:test";
 import type { Edge } from "@xyflow/react";
 
 import type { TopoEdge } from "../core/types/graph";
-import type { HostRuntimeContainer, HostRuntimeInterfaceStats } from "../host";
+import type { HostRuntimeContainer, HostRuntimeInterfaceStats, HostRuntimeNetemState } from "../host";
 import { useGraphStore } from "../stores/graphStore";
+import { PENDING_NETEM_KEY, createPendingNetemOverride } from "../utils/netemOverrides";
 
 import { applyRuntimeEdgeStatsToGraph, clearTopologyGraph } from "./runtimeGraphUpdates";
 
@@ -25,7 +26,8 @@ function createStats(rxBps: number, txBps: number): HostRuntimeInterfaceStats {
 
 function createRuntimeContainer(
   nodeName: string,
-  stats: HostRuntimeInterfaceStats
+  stats: HostRuntimeInterfaceStats,
+  netemState?: HostRuntimeNetemState
 ): HostRuntimeContainer {
   return {
     name: `clab-demo-${nodeName}`,
@@ -45,7 +47,8 @@ function createRuntimeContainer(
         mtu: 1500,
         state: "up",
         type: "veth",
-        stats
+        stats,
+        netemState
       }
     ]
   };
@@ -53,11 +56,13 @@ function createRuntimeContainer(
 
 function createRuntimeContainers(
   sourceStats: HostRuntimeInterfaceStats,
-  targetStats: HostRuntimeInterfaceStats
+  targetStats: HostRuntimeInterfaceStats,
+  sourceNetem?: HostRuntimeNetemState,
+  targetNetem?: HostRuntimeNetemState
 ): HostRuntimeContainer[] {
   return [
-    createRuntimeContainer("srl1", sourceStats),
-    createRuntimeContainer("srl2", targetStats)
+    createRuntimeContainer("srl1", sourceStats, sourceNetem),
+    createRuntimeContainer("srl2", targetStats, targetNetem)
   ];
 }
 
@@ -143,6 +148,72 @@ test("preserves unrelated edge references while applying runtime stats", () => {
   assert.equal(changed, true);
   assert.notEqual(updatedMatchingEdge, matchingEdge);
   assert.equal(updatedUnmatchedEdge, unmatchedEdge);
+});
+
+test("ignores stale runtime netem while a pending netem override is fresh", () => {
+  const pendingSourceNetem = { delay: "0ms", jitter: "0ms", loss: "0%", rate: "0", corruption: "0" };
+  const staleSourceNetem = { delay: "100ms", jitter: "0ms", loss: "0%", rate: "0", corruption: "0" };
+  const edge = createEdge();
+  edge.data = {
+    sourceEndpoint: "ethernet-1/1",
+    targetEndpoint: "ethernet-1/1",
+    extraData: {
+      ...edge.data?.extraData,
+      clabSourceNetem: pendingSourceNetem,
+      clabTargetNetem: pendingSourceNetem,
+      [PENDING_NETEM_KEY]: createPendingNetemOverride(pendingSourceNetem, pendingSourceNetem)
+    }
+  };
+  useGraphStore.getState().setGraph([], [edge]);
+
+  const changed = applyRuntimeEdgeStatsToGraph(
+    createRuntimeContainers(
+      createStats(1000, 2000),
+      createStats(3000, 4000),
+      staleSourceNetem,
+      pendingSourceNetem
+    ),
+    { currentLabName: "demo" }
+  );
+
+  const [updatedEdge] = currentEdges() as TopoEdge[];
+  assert.equal(changed, true);
+  assert.deepEqual(updatedEdge?.data?.extraData?.clabSourceNetem, pendingSourceNetem);
+  assert.deepEqual(updatedEdge?.data?.extraData?.clabTargetNetem, pendingSourceNetem);
+  assert.ok(updatedEdge?.data?.extraData?.[PENDING_NETEM_KEY]);
+  assert.deepEqual(updatedEdge?.data?.extraData?.clabSourceStats, createStats(1000, 2000));
+});
+
+test("clears pending netem override after runtime netem catches up", () => {
+  const pendingNetem = { delay: "0ms", jitter: "0ms", loss: "0%", rate: "0", corruption: "0" };
+  const edge = createEdge();
+  edge.data = {
+    sourceEndpoint: "ethernet-1/1",
+    targetEndpoint: "ethernet-1/1",
+    extraData: {
+      ...edge.data?.extraData,
+      clabSourceNetem: pendingNetem,
+      clabTargetNetem: pendingNetem,
+      [PENDING_NETEM_KEY]: createPendingNetemOverride(pendingNetem, pendingNetem)
+    }
+  };
+  useGraphStore.getState().setGraph([], [edge]);
+
+  const changed = applyRuntimeEdgeStatsToGraph(
+    createRuntimeContainers(
+      createStats(1000, 2000),
+      createStats(3000, 4000),
+      pendingNetem,
+      pendingNetem
+    ),
+    { currentLabName: "demo" }
+  );
+
+  const [updatedEdge] = currentEdges() as TopoEdge[];
+  assert.equal(changed, true);
+  assert.deepEqual(updatedEdge?.data?.extraData?.clabSourceNetem, pendingNetem);
+  assert.deepEqual(updatedEdge?.data?.extraData?.clabTargetNetem, pendingNetem);
+  assert.equal(updatedEdge?.data?.extraData?.[PENDING_NETEM_KEY], undefined);
 });
 
 test("clears graph state when the active topology closes", () => {

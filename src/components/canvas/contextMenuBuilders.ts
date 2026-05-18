@@ -495,26 +495,36 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
 
   // Build capture items for each endpoint
   const captureItems: ContextMenuItem[] = [];
-  const srcName = getExtraDataString(extraData, "clabSourceLongName") ?? sourceNode;
-  const dstName = getExtraDataString(extraData, "clabTargetLongName") ?? targetNode;
-  if (isNonEmptyString(srcName) && isNonEmptyString(sourceEndpoint)) {
+  const srcCaptureName = getExtraDataString(extraData, "clabSourceLongName") ?? sourceNode;
+  const dstCaptureName = getExtraDataString(extraData, "clabTargetLongName") ?? targetNode;
+  const srcDisplayName = getExtraDataString(extraData, "yamlSourceNodeId") ?? sourceNode ?? srcCaptureName;
+  const dstDisplayName = getExtraDataString(extraData, "yamlTargetNodeId") ?? targetNode ?? dstCaptureName;
+  if (
+    isNonEmptyString(srcCaptureName) &&
+    isNonEmptyString(srcDisplayName) &&
+    isNonEmptyString(sourceEndpoint)
+  ) {
     captureItems.push({
       id: "capture-source",
-      label: `${srcName} - ${sourceEndpoint}`,
+      label: `${srcDisplayName} - ${sourceEndpoint}`,
       icon: React.createElement(WiresharkIcon, { fontSize: "small" }),
       onClick: () => {
-        onInterfaceCapture(srcName, sourceEndpoint);
+        onInterfaceCapture(srcCaptureName, sourceEndpoint);
         closeContextMenu();
       }
     });
   }
-  if (isNonEmptyString(dstName) && isNonEmptyString(targetEndpoint)) {
+  if (
+    isNonEmptyString(dstCaptureName) &&
+    isNonEmptyString(dstDisplayName) &&
+    isNonEmptyString(targetEndpoint)
+  ) {
     captureItems.push({
       id: "capture-target",
-      label: `${dstName} - ${targetEndpoint}`,
+      label: `${dstDisplayName} - ${targetEndpoint}`,
       icon: React.createElement(WiresharkIcon, { fontSize: "small" }),
       onClick: () => {
-        onInterfaceCapture(dstName, targetEndpoint);
+        onInterfaceCapture(dstCaptureName, targetEndpoint);
         closeContextMenu();
       }
     });

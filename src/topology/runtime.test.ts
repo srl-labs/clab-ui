@@ -62,6 +62,15 @@ test("runtime provider resolves interfaces by display label", () => {
   assert.equal(iface?.netemState?.delay, "10ms");
 });
 
+test("runtime provider resolves containers built from unresolved topology prefixes", () => {
+  const provider = createRuntimeContainerDataProvider(runtimeContainers);
+  const container = provider.findContainer('${LAB_PREFIX:-""}-demo-srl1', "demo");
+  const iface = provider.findInterface('${LAB_PREFIX:-""}-demo-srl1', "ethernet-1/1", "demo");
+
+  assert.equal(container?.name, "clab-demo-srl1");
+  assert.equal(iface?.name, "e1-1");
+});
+
 test("runtime edge updates carry netem state from label-matched interfaces", () => {
   const edge: TopoEdge = {
     id: "srl1:ethernet-1/1--srl2:ethernet-1/1",

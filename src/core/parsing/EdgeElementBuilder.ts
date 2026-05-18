@@ -296,12 +296,14 @@ export function resolveContainerAndInterface(params: {
     return { containerName };
   }
 
-  const directIface = containerDataProvider.findInterface(containerName, ifaceName, labName);
+  const directContainer = containerDataProvider.findContainer(containerName, labName);
+  const resolvedContainerName = directContainer?.name ?? containerName;
+  const directIface = containerDataProvider.findInterface(resolvedContainerName, ifaceName, labName);
   if (directIface) {
-    return { containerName, ifaceData: directIface };
+    return { containerName: resolvedContainerName, ifaceData: directIface };
   }
 
-  log.debug(`[EdgeBuilder] Interface not found: ${containerName}:${ifaceName} in lab ${labName}`);
+  log.debug(`[EdgeBuilder] Interface not found: ${resolvedContainerName}:${ifaceName} in lab ${labName}`);
 
   const topologyNode = parsed.topology?.nodes?.[nodeName] ?? {};
   const resolvedNode = resolveNodeConfig(parsed, topologyNode);

@@ -69,14 +69,56 @@ function extractDistributedBaseFromName(value: string | undefined): string | und
 function shortContainerName(container: HostRuntimeContainer): string {
   const fullName = (container.name ?? "").trim();
   const labName = (container.labName ?? "").trim();
-  const prefix = labName ? `clab-${labName}-` : "";
-  if (prefix && fullName.startsWith(prefix)) {
-    return fullName.slice(prefix.length);
+  const shortName = stripContainerPrefix(labName, fullName);
+  if (shortName && shortName !== fullName) {
+    return shortName;
   }
   if (fullName) {
     return fullName;
   }
   return (container.nodeName ?? "").trim();
+}
+
+function stripContainerPrefix(labName: string, containerName: string): string {
+  const trimmed = containerName.trim();
+  const normalizedLab = labName.trim().toLowerCase();
+  if (!trimmed || !normalizedLab) {
+    return trimmed;
+  }
+
+  const normalizedName = trimmed.toLowerCase();
+  const defaultPrefix = `clab-${normalizedLab}-`;
+  if (normalizedName.startsWith(defaultPrefix)) {
+    return trimmed.slice(defaultPrefix.length);
+  }
+
+  const labPrefix = `${normalizedLab}-`;
+  if (normalizedName.startsWith(labPrefix)) {
+    return trimmed.slice(labPrefix.length);
+  }
+
+  const labSegment = `-${normalizedLab}-`;
+  const segmentIndex = normalizedName.lastIndexOf(labSegment);
+  if (segmentIndex >= 0) {
+    return trimmed.slice(segmentIndex + labSegment.length);
+  }
+
+  return trimmed;
+}
+
+function nodeNameCandidates(labName: string, value: string): string[] {
+  const candidates = new Set<string>();
+  const normalized = value.trim().toLowerCase();
+  if (normalized) {
+    candidates.add(normalized);
+  }
+
+  const stripped = stripContainerPrefix(labName, value).trim().toLowerCase();
+  if (stripped) {
+    candidates.add(stripped);
+  }
+
+  return [...candidates];
 }
 
 function hasRuntimeInterfaces(container: HostRuntimeContainer): boolean {
@@ -166,12 +208,18 @@ function matchingContainers(
   includeDistributedSiblings: boolean = false
 ): HostRuntimeContainer[] {
   const targetLab = normalizeLabName(labName);
+  const targetNames = nodeNameCandidates(labName, nodeName);
   const labContainers = containers.filter(
     (container) => normalizeLabName(container.labName) === targetLab
   );
-  const matched = labContainers.filter((container) =>
-    containerMatchesNodeIdentifier(container, nodeName)
-  );
+  const matched = labContainers.filter((container) => {
+    for (const targetName of targetNames) {
+      if (containerMatchesNodeIdentifier(container, targetName)) {
+        return true;
+      }
+    }
+    return false;
+  });
   if (!includeDistributedSiblings || matched.length === 0) {
     return sortContainersByInterfacePriority(matched);
   }

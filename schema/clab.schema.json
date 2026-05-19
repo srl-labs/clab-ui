@@ -648,6 +648,9 @@
                                             "ixr-e2c",
                                             "ixr-e2",
                                             "ixr-e2n",
+                                            "ixr-e2n-s",
+                                            "ixr-e3c",
+                                            "ixr-e3x",
                                             "ixr-ec",
                                             "ixr-e",
                                             "ixr-r4",
@@ -660,8 +663,8 @@
                                             "sar-1",
                                             "sar-hm",
                                             "sar-hmc",
-					    "sar-hx",
-					    "sar-mx",
+                                            "sar-hx",
+                                            "sar-mx",
                                             "sr-1-24d",
                                             "sr-12e",
                                             "sr-12",
@@ -1910,6 +1913,11 @@
                     "type": "boolean",
                     "description": "controls whether the management network has external access or not",
                     "markdownDescription": "controls whether the [management network has external access](https://containerlab.dev/manual/network/#external-access) or not"
+                },
+                "skip-when-unused": {
+                    "type": "boolean",
+                    "description": "skip management network creation when every node has network-mode: none",
+                    "markdownDescription": "skip creating the [management network](https://containerlab.dev/manual/network/#skipping-the-management-network) when every node resolves to `network-mode: none` (per-node, group, kind, or defaults)"
                 },
                 "driver-opts": {
                     "type": "object",

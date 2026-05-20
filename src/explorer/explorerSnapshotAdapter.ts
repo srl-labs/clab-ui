@@ -58,12 +58,18 @@ export interface ExplorerActionInvocation {
 
 export interface ExplorerContributedMenuItem {
   commandId: string;
+  contextValues?: readonly string[];
+  destructive?: boolean;
   label?: string;
   iconId?: string;
 }
 
 export interface ExplorerCommandMetadata {
   contributedContainerActions?: readonly ExplorerContributedMenuItem[];
+  contributedEndpointActions?: readonly ExplorerContributedMenuItem[];
+  contributedFileActions?: readonly ExplorerContributedMenuItem[];
+  contributedLabActions?: readonly ExplorerContributedMenuItem[];
+  contributedToolbarActions?: Partial<Record<ExplorerSectionId, readonly ExplorerContributedMenuItem[]>>;
   commandLabels?: ReadonlyMap<string, string>;
   commandIcons?: ReadonlyMap<string, string>;
 }
@@ -439,6 +445,44 @@ function applyCommandIcons(
   return actions;
 }
 
+function appendContributedActions(
+  actions: ExplorerAction[],
+  seen: Set<string>,
+  registry: ExplorerActionRegistry,
+  item: ExplorerTreeItemLike | undefined,
+  contributedActions: readonly ExplorerContributedMenuItem[],
+  commandLabels: ReadonlyMap<string, string>,
+  commandIcons: ReadonlyMap<string, string>,
+  disabledResolver?: (commandId: string, item: ExplorerTreeItemLike) => boolean
+): void {
+  const existingCommands = new Set(actions.map((action) => action.commandId));
+  for (const contributedAction of contributedActions) {
+    if (existingCommands.has(contributedAction.commandId)) {
+      continue;
+    }
+    if (
+      item &&
+      contributedAction.contextValues &&
+      !contributedAction.contextValues.includes(item.contextValue ?? "")
+    ) {
+      continue;
+    }
+
+    pushAction(
+      actions,
+      seen,
+      registry,
+      contributedAction.commandId,
+      item ? [item] : [],
+      commandLabels.get(contributedAction.commandId) ?? contributedAction.label,
+      contributedAction.destructive,
+      commandIcons.get(contributedAction.commandId) ?? contributedAction.iconId,
+      item && disabledResolver ? disabledResolver(contributedAction.commandId, item) : undefined
+    );
+    existingCommands.add(contributedAction.commandId);
+  }
+}
+
 function filterHiddenActions(
   actions: ExplorerAction[],
   options: ExplorerSnapshotOptions
@@ -493,7 +537,10 @@ function appendLabActions(
   seen: Set<string>,
   registry: ExplorerActionRegistry,
   sectionId: ExplorerSectionId,
-  item: ExplorerTreeItemLike
+  item: ExplorerTreeItemLike,
+  contributedActions: readonly ExplorerContributedMenuItem[],
+  commandLabels: ReadonlyMap<string, string>,
+  commandIcons: ReadonlyMap<string, string>
 ): void {
   const contextValue = item.contextValue;
   const isDeployed = isDeployedLab(contextValue);
@@ -571,6 +618,8 @@ function appendLabActions(
     // Keep local section behavior consistent for edge nodes without known lab context.
     pushAction(actions, seen, registry, "containerlab.lab.openFile", [item]);
   }
+
+  appendContributedActions(actions, seen, registry, item, contributedActions, commandLabels, commandIcons);
 }
 
 function appendContainerActions(
@@ -595,26 +644,16 @@ function appendContainerActions(
       isContainerActionDisabled(commandId, item)
     );
   }
-
-  const existingCommands = new Set(actions.map((action) => action.commandId));
-  for (const contributedAction of contributedActions) {
-    if (existingCommands.has(contributedAction.commandId)) {
-      continue;
-    }
-
-    pushAction(
-      actions,
-      seen,
-      registry,
-      contributedAction.commandId,
-      [item],
-      commandLabels.get(contributedAction.commandId) ?? contributedAction.label,
-      undefined,
-      commandIcons.get(contributedAction.commandId) ?? contributedAction.iconId,
-      isContainerActionDisabled(contributedAction.commandId, item)
-    );
-    existingCommands.add(contributedAction.commandId);
-  }
+  appendContributedActions(
+    actions,
+    seen,
+    registry,
+    item,
+    contributedActions,
+    commandLabels,
+    commandIcons,
+    isContainerActionDisabled
+  );
 }
 
 function appendInterfaceActions(
@@ -668,7 +707,10 @@ function appendEndpointActions(
   actions: ExplorerAction[],
   seen: Set<string>,
   registry: ExplorerActionRegistry,
-  item: ExplorerTreeItemLike
+  item: ExplorerTreeItemLike,
+  contributedActions: readonly ExplorerContributedMenuItem[],
+  commandLabels: ReadonlyMap<string, string>,
+  commandIcons: ReadonlyMap<string, string>
 ): void {
   const normalizedState = String(item.state ?? "").toLowerCase();
   if (normalizedState === "connected") {
@@ -682,6 +724,7 @@ function appendEndpointActions(
   pushAction(actions, seen, registry, "containerlab.endpoint.reconnect", [item]);
   pushAction(actions, seen, registry, "containerlab.endpoint.remove", [item], undefined, true);
   pushAction(actions, seen, registry, "containerlab.endpoint.copyUrl", [item]);
+  appendContributedActions(actions, seen, registry, item, contributedActions, commandLabels, commandIcons);
 }
 
 function isFileExplorerContext(contextValue: string | undefined): boolean {
@@ -697,7 +740,10 @@ function appendFileExplorerActions(
   actions: ExplorerAction[],
   seen: Set<string>,
   registry: ExplorerActionRegistry,
-  item: ExplorerTreeItemLike
+  item: ExplorerTreeItemLike,
+  contributedActions: readonly ExplorerContributedMenuItem[],
+  commandLabels: ReadonlyMap<string, string>,
+  commandIcons: ReadonlyMap<string, string>
 ): void {
   const contextValue = item.contextValue;
   const isRoot = contextValue === "containerlabFileExplorerRoot";
@@ -717,6 +763,7 @@ function appendFileExplorerActions(
     pushAction(actions, seen, registry, "containerlab.file.delete", [item], undefined, true);
     pushAction(actions, seen, registry, "containerlab.file.copyPath", [item]);
   }
+  appendContributedActions(actions, seen, registry, item, contributedActions, commandLabels, commandIcons);
 }
 
 function appendNodeActionsForContext(
@@ -732,15 +779,40 @@ function appendNodeActionsForContext(
 ): void {
   const contextValue = item.contextValue;
   if (isFileExplorerContext(contextValue)) {
-    appendFileExplorerActions(actions, seen, registry, item);
+    appendFileExplorerActions(
+      actions,
+      seen,
+      registry,
+      item,
+      options.commandMetadata?.contributedFileActions ?? [],
+      commandLabels,
+      commandIcons
+    );
     return;
   }
   if (contextValue === "containerlabEndpoint") {
-    appendEndpointActions(actions, seen, registry, item);
+    appendEndpointActions(
+      actions,
+      seen,
+      registry,
+      item,
+      options.commandMetadata?.contributedEndpointActions ?? [],
+      commandLabels,
+      commandIcons
+    );
     return;
   }
   if (isLabContext(contextValue)) {
-    appendLabActions(actions, seen, registry, sectionId, item);
+    appendLabActions(
+      actions,
+      seen,
+      registry,
+      sectionId,
+      item,
+      options.commandMetadata?.contributedLabActions ?? [],
+      commandLabels,
+      commandIcons
+    );
     return;
   }
   if (contextValue === "containerlabContainer" || contextValue === "containerlabContainerGroup") {
@@ -1000,6 +1072,7 @@ function toolbarActionsForSection(
 ): ExplorerAction[] {
   const actions: ExplorerAction[] = [];
   const seen = new Set<string>();
+  const commandLabels = options.commandMetadata?.commandLabels ?? new Map<string, string>();
   const commandIcons = options.commandMetadata?.commandIcons ?? new Map<string, string>();
 
   if (sectionId === "runningLabs") {
@@ -1011,7 +1084,6 @@ function toolbarActionsForSection(
     } else {
       pushAction(actions, seen, registry, "containerlab.treeView.runningLabs.hideNonOwnedLabs");
     }
-    return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);
   }
 
   if (sectionId === "localLabs") {
@@ -1019,6 +1091,16 @@ function toolbarActionsForSection(
     pushAction(actions, seen, registry, "containerlab.lab.cloneRepo");
     pushAction(actions, seen, registry, "containerlab.images.manage");
   }
+
+  appendContributedActions(
+    actions,
+    seen,
+    registry,
+    undefined,
+    options.commandMetadata?.contributedToolbarActions?.[sectionId] ?? [],
+    commandLabels,
+    commandIcons
+  );
 
   return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);
 }

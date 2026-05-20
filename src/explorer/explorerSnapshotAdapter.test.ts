@@ -220,3 +220,91 @@ test("buildExplorerSnapshot supports opt-in lazy file explorer section", async (
     "containerlab.file.open"
   );
 });
+
+test("buildExplorerSnapshot applies host-contributed endpoint, lab, file, and toolbar actions", async () => {
+  const endpoint = {
+    label: "Endpoint",
+    contextValue: "containerlabEndpoint",
+    state: "connected",
+    collapsibleState: TREE_ITEM_COLLAPSED,
+    children: [
+      {
+        label: "demo",
+        contextValue: "containerlabLabUndeployed",
+        collapsibleState: 0
+      }
+    ]
+  };
+  const fileRoot = {
+    id: "file-root:endpoint-1",
+    label: "Endpoint",
+    contextValue: "containerlabFileExplorerRoot",
+    endpointId: "endpoint-1",
+    collapsibleState: TREE_ITEM_COLLAPSED,
+    children: [
+      {
+        id: "file:endpoint-1:demo",
+        label: "demo",
+        contextValue: "containerlabFileFolder",
+        endpointId: "endpoint-1",
+        collapsibleState: 0
+      }
+    ]
+  };
+  const providers = {
+    runningProvider: provider([endpoint]),
+    localProvider: provider([]),
+    fileProvider: provider([fileRoot]),
+    helpProvider: provider([])
+  } as ExplorerSnapshotProviders;
+
+  const { snapshot } = await buildExplorerSnapshot(providers, "", {
+    hideNonOwnedLabs: false,
+    isLocalCaptureAllowed: true,
+    sectionOrder: ["runningLabs", "fileExplorer"],
+    expandedBySection: { fileExplorer: ["file-root:endpoint-1"] },
+    commandMetadata: {
+      commandLabels: new Map([
+        ["host.endpoint.import", "Import Archive"],
+        ["host.lab.export", "Export Archive"],
+        ["host.file.downloadArchive", "Download Archive"],
+        ["host.file.import", "Import Archive"]
+      ]),
+      contributedEndpointActions: [{ commandId: "host.endpoint.import" }],
+      contributedLabActions: [{ commandId: "host.lab.export" }],
+      contributedFileActions: [
+        {
+          commandId: "host.file.downloadArchive",
+          contextValues: ["containerlabFileFolder"]
+        }
+      ],
+      contributedToolbarActions: {
+        fileExplorer: [{ commandId: "host.file.import" }]
+      }
+    }
+  });
+
+  const runningSection = snapshot.sections.find((section) => section.id === "runningLabs");
+  assert.ok(runningSection);
+  assert.equal(
+    runningSection.nodes[0].actions.some((action) => action.commandId === "host.endpoint.import"),
+    true
+  );
+  assert.equal(
+    runningSection.nodes[0].children[0].actions.some((action) => action.commandId === "host.lab.export"),
+    true
+  );
+
+  const fileSection = snapshot.sections.find((section) => section.id === "fileExplorer");
+  assert.ok(fileSection);
+  assert.equal(
+    fileSection.toolbarActions.some((action) => action.commandId === "host.file.import"),
+    true
+  );
+  assert.equal(
+    fileSection.nodes[0].children[0].actions.some(
+      (action) => action.commandId === "host.file.downloadArchive"
+    ),
+    true
+  );
+});

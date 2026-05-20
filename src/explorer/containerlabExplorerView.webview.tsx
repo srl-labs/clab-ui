@@ -10,6 +10,7 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FolderIcon from "@mui/icons-material/Folder";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
@@ -263,10 +264,16 @@ const ACTION_ICON_BY_COMMAND: Record<string, SvgIconComponent> = {
   "containerlab.file.open": ArticleOutlinedIcon,
   "containerlab.file.opentopology": AccountTreeIcon,
   "containerlab.file.newfile": NoteAddIcon,
-  "containerlab.file.newfolder": FolderOpenIcon
+  "containerlab.file.newfolder": FolderOpenIcon,
+  "containerlab.file.download": DownloadOutlinedIcon,
+  "containerlab.file.downloadarchive": DownloadOutlinedIcon,
+  "containerlab.file.upload": FileUploadOutlinedIcon,
+  "containerlab.lab.downloadarchive": DownloadOutlinedIcon
 };
 
 const ACTION_ICON_RULES: ReadonlyArray<CommandIconRule> = [
+  { match: (command) => command.includes("upload"), icon: FileUploadOutlinedIcon },
+  { match: (command) => command.includes("download"), icon: DownloadOutlinedIcon },
   { match: (command) => command.includes("copy"), icon: ContentCopyIcon },
   {
     match: (command) =>

@@ -1,4 +1,11 @@
-export type ExplorerSectionId = "runningLabs" | "localLabs" | "helpFeedback";
+export type ExplorerSectionId = "runningLabs" | "localLabs" | "fileExplorer" | "helpFeedback";
+
+export const EXPLORER_SECTION_IDS: ExplorerSectionId[] = [
+  "runningLabs",
+  "localLabs",
+  "fileExplorer",
+  "helpFeedback"
+];
 
 export const EXPLORER_SECTION_ORDER: ExplorerSectionId[] = [
   "runningLabs",
@@ -9,6 +16,7 @@ export const EXPLORER_SECTION_ORDER: ExplorerSectionId[] = [
 export const EXPLORER_SECTION_LABELS: Record<ExplorerSectionId, string> = {
   runningLabs: "Running Labs",
   localLabs: "Undeployed Local Labs",
+  fileExplorer: "File Explorer",
   helpFeedback: "Help & Feedback"
 };
 
@@ -34,6 +42,7 @@ export interface ExplorerNode {
   statusDescription?: string;
   primaryAction?: ExplorerAction;
   shareAction?: ExplorerAction;
+  hasChildren?: boolean;
   actions: ExplorerAction[];
   children: ExplorerNode[];
 }

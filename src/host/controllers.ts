@@ -149,6 +149,7 @@ interface ExplorerControllerOptions {
   initialFilterText?: string;
   initialUiState?: ExplorerUiState;
   debounceMs?: number;
+  refreshOnUiStateChanged?: boolean | ((previous: ExplorerUiState, next: ExplorerUiState) => boolean);
 }
 
 function buildFallbackExplorerSnapshot(filterText: string): ExplorerSnapshotMessage {
@@ -257,8 +258,17 @@ export function createExplorerController(options: ExplorerControllerOptions): Ex
     },
 
     async persistUiState(state: ExplorerUiState): Promise<void> {
+      const previousUiState = uiState;
       uiState = state ?? {};
       await options.onUiStateChanged?.(uiState);
+      const refreshOnUiStateChanged = options.refreshOnUiStateChanged;
+      const shouldRefresh =
+        typeof refreshOnUiStateChanged === "function"
+          ? refreshOnUiStateChanged(previousUiState, uiState)
+          : refreshOnUiStateChanged === true;
+      if (shouldRefresh) {
+        scheduleSnapshot(0);
+      }
     },
 
     async invokeAction(actionRef: string): Promise<void> {

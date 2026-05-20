@@ -138,3 +138,85 @@ test("buildExplorerSnapshot disables running-only actions for stopped containers
   assert.ok(logsAction);
   assert.equal(actionBindings.get(logsAction.actionRef)?.disabled, true);
 });
+
+test("buildExplorerSnapshot supports opt-in lazy file explorer section", async () => {
+  const root = {
+    id: "file-root:endpoint-1",
+    label: "Localhost",
+    contextValue: "containerlabFileExplorerRoot",
+    endpointId: "endpoint-1",
+    hasChildren: true,
+    collapsibleState: TREE_ITEM_COLLAPSED,
+    children: [
+      {
+        id: "file:endpoint-1:configs",
+        label: "configs",
+        contextValue: "containerlabFileFolder",
+        endpointId: "endpoint-1",
+        hasChildren: true,
+        collapsibleState: TREE_ITEM_COLLAPSED,
+        children: []
+      },
+      {
+        id: "file:endpoint-1:lab1.clab.yml",
+        label: "lab1.clab.yml",
+        contextValue: "containerlabFileTopology",
+        endpointId: "endpoint-1",
+        collapsibleState: 0
+      }
+    ]
+  };
+  const providers = {
+    runningProvider: provider([]),
+    localProvider: provider([]),
+    fileProvider: provider([root]),
+    helpProvider: provider([])
+  } as ExplorerSnapshotProviders;
+
+  const collapsed = await buildExplorerSnapshot(providers, "", {
+    hideNonOwnedLabs: false,
+    isLocalCaptureAllowed: true,
+    sectionOrder: ["fileExplorer"],
+    expandedBySection: { fileExplorer: [] }
+  });
+  const collapsedRoot = collapsed.snapshot.sections[0].nodes[0];
+  const collapsedRootCommands = collapsedRoot.actions.map((action) => action.commandId);
+  assert.equal(collapsedRoot.hasChildren, true);
+  assert.equal(collapsedRoot.children.length, 0);
+  assert.equal(collapsedRoot.primaryAction, undefined);
+  assert.deepEqual(collapsedRootCommands, [
+    "containerlab.file.newFile",
+    "containerlab.file.newFolder"
+  ]);
+
+  const expanded = await buildExplorerSnapshot(providers, "", {
+    hideNonOwnedLabs: false,
+    isLocalCaptureAllowed: true,
+    sectionOrder: ["fileExplorer"],
+    expandedBySection: { fileExplorer: ["file-root:endpoint-1"] }
+  });
+  const expandedRoot = expanded.snapshot.sections[0].nodes[0];
+  assert.equal(expandedRoot.children.length, 2);
+  assert.equal(expandedRoot.primaryAction, undefined);
+  assert.equal(expandedRoot.children[0].primaryAction, undefined);
+  assert.equal(
+    expandedRoot.children[0].actions.some(
+      (action) => action.commandId === "containerlab.file.refresh"
+    ),
+    false
+  );
+  assert.deepEqual(
+    expandedRoot.children[0].actions.map((action) => action.commandId),
+    [
+      "containerlab.file.newFile",
+      "containerlab.file.newFolder",
+      "containerlab.file.rename",
+      "containerlab.file.delete",
+      "containerlab.file.copyPath"
+    ]
+  );
+  assert.equal(
+    expandedRoot.children[1].primaryAction?.commandId,
+    "containerlab.file.open"
+  );
+});

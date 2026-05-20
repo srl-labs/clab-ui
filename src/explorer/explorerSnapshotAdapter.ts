@@ -7,7 +7,8 @@ import {
   type ExplorerNode,
   type ExplorerSectionId,
   type ExplorerSectionSnapshot,
-  type ExplorerSnapshotMessage
+  type ExplorerSnapshotMessage,
+  type ExplorerUiState
 } from "./shared/explorer/types";
 
 interface ExplorerTreeProvider {
@@ -22,6 +23,7 @@ type ExplorerTreeItemLike = vscode.TreeItem & {
   id?: string;
   contextValue?: string;
   endpointId?: string;
+  hasChildren?: boolean;
   state?: string;
   status?: string;
   link?: string;
@@ -35,6 +37,7 @@ interface LabShareInfo {
 export interface ExplorerSnapshotProviders {
   runningProvider: RunningLabTreeDataProvider;
   localProvider: LocalLabTreeDataProvider;
+  fileProvider?: ExplorerTreeProvider;
   helpProvider: HelpFeedbackProvider;
 }
 
@@ -43,6 +46,8 @@ export interface ExplorerSnapshotOptions {
   isLocalCaptureAllowed: boolean;
   commandMetadata?: ExplorerCommandMetadata;
   hiddenCommandIds?: readonly string[];
+  sectionOrder?: readonly ExplorerSectionId[];
+  expandedBySection?: ExplorerUiState["expandedBySection"];
 }
 
 export interface ExplorerActionInvocation {
@@ -149,10 +154,18 @@ const COMMAND_LABELS: Record<string, string> = {
   "containerlab.set.sessionHostname": "Configure Session Hostname",
   "containerlab.endpoint.reconnect": "Reconnect Endpoint",
   "containerlab.endpoint.remove": "Remove Endpoint",
-  "containerlab.endpoint.copyUrl": "Copy Endpoint URL"
+  "containerlab.endpoint.copyUrl": "Copy Endpoint URL",
+  "containerlab.file.open": "Open File",
+  "containerlab.file.openTopology": "Open Topology",
+  "containerlab.file.newFile": "New File",
+  "containerlab.file.newFolder": "New Folder",
+  "containerlab.file.rename": "Rename",
+  "containerlab.file.delete": "Delete",
+  "containerlab.file.copyPath": "Copy Path"
 };
 
 const DESTRUCTIVE_COMMANDS = new Set<string>([
+  "containerlab.file.delete",
   "containerlab.lab.delete",
   "containerlab.lab.destroy",
   "containerlab.lab.destroy.cleanup",
@@ -192,6 +205,11 @@ const STOPPED_CONTAINER_ENABLED_COMMANDS = new Set<string>([
   "containerlab.node.copyKind",
   "containerlab.node.copyImage"
 ]);
+const EMPTY_PROVIDER: ExplorerTreeProvider = {
+  getChildren() {
+    return [];
+  }
+};
 
 function labelToText(label: string | vscode.TreeItemLabel | undefined): string {
   if (!label) {
@@ -666,6 +684,41 @@ function appendEndpointActions(
   pushAction(actions, seen, registry, "containerlab.endpoint.copyUrl", [item]);
 }
 
+function isFileExplorerContext(contextValue: string | undefined): boolean {
+  return (
+    contextValue === "containerlabFileExplorerRoot" ||
+    contextValue === "containerlabFileFolder" ||
+    contextValue === "containerlabFile" ||
+    contextValue === "containerlabFileTopology"
+  );
+}
+
+function appendFileExplorerActions(
+  actions: ExplorerAction[],
+  seen: Set<string>,
+  registry: ExplorerActionRegistry,
+  item: ExplorerTreeItemLike
+): void {
+  const contextValue = item.contextValue;
+  const isRoot = contextValue === "containerlabFileExplorerRoot";
+  const isFolder = contextValue === "containerlabFileFolder";
+  const isFile =
+    contextValue === "containerlabFile" || contextValue === "containerlabFileTopology";
+
+  if (isFile) {
+    pushAction(actions, seen, registry, "containerlab.file.open", [item]);
+  }
+  if (isRoot || isFolder) {
+    pushAction(actions, seen, registry, "containerlab.file.newFile", [item]);
+    pushAction(actions, seen, registry, "containerlab.file.newFolder", [item]);
+  }
+  if (!isRoot) {
+    pushAction(actions, seen, registry, "containerlab.file.rename", [item]);
+    pushAction(actions, seen, registry, "containerlab.file.delete", [item], undefined, true);
+    pushAction(actions, seen, registry, "containerlab.file.copyPath", [item]);
+  }
+}
+
 function appendNodeActionsForContext(
   actions: ExplorerAction[],
   seen: Set<string>,
@@ -678,6 +731,10 @@ function appendNodeActionsForContext(
   commandIcons: ReadonlyMap<string, string>
 ): void {
   const contextValue = item.contextValue;
+  if (isFileExplorerContext(contextValue)) {
+    appendFileExplorerActions(actions, seen, registry, item);
+    return;
+  }
   if (contextValue === "containerlabEndpoint") {
     appendEndpointActions(actions, seen, registry, item);
     return;
@@ -745,6 +802,19 @@ function resolvePrimaryAction(
   nodeActions: ExplorerAction[],
   nodeState?: string
 ): ExplorerAction | undefined {
+  if (contextValue === "containerlabFileTopology") {
+    return nodeActions.find((action) => action.commandId === "containerlab.file.open");
+  }
+  if (contextValue === "containerlabFile") {
+    return nodeActions.find((action) => action.commandId === "containerlab.file.open");
+  }
+  if (
+    contextValue === "containerlabFileExplorerRoot" ||
+    contextValue === "containerlabFileFolder"
+  ) {
+    return undefined;
+  }
+
   if (contextValue === "containerlabEndpoint") {
     const normalizedState = String(nodeState ?? "").toLowerCase();
     if (normalizedState !== "connected") {
@@ -785,6 +855,21 @@ function shouldResolveChildren(item: ExplorerTreeItemLike): boolean {
   return item.collapsibleState !== TREE_ITEM_COLLAPSIBLE_NONE;
 }
 
+function shouldResolveNodeChildren(
+  item: ExplorerTreeItemLike,
+  sectionId: ExplorerSectionId,
+  options: ExplorerSnapshotOptions,
+  nodeId: string
+): boolean {
+  if (!shouldResolveChildren(item)) {
+    return false;
+  }
+  if (sectionId !== "fileExplorer") {
+    return true;
+  }
+  return new Set(options.expandedBySection?.fileExplorer ?? []).has(nodeId);
+}
+
 function resolveNodeStatusIndicator(
   contextValue: string | undefined,
   item: ExplorerTreeItemLike,
@@ -808,13 +893,14 @@ async function buildNode(
   pathId: string
 ): Promise<ExplorerNode> {
   const contextValue = item.contextValue;
+  const nodeId = item.id || pathId;
   const rawLabel = labelToText(item.label);
   const label = isLabContext(contextValue) ? rawLabel.replace(/^🔗\s*/u, "") : rawLabel;
   const description = shouldHideNodeDescription(contextValue)
     ? undefined
     : descriptionToText(item.description);
   const tooltip = tooltipToText(item.tooltip);
-  const rawChildrenItems = shouldResolveChildren(item)
+  const rawChildrenItems = shouldResolveNodeChildren(item, sectionId, options, nodeId)
     ? await getProviderChildren(provider, item)
     : [];
   const shareInfo = isLabContext(contextValue) ? getLabShareInfo(rawChildrenItems) : undefined;
@@ -851,9 +937,13 @@ async function buildNode(
   }
   const primaryAction = resolvePrimaryAction(contextValue, nodeActions, item.state);
   const statusIndicator = resolveNodeStatusIndicator(contextValue, item, children);
+  const hasChildren =
+    children.length > 0 ||
+    Boolean(item.hasChildren) ||
+    (sectionId === "fileExplorer" && item.collapsibleState !== TREE_ITEM_COLLAPSIBLE_NONE);
 
   return {
-    id: item.id || pathId,
+    id: nodeId,
     label,
     description,
     tooltip,
@@ -864,6 +954,7 @@ async function buildNode(
     statusDescription: description,
     primaryAction,
     shareAction,
+    hasChildren,
     actions: nodeActions,
     children
   };
@@ -1004,11 +1095,13 @@ export async function buildExplorerSnapshot(
   const providersBySection: Record<ExplorerSectionId, ExplorerTreeProvider> = {
     runningLabs: providers.runningProvider,
     localLabs: providers.localProvider,
+    fileExplorer: providers.fileProvider ?? EMPTY_PROVIDER,
     helpFeedback: providers.helpProvider
   };
+  const sectionOrder = options.sectionOrder ?? EXPLORER_SECTION_ORDER;
 
   const sections = await Promise.all(
-    EXPLORER_SECTION_ORDER.map((sectionId) =>
+    sectionOrder.map((sectionId) =>
       buildSectionSnapshotSafe(sectionId, providersBySection[sectionId], options, registry)
     )
   );

@@ -90,6 +90,16 @@ import {
   type ExplorerSectionSnapshot,
   type ExplorerUiState
 } from "./shared/explorer/types";
+import {
+  buildExplorerUiState,
+  flattenDescendantNodeIds,
+  flattenExpandableNodeIds,
+  flattenNodeIds,
+  nextExpandedBySectionForSnapshot,
+  nextExpandedItemsForNodeToggle,
+  shouldPersistExpandedSectionImmediately,
+  withExpandedSectionItems
+} from "./explorerUiState";
 
 const COLOR_ERROR_MAIN = "error.main";
 const COLOR_TEXT_PRIMARY = "text.primary";
@@ -504,35 +514,6 @@ function isBareTreeSection(section: ExplorerSectionSnapshot): boolean {
 
 function sectionHeaderHeight(section: ExplorerSectionSnapshot): number {
   return isBareTreeSection(section) ? 0 : SECTION_HEADER_HEIGHT_PX;
-}
-
-function flattenNodeIds(nodes: ExplorerNode[]): string[] {
-  const ids: string[] = [];
-  for (const node of nodes) {
-    ids.push(node.id);
-    ids.push(...flattenNodeIds(node.children));
-  }
-  return ids;
-}
-
-function flattenExpandableNodeIds(nodes: ExplorerNode[]): string[] {
-  const ids: string[] = [];
-  for (const node of nodes) {
-    if (node.hasChildren || node.children.length > 0) {
-      ids.push(node.id);
-      ids.push(...flattenExpandableNodeIds(node.children));
-    }
-  }
-  return ids;
-}
-
-function flattenDescendantNodeIds(node: ExplorerNode): string[] {
-  const ids: string[] = [];
-  for (const child of node.children) {
-    ids.push(child.id);
-    ids.push(...flattenDescendantNodeIds(child));
-  }
-  return ids;
 }
 
 function mergeSectionOrder(
@@ -1968,34 +1949,20 @@ function SectionTree({
 
   const toggleExpanded = useCallback(
     (nodeId: string) => {
-      const isExpanded = expandedItems.includes(nodeId);
       const node = nodeById.get(nodeId);
       const shouldResetEndpointDescendants = Boolean(node && isEndpointNode(node.contextValue));
-      const descendantIds = shouldResetEndpointDescendants ? (descendantIdsByNodeId.get(nodeId) ?? []) : [];
-      const descendantSet = shouldResetEndpointDescendants ? new Set(descendantIds) : null;
-      const endpointSectionIds = shouldResetEndpointDescendants
+      const childIdsToExpand = shouldResetEndpointDescendants
         ? (node?.children ?? []).map((child) => child.id)
         : [];
-
-      if (isExpanded) {
-        onExpandedItemsChange(
-          expandedItems.filter((id) => id !== nodeId && !(descendantSet?.has(id) ?? false))
-        );
-        return;
-      }
-
-      const nextExpanded = descendantSet
-        ? expandedItems.filter((id) => !descendantSet.has(id))
-        : [...expandedItems];
-      if (!nextExpanded.includes(nodeId)) {
-        nextExpanded.push(nodeId);
-      }
-      for (const childId of endpointSectionIds) {
-        if (!nextExpanded.includes(childId)) {
-          nextExpanded.push(childId);
-        }
-      }
-      onExpandedItemsChange(nextExpanded);
+      onExpandedItemsChange(
+        nextExpandedItemsForNodeToggle({
+          childIdsToExpand,
+          descendantIds: descendantIdsByNodeId.get(nodeId) ?? [],
+          expandedItems,
+          nodeId,
+          resetDescendants: shouldResetEndpointDescendants
+        })
+      );
     },
     [descendantIdsByNodeId, expandedItems, nodeById, onExpandedItemsChange]
   );
@@ -2395,6 +2362,14 @@ export function ContainerlabExplorerView() {
   const filterTimeoutRef = useRef<number | null>(null);
   const uiStateTimeoutRef = useRef<number | null>(null);
   const expandedBeforeFilterRef = useRef<Partial<Record<ExplorerSectionId, string[]>> | null>(null);
+  const latestUiStateRef = useRef<ExplorerUiState>(
+    buildExplorerUiState({
+      sectionOrder,
+      collapsedBySection,
+      expandedBySection,
+      heightRatioBySection
+    })
+  );
 
   const handleSnapshotMessage = useCallback((message: SnapshotExplorerMessage) => {
     const pending = pendingFilterSyncRef.current;
@@ -2405,7 +2380,6 @@ export function ContainerlabExplorerView() {
       pendingFilterSyncRef.current = null;
     }
 
-    const filterActive = message.filterText.length > 0;
     setSections(message.sections);
     setSectionOrder((currentOrder) => mergeSectionOrder(currentOrder, message.sections));
     setCollapsedBySection((current) => {
@@ -2415,7 +2389,7 @@ export function ContainerlabExplorerView() {
           ? false
           : (current[section.id] ?? !DEFAULT_EXPANDED_SECTIONS.has(section.id));
       }
-      if (filterActive) {
+      if (message.filterText.length > 0) {
         next.runningLabs = false;
         next.localLabs = false;
       }
@@ -2423,26 +2397,14 @@ export function ContainerlabExplorerView() {
     });
 
     setExpandedBySection((current) => {
-      if (filterActive) {
-        if (!expandedBeforeFilterRef.current) {
-          expandedBeforeFilterRef.current = current;
-        }
-        const next: Partial<Record<ExplorerSectionId, string[]>> = { ...current };
-        for (const section of message.sections) {
-          if (section.id === "runningLabs" || section.id === "localLabs") {
-            next[section.id] = flattenExpandableNodeIds(section.nodes);
-          }
-        }
-        return next;
-      }
-
-      if (expandedBeforeFilterRef.current) {
-        const restored = expandedBeforeFilterRef.current;
-        expandedBeforeFilterRef.current = null;
-        return restored;
-      }
-
-      return current;
+      const next = nextExpandedBySectionForSnapshot({
+        current,
+        expandedBeforeFilter: expandedBeforeFilterRef.current,
+        filterText: message.filterText,
+        sections: message.sections
+      });
+      expandedBeforeFilterRef.current = next.expandedBeforeFilter ?? null;
+      return next.expandedBySection ?? current;
     });
 
     setFilterText(message.filterText);
@@ -2517,6 +2479,21 @@ export function ContainerlabExplorerView() {
     [host]
   );
 
+  const persistExplorerUiStateImmediately = useCallback(
+    (uiState: ExplorerUiState) => {
+      latestUiStateRef.current = uiState;
+      if (uiStateTimeoutRef.current !== null) {
+        window.clearTimeout(uiStateTimeoutRef.current);
+        uiStateTimeoutRef.current = null;
+      }
+      if (!uiStateHydrated) {
+        return;
+      }
+      void Promise.resolve(host.explorer.persistUiState(uiState));
+    },
+    [host, uiStateHydrated]
+  );
+
   const handleFilterChange = useCallback(
     (value: string) => {
       setFilterText(value);
@@ -2540,17 +2517,40 @@ export function ContainerlabExplorerView() {
     [host]
   );
 
-  const handleExpandedItemsChange = useCallback((sectionId: ExplorerSectionId, itemIds: string[]) => {
-    setExpandedBySection((current) => ({ ...current, [sectionId]: itemIds }));
-  }, []);
+  const applyExpandedItemsChange = useCallback(
+    (sectionId: ExplorerSectionId, itemIds: string[]) => {
+      const nextExpandedBySection = withExpandedSectionItems(
+        latestUiStateRef.current.expandedBySection,
+        sectionId,
+        itemIds
+      );
+      const nextUiState = {
+        ...latestUiStateRef.current,
+        expandedBySection: nextExpandedBySection
+      };
+      latestUiStateRef.current = nextUiState;
+      setExpandedBySection(nextExpandedBySection);
+      if (shouldPersistExpandedSectionImmediately(sectionId)) {
+        persistExplorerUiStateImmediately(nextUiState);
+      }
+    },
+    [persistExplorerUiStateImmediately]
+  );
+
+  const handleExpandedItemsChange = useCallback(
+    (sectionId: ExplorerSectionId, itemIds: string[]) => {
+      applyExpandedItemsChange(sectionId, itemIds);
+    },
+    [applyExpandedItemsChange]
+  );
 
   const expandAllInSection = useCallback((sectionId: ExplorerSectionId, nodes: ExplorerNode[]) => {
-    setExpandedBySection((current) => ({ ...current, [sectionId]: flattenNodeIds(nodes) }));
-  }, []);
+    applyExpandedItemsChange(sectionId, flattenNodeIds(nodes));
+  }, [applyExpandedItemsChange]);
 
   const collapseAllInSection = useCallback((sectionId: ExplorerSectionId) => {
-    setExpandedBySection((current) => ({ ...current, [sectionId]: [] }));
-  }, []);
+    applyExpandedItemsChange(sectionId, []);
+  }, [applyExpandedItemsChange]);
 
   const sectionsById = useMemo(() => {
     const map = new Map<ExplorerSectionId, ExplorerSectionSnapshot>();
@@ -2678,16 +2678,17 @@ export function ContainerlabExplorerView() {
   );
 
   useEffect(() => {
-    if (!uiStateHydrated) {
-      return;
-    }
-
-    const uiState: ExplorerUiState = {
+    const uiState = buildExplorerUiState({
       sectionOrder,
       collapsedBySection,
       expandedBySection,
       heightRatioBySection
-    };
+    });
+    latestUiStateRef.current = uiState;
+
+    if (!uiStateHydrated) {
+      return;
+    }
 
     if (uiStateTimeoutRef.current !== null) {
       window.clearTimeout(uiStateTimeoutRef.current);

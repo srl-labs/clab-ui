@@ -12,7 +12,6 @@
     "strict": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
       "@webview/*": ["./src/*"],
       "@webviews/*": ["./src/webviews/*"],

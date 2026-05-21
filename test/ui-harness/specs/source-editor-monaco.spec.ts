@@ -310,7 +310,7 @@ test.describe("Monaco YAML source editor", () => {
       "  nodes:",
       "    srl1:",
       "      kind: nokia_srlinux",
-      "      type: ixrd1",
+      "      type: ixr-d1",
       "      image: ghcr.io/nokia/srlinux:latest",
       "    client1:",
       "      kind: linux",

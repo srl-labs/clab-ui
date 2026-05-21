@@ -131,7 +131,7 @@ test("schema completions do not fall back to root properties inside node configs
       "  nodes:",
       "    srl1:",
       "      kind: nokia_srlinux",
-      "      type: ixrd1",
+      "      type: ixr-d1",
       "      image: ghcr.io/nokia/srlinux:latest",
       "    client1:",
       "      kind: linux",

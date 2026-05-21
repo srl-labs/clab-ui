@@ -2,17 +2,23 @@ import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import BuildIcon from "@mui/icons-material/Build";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import CodeIcon from "@mui/icons-material/Code";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CssIcon from "@mui/icons-material/Css";
+import DataObjectOutlinedIcon from "@mui/icons-material/DataObjectOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import FilterAltIcon from "@mui/icons-material/FilterAlt";
 import FolderIcon from "@mui/icons-material/Folder";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import ForumOutlinedIcon from "@mui/icons-material/ForumOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import HtmlIcon from "@mui/icons-material/Html";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import JavascriptIcon from "@mui/icons-material/Javascript";
 import LinkIcon from "@mui/icons-material/Link";
 import LinkOffIcon from "@mui/icons-material/LinkOff";
 import ManageSearchIcon from "@mui/icons-material/ManageSearch";
@@ -75,6 +81,7 @@ import {
 } from "../components/context-menu/ContextMenu";
 import { useMessageListener, useReadySignal } from "./shared/hooks";
 import {
+  EXPLORER_SECTION_IDS,
   EXPLORER_SECTION_ORDER,
   type ExplorerAction,
   type ExplorerIncomingMessage,
@@ -83,6 +90,16 @@ import {
   type ExplorerSectionSnapshot,
   type ExplorerUiState
 } from "./shared/explorer/types";
+import {
+  buildExplorerUiState,
+  flattenDescendantNodeIds,
+  flattenExpandableNodeIds,
+  flattenNodeIds,
+  nextExpandedBySectionForSnapshot,
+  nextExpandedItemsForNodeToggle,
+  shouldPersistExpandedSectionImmediately,
+  withExpandedSectionItems
+} from "./explorerUiState";
 
 const COLOR_ERROR_MAIN = "error.main";
 const COLOR_TEXT_PRIMARY = "text.primary";
@@ -93,6 +110,7 @@ const UI_STATE_UPDATE_DEBOUNCE_MS = 160;
 const DEFAULT_EXPANDED_SECTIONS = new Set<ExplorerSectionId>([
   "runningLabs",
   "localLabs",
+  "fileExplorer",
   "helpFeedback"
 ]);
 const TREE_DEPTH_INDENT = 1.25;
@@ -146,7 +164,7 @@ type ActionGroupId =
   | "danger"
   | "other";
 
-type ExplorerNodeKind = "lab" | "container" | "interface" | "link" | "other";
+type ExplorerNodeKind = "lab" | "container" | "interface" | "link" | "file" | "other";
 
 interface ExplorerActionGroup {
   id: ActionGroupId;
@@ -216,6 +234,7 @@ const ACTION_GROUP_ORDER_BY_NODE_KIND: Record<ExplorerNodeKind, ActionGroupId[]>
   ],
   interface: ACTION_GROUP_ORDER_DEFAULT,
   link: ["sharing", "copy", "view", "topology", "graph", "lifecycle", "save", "network", "inspect", "tools", "other", "access"],
+  file: ["topology", "view", "copy", "tools", "other", "danger"],
   other: ACTION_GROUP_ORDER_DEFAULT
 };
 
@@ -251,10 +270,20 @@ const ACTION_ICON_BY_COMMAND: Record<string, SvgIconComponent> = {
   "containerlab.lab.gotty.attach": OpenInBrowserIcon,
   "containerlab.lab.gotty.detach": OpenInBrowserIcon,
   "containerlab.lab.gotty.reattach": OpenInBrowserIcon,
-  "containerlab.lab.gotty.copylink": OpenInBrowserIcon
+  "containerlab.lab.gotty.copylink": OpenInBrowserIcon,
+  "containerlab.file.open": ArticleOutlinedIcon,
+  "containerlab.file.opentopology": AccountTreeIcon,
+  "containerlab.file.newfile": NoteAddIcon,
+  "containerlab.file.newfolder": FolderOpenIcon,
+  "containerlab.file.download": DownloadOutlinedIcon,
+  "containerlab.file.downloadarchive": DownloadOutlinedIcon,
+  "containerlab.file.upload": FileUploadOutlinedIcon,
+  "containerlab.lab.downloadarchive": DownloadOutlinedIcon
 };
 
 const ACTION_ICON_RULES: ReadonlyArray<CommandIconRule> = [
+  { match: (command) => command.includes("upload"), icon: FileUploadOutlinedIcon },
+  { match: (command) => command.includes("download"), icon: DownloadOutlinedIcon },
   { match: (command) => command.includes("copy"), icon: ContentCopyIcon },
   {
     match: (command) =>
@@ -359,6 +388,10 @@ const ACTION_GROUP_RULES: ReadonlyArray<CommandActionGroupRule> = [
     group: "danger"
   },
   {
+    match: (command) => command.startsWith("containerlab.file."),
+    group: "topology"
+  },
+  {
     match: (command) =>
       command.includes("filter") ||
       command.includes("hide") ||
@@ -372,6 +405,7 @@ const ACTION_GROUP_SECTION_DEFAULT_BY_NODE_KIND: Record<ExplorerNodeKind, number
   container: 3,
   interface: 1,
   link: 2,
+  file: 1,
   other: 1
 };
 
@@ -399,6 +433,12 @@ const ACTION_GROUP_SECTION_BY_NODE_KIND: Partial<
   link: {
     sharing: 1,
     copy: 1
+  },
+  file: {
+    topology: 1,
+    view: 1,
+    copy: 2,
+    danger: 3
   }
 };
 
@@ -476,35 +516,6 @@ function sectionHeaderHeight(section: ExplorerSectionSnapshot): number {
   return isBareTreeSection(section) ? 0 : SECTION_HEADER_HEIGHT_PX;
 }
 
-function flattenNodeIds(nodes: ExplorerNode[]): string[] {
-  const ids: string[] = [];
-  for (const node of nodes) {
-    ids.push(node.id);
-    ids.push(...flattenNodeIds(node.children));
-  }
-  return ids;
-}
-
-function flattenExpandableNodeIds(nodes: ExplorerNode[]): string[] {
-  const ids: string[] = [];
-  for (const node of nodes) {
-    if (node.children.length > 0) {
-      ids.push(node.id);
-      ids.push(...flattenExpandableNodeIds(node.children));
-    }
-  }
-  return ids;
-}
-
-function flattenDescendantNodeIds(node: ExplorerNode): string[] {
-  const ids: string[] = [];
-  for (const child of node.children) {
-    ids.push(child.id);
-    ids.push(...flattenDescendantNodeIds(child));
-  }
-  return ids;
-}
-
 function mergeSectionOrder(
   currentOrder: ExplorerSectionId[],
   sections: ExplorerSectionSnapshot[]
@@ -513,9 +524,15 @@ function mergeSectionOrder(
   const visibleSet = new Set(visibleIds);
 
   const nextOrder = currentOrder.filter((id) => visibleSet.has(id));
-  for (const sectionId of visibleIds) {
+  for (let index = 0; index < visibleIds.length; index += 1) {
+    const sectionId = visibleIds[index];
     if (!nextOrder.includes(sectionId)) {
-      nextOrder.push(sectionId);
+      const previousVisibleId = visibleIds
+        .slice(0, index)
+        .reverse()
+        .find((id) => nextOrder.includes(id));
+      const insertIndex = previousVisibleId ? nextOrder.indexOf(previousVisibleId) + 1 : 0;
+      nextOrder.splice(insertIndex, 0, sectionId);
     }
   }
 
@@ -542,7 +559,7 @@ function reorderSections(
 }
 
 function isExplorerSectionId(value: string): value is ExplorerSectionId {
-  return EXPLORER_SECTION_ORDER.includes(value as ExplorerSectionId);
+  return EXPLORER_SECTION_IDS.includes(value as ExplorerSectionId);
 }
 
 function nodeKindFromContext(contextValue: string | undefined): ExplorerNodeKind {
@@ -561,6 +578,14 @@ function nodeKindFromContext(contextValue: string | undefined): ExplorerNodeKind
   if (contextValue === "containerlabSSHXLink" || contextValue === "containerlabGottyLink") {
     return "link";
   }
+  if (
+    contextValue === "containerlabFileExplorerRoot" ||
+    contextValue === "containerlabFileFolder" ||
+    contextValue === "containerlabFile" ||
+    contextValue === "containerlabFileTopology"
+  ) {
+    return "file";
+  }
   return "other";
 }
 
@@ -577,6 +602,10 @@ function isEndpointSectionNode(contextValue: string | undefined): boolean {
 
 function isEndpointDisconnectedNode(contextValue: string | undefined): boolean {
   return contextValue === "containerlabEndpointDisconnected";
+}
+
+function isFileExplorerFolderNode(contextValue: string | undefined): boolean {
+  return contextValue === "containerlabFileExplorerRoot" || contextValue === "containerlabFileFolder";
 }
 
 function endpointStatusLabel(
@@ -909,10 +938,67 @@ function helpFeedbackIconForNode(node: ExplorerNode): SvgIconComponent {
   return DescriptionOutlinedIcon;
 }
 
+interface ExplorerLeadingIcon {
+  Icon: SvgIconComponent;
+  color: string;
+}
+
+interface FileIconRule {
+  color: string;
+  icon: SvgIconComponent;
+  match: RegExp;
+}
+
+const FILE_ICON_DEFAULT_COLOR = "#90a4ae";
+const FILE_ICON_FOLDER_COLOR = "#dcb67a";
+const FILE_ICON_ENDPOINT_COLOR = "#42a5f5";
+
+const FILE_ICON_RULES: FileIconRule[] = [
+  { match: /\.clab\.ya?ml$/i, icon: AccountTreeIcon, color: "#519aba" },
+  { match: /\.ya?ml$/i, icon: DataObjectOutlinedIcon, color: "#cbcb41" },
+  { match: /\.jsonc?$/i, icon: DataObjectOutlinedIcon, color: "#cbcb41" },
+  { match: /\.(drawio|xml|xsd|svg|xhtml|xaml|plist|gml|kml|wsdl)$/i, icon: CodeIcon, color: "#e37933" },
+  { match: /\.html?$/i, icon: HtmlIcon, color: "#e44d26" },
+  { match: /\.css$/i, icon: CssIcon, color: "#42a5f5" },
+  { match: /\.(scss|sass)$/i, icon: CssIcon, color: "#c6538c" },
+  { match: /\.less$/i, icon: CssIcon, color: "#2b7489" },
+  { match: /\.(js|jsx|mjs|cjs)$/i, icon: JavascriptIcon, color: "#f1e05a" },
+  { match: /\.(ts|tsx)$/i, icon: CodeIcon, color: "#3178c6" },
+  { match: /\.mdx?$/i, icon: ArticleOutlinedIcon, color: "#519aba" },
+  { match: /\.(sh|bash|zsh|fish)$/i, icon: TerminalIcon, color: "#89e051" },
+  { match: /\.ps1$/i, icon: TerminalIcon, color: "#5391fe" },
+  { match: /\.(bat|cmd)$/i, icon: TerminalIcon, color: "#c1f12e" },
+  { match: /\.(py|pyw)$/i, icon: CodeIcon, color: "#3572a5" },
+  { match: /\.go$/i, icon: CodeIcon, color: "#00add8" },
+  { match: /\.rs$/i, icon: CodeIcon, color: "#dea584" },
+  { match: /\.(c|cc|cpp|cxx|h|hpp)$/i, icon: CodeIcon, color: "#659ad2" },
+  { match: /\.cs$/i, icon: CodeIcon, color: "#68217a" },
+  { match: /\.java$/i, icon: CodeIcon, color: "#e76f00" },
+  { match: /\.php$/i, icon: CodeIcon, color: "#777bb4" },
+  { match: /\.rb$/i, icon: CodeIcon, color: "#cc342d" },
+  { match: /\.(sql|mysql|pgsql)$/i, icon: DataObjectOutlinedIcon, color: "#f29111" },
+  { match: /\.(tf|tfvars|hcl)$/i, icon: DataObjectOutlinedIcon, color: "#844fba" },
+  { match: /\.proto$/i, icon: DataObjectOutlinedIcon, color: "#e37933" },
+  { match: /\.(ini|conf|cfg|properties|env)$/i, icon: DataObjectOutlinedIcon, color: "#6d8086" },
+  { match: /\.(lic|license|pem|crt|key)$/i, icon: DescriptionOutlinedIcon, color: "#f9c74f" }
+];
+
+function fileIconForNode(node: ExplorerNode): ExplorerLeadingIcon {
+  const fileName = node.label.toLowerCase();
+  if (/^dockerfile(?:\..*)?$/i.test(fileName) || /\.dockerfile$/i.test(fileName)) {
+    return { Icon: HubOutlinedIcon, color: "#2496ed" };
+  }
+
+  const rule = FILE_ICON_RULES.find((entry) => entry.match.test(fileName));
+  return rule
+    ? { Icon: rule.icon, color: rule.color }
+    : { Icon: DescriptionOutlinedIcon, color: FILE_ICON_DEFAULT_COLOR };
+}
+
 function nodeLeadingIcon(
   node: ExplorerNode,
   sectionId: ExplorerSectionId
-): { Icon: SvgIconComponent; color: string } | undefined {
+): ExplorerLeadingIcon | undefined {
   if (isHelpFeedbackLinkNode(node, sectionId)) {
     return { Icon: helpFeedbackIconForNode(node), color: COLOR_TEXT_SECONDARY };
   }
@@ -928,7 +1014,19 @@ function nodeLeadingIcon(
     return { Icon: LinkOffIcon, color: "error.main" };
   }
   if (context === "containerlabFolder") {
-    return { Icon: FolderIcon, color: COLOR_TEXT_SECONDARY };
+    return { Icon: FolderIcon, color: FILE_ICON_FOLDER_COLOR };
+  }
+  if (context === "containerlabFileExplorerRoot") {
+    return { Icon: HubOutlinedIcon, color: FILE_ICON_ENDPOINT_COLOR };
+  }
+  if (context === "containerlabFileFolder") {
+    return { Icon: FolderIcon, color: FILE_ICON_FOLDER_COLOR };
+  }
+  if (context === "containerlabFileTopology") {
+    return fileIconForNode(node);
+  }
+  if (context === "containerlabFile") {
+    return fileIconForNode(node);
   }
   if (typeof context === "string" && context.includes("containerlabLabUndeployed")) {
     return { Icon: DescriptionOutlinedIcon, color: COLOR_TEXT_SECONDARY };
@@ -1060,6 +1158,12 @@ function buildNodeContextMenuItems(
   }
 
   const groupedActions = groupActions(menuActions, nodeKind);
+  if (nodeKind === "file") {
+    return withSectionDividers(groupedActions, nodeKind, (group) =>
+      group.actions.map((action) => toContextMenuItem(action, onInvokeAction))
+    );
+  }
+
   return withSectionDividers(groupedActions, nodeKind, (group) =>
     toGroupMenuItems(group, onInvokeAction)
   );
@@ -1735,11 +1839,12 @@ function SectionTreeNode({
   onToggleExpanded,
   onInvokeAction
 }: Readonly<SectionTreeNodeProps>) {
-  const hasChildren = node.children.length > 0;
+  const hasChildren = node.hasChildren || node.children.length > 0;
   const isExpanded = expandedItems.includes(node.id);
   const isEndpointRoot = isEndpointNode(node.contextValue);
   const isEndpointSection = isEndpointSectionNode(node.contextValue);
-  const toggleOnRowClick = hasChildren && (isEndpointRoot || isEndpointSection);
+  const toggleOnRowClick =
+    hasChildren && (isEndpointRoot || isEndpointSection || isFileExplorerFolderNode(node.contextValue));
   const rowMinHeight = endpointRowHeight(isEndpointRoot, isEndpointSection);
 
   return (
@@ -1844,34 +1949,20 @@ function SectionTree({
 
   const toggleExpanded = useCallback(
     (nodeId: string) => {
-      const isExpanded = expandedItems.includes(nodeId);
       const node = nodeById.get(nodeId);
       const shouldResetEndpointDescendants = Boolean(node && isEndpointNode(node.contextValue));
-      const descendantIds = shouldResetEndpointDescendants ? (descendantIdsByNodeId.get(nodeId) ?? []) : [];
-      const descendantSet = shouldResetEndpointDescendants ? new Set(descendantIds) : null;
-      const endpointSectionIds = shouldResetEndpointDescendants
+      const childIdsToExpand = shouldResetEndpointDescendants
         ? (node?.children ?? []).map((child) => child.id)
         : [];
-
-      if (isExpanded) {
-        onExpandedItemsChange(
-          expandedItems.filter((id) => id !== nodeId && !(descendantSet?.has(id) ?? false))
-        );
-        return;
-      }
-
-      const nextExpanded = descendantSet
-        ? expandedItems.filter((id) => !descendantSet.has(id))
-        : [...expandedItems];
-      if (!nextExpanded.includes(nodeId)) {
-        nextExpanded.push(nodeId);
-      }
-      for (const childId of endpointSectionIds) {
-        if (!nextExpanded.includes(childId)) {
-          nextExpanded.push(childId);
-        }
-      }
-      onExpandedItemsChange(nextExpanded);
+      onExpandedItemsChange(
+        nextExpandedItemsForNodeToggle({
+          childIdsToExpand,
+          descendantIds: descendantIdsByNodeId.get(nodeId) ?? [],
+          expandedItems,
+          nodeId,
+          resetDescendants: shouldResetEndpointDescendants
+        })
+      );
     },
     [descendantIdsByNodeId, expandedItems, nodeById, onExpandedItemsChange]
   );
@@ -2271,8 +2362,14 @@ export function ContainerlabExplorerView() {
   const filterTimeoutRef = useRef<number | null>(null);
   const uiStateTimeoutRef = useRef<number | null>(null);
   const expandedBeforeFilterRef = useRef<Partial<Record<ExplorerSectionId, string[]>> | null>(null);
-
-  useReadySignal();
+  const latestUiStateRef = useRef<ExplorerUiState>(
+    buildExplorerUiState({
+      sectionOrder,
+      collapsedBySection,
+      expandedBySection,
+      heightRatioBySection
+    })
+  );
 
   const handleSnapshotMessage = useCallback((message: SnapshotExplorerMessage) => {
     const pending = pendingFilterSyncRef.current;
@@ -2283,7 +2380,6 @@ export function ContainerlabExplorerView() {
       pendingFilterSyncRef.current = null;
     }
 
-    const filterActive = message.filterText.length > 0;
     setSections(message.sections);
     setSectionOrder((currentOrder) => mergeSectionOrder(currentOrder, message.sections));
     setCollapsedBySection((current) => {
@@ -2293,7 +2389,7 @@ export function ContainerlabExplorerView() {
           ? false
           : (current[section.id] ?? !DEFAULT_EXPANDED_SECTIONS.has(section.id));
       }
-      if (filterActive) {
+      if (message.filterText.length > 0) {
         next.runningLabs = false;
         next.localLabs = false;
       }
@@ -2301,26 +2397,14 @@ export function ContainerlabExplorerView() {
     });
 
     setExpandedBySection((current) => {
-      if (filterActive) {
-        if (!expandedBeforeFilterRef.current) {
-          expandedBeforeFilterRef.current = current;
-        }
-        const next: Partial<Record<ExplorerSectionId, string[]>> = { ...current };
-        for (const section of message.sections) {
-          if (section.id === "runningLabs" || section.id === "localLabs") {
-            next[section.id] = flattenExpandableNodeIds(section.nodes);
-          }
-        }
-        return next;
-      }
-
-      if (expandedBeforeFilterRef.current) {
-        const restored = expandedBeforeFilterRef.current;
-        expandedBeforeFilterRef.current = null;
-        return restored;
-      }
-
-      return current;
+      const next = nextExpandedBySectionForSnapshot({
+        current,
+        expandedBeforeFilter: expandedBeforeFilterRef.current,
+        filterText: message.filterText,
+        sections: message.sections
+      });
+      expandedBeforeFilterRef.current = next.expandedBeforeFilter ?? null;
+      return next.expandedBySection ?? current;
     });
 
     setFilterText(message.filterText);
@@ -2383,6 +2467,7 @@ export function ContainerlabExplorerView() {
       }
     }, [handleErrorMessage, handleFilterStateMessage, handleSnapshotMessage, handleUiStateMessage])
   );
+  useReadySignal();
 
   const invokeAction = useCallback(
     (action: ExplorerAction) => {
@@ -2392,6 +2477,21 @@ export function ContainerlabExplorerView() {
       void Promise.resolve(host.explorer.invokeAction(action.actionRef));
     },
     [host]
+  );
+
+  const persistExplorerUiStateImmediately = useCallback(
+    (uiState: ExplorerUiState) => {
+      latestUiStateRef.current = uiState;
+      if (uiStateTimeoutRef.current !== null) {
+        window.clearTimeout(uiStateTimeoutRef.current);
+        uiStateTimeoutRef.current = null;
+      }
+      if (!uiStateHydrated) {
+        return;
+      }
+      void Promise.resolve(host.explorer.persistUiState(uiState));
+    },
+    [host, uiStateHydrated]
   );
 
   const handleFilterChange = useCallback(
@@ -2417,17 +2517,40 @@ export function ContainerlabExplorerView() {
     [host]
   );
 
-  const handleExpandedItemsChange = useCallback((sectionId: ExplorerSectionId, itemIds: string[]) => {
-    setExpandedBySection((current) => ({ ...current, [sectionId]: itemIds }));
-  }, []);
+  const applyExpandedItemsChange = useCallback(
+    (sectionId: ExplorerSectionId, itemIds: string[]) => {
+      const nextExpandedBySection = withExpandedSectionItems(
+        latestUiStateRef.current.expandedBySection,
+        sectionId,
+        itemIds
+      );
+      const nextUiState = {
+        ...latestUiStateRef.current,
+        expandedBySection: nextExpandedBySection
+      };
+      latestUiStateRef.current = nextUiState;
+      setExpandedBySection(nextExpandedBySection);
+      if (shouldPersistExpandedSectionImmediately(sectionId)) {
+        persistExplorerUiStateImmediately(nextUiState);
+      }
+    },
+    [persistExplorerUiStateImmediately]
+  );
+
+  const handleExpandedItemsChange = useCallback(
+    (sectionId: ExplorerSectionId, itemIds: string[]) => {
+      applyExpandedItemsChange(sectionId, itemIds);
+    },
+    [applyExpandedItemsChange]
+  );
 
   const expandAllInSection = useCallback((sectionId: ExplorerSectionId, nodes: ExplorerNode[]) => {
-    setExpandedBySection((current) => ({ ...current, [sectionId]: flattenNodeIds(nodes) }));
-  }, []);
+    applyExpandedItemsChange(sectionId, flattenNodeIds(nodes));
+  }, [applyExpandedItemsChange]);
 
   const collapseAllInSection = useCallback((sectionId: ExplorerSectionId) => {
-    setExpandedBySection((current) => ({ ...current, [sectionId]: [] }));
-  }, []);
+    applyExpandedItemsChange(sectionId, []);
+  }, [applyExpandedItemsChange]);
 
   const sectionsById = useMemo(() => {
     const map = new Map<ExplorerSectionId, ExplorerSectionSnapshot>();
@@ -2555,16 +2678,17 @@ export function ContainerlabExplorerView() {
   );
 
   useEffect(() => {
-    if (!uiStateHydrated) {
-      return;
-    }
-
-    const uiState: ExplorerUiState = {
+    const uiState = buildExplorerUiState({
       sectionOrder,
       collapsedBySection,
       expandedBySection,
       heightRatioBySection
-    };
+    });
+    latestUiStateRef.current = uiState;
+
+    if (!uiStateHydrated) {
+      return;
+    }
 
     if (uiStateTimeoutRef.current !== null) {
       window.clearTimeout(uiStateTimeoutRef.current);

@@ -14,7 +14,7 @@ test("adding nodes and links to an empty document emits block-style topology YAM
     name: "srl1",
     extraData: {
       kind: "nokia_srlinux",
-      type: "ixrd1",
+      type: "ixr-d1",
       image: "ghcr.io/nokia/srlinux:latest"
     }
   }), { success: true });
@@ -42,7 +42,7 @@ test("adding nodes and links to an empty document emits block-style topology YAM
   nodes:
     srl1:
       kind: nokia_srlinux
-      type: ixrd1
+      type: ixr-d1
       image: ghcr.io/nokia/srlinux:latest
     client1:
       kind: linux

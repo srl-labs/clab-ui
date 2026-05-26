@@ -1,6 +1,6 @@
 {
   "name": "@srl-labs/clab-ui",
-  "version": "0.0.34",
+  "version": "0.0.35",
   "private": false,
   "description": "Shared UI package for containerlab webviews and topology editing.",
   "license": "Apache-2.0",

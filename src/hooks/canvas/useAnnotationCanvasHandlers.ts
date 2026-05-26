@@ -86,10 +86,9 @@ function useWrappedPaneClick(
 
       // Handle Shift+Click for node creation in edit mode
       if (event.shiftKey && mode === "edit" && !isLocked && onShiftClickCreate !== undefined) {
-        const bounds = event.currentTarget.getBoundingClientRect();
         const position = rfInstance.screenToFlowPosition({
-          x: event.clientX - bounds.left,
-          y: event.clientY - bounds.top
+          x: event.clientX,
+          y: event.clientY
         });
         log.info(`[ReactFlowCanvas] Shift+Click: Creating node at (${position.x}, ${position.y})`);
         onShiftClickCreate(snapToGrid(position));
@@ -97,10 +96,9 @@ function useWrappedPaneClick(
       }
 
       if (annotationMode?.isAddTextMode === true && annotationHandlers !== undefined) {
-        const bounds = event.currentTarget.getBoundingClientRect();
         const position = rfInstance.screenToFlowPosition({
-          x: event.clientX - bounds.left,
-          y: event.clientY - bounds.top
+          x: event.clientX,
+          y: event.clientY
         });
         log.info(`[ReactFlowCanvas] Adding text at (${position.x}, ${position.y})`);
         annotationHandlers.onAddTextClick(position);
@@ -108,10 +106,9 @@ function useWrappedPaneClick(
       }
 
       if (annotationMode?.isAddShapeMode === true && annotationHandlers !== undefined) {
-        const bounds = event.currentTarget.getBoundingClientRect();
         const position = rfInstance.screenToFlowPosition({
-          x: event.clientX - bounds.left,
-          y: event.clientY - bounds.top
+          x: event.clientX,
+          y: event.clientY
         });
         log.info(`[ReactFlowCanvas] Adding shape at (${position.x}, ${position.y})`);
         annotationHandlers.onAddShapeClick(position);

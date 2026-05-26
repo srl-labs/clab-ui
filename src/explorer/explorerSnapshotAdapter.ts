@@ -69,6 +69,7 @@ export interface ExplorerCommandMetadata {
   contributedEndpointActions?: readonly ExplorerContributedMenuItem[];
   contributedFileActions?: readonly ExplorerContributedMenuItem[];
   contributedLabActions?: readonly ExplorerContributedMenuItem[];
+  contributedSectionContextActions?: Partial<Record<ExplorerSectionId, readonly ExplorerContributedMenuItem[]>>;
   contributedToolbarActions?: Partial<Record<ExplorerSectionId, readonly ExplorerContributedMenuItem[]>>;
   commandLabels?: ReadonlyMap<string, string>;
   commandIcons?: ReadonlyMap<string, string>;
@@ -1105,6 +1106,29 @@ function toolbarActionsForSection(
   return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);
 }
 
+function contextActionsForSection(
+  sectionId: ExplorerSectionId,
+  registry: ExplorerActionRegistry,
+  options: ExplorerSnapshotOptions
+): ExplorerAction[] {
+  const actions: ExplorerAction[] = [];
+  const seen = new Set<string>();
+  const commandLabels = options.commandMetadata?.commandLabels ?? new Map<string, string>();
+  const commandIcons = options.commandMetadata?.commandIcons ?? new Map<string, string>();
+
+  appendContributedActions(
+    actions,
+    seen,
+    registry,
+    undefined,
+    options.commandMetadata?.contributedSectionContextActions?.[sectionId] ?? [],
+    commandLabels,
+    commandIcons
+  );
+
+  return filterHiddenActions(applyCommandIcons(actions, commandIcons), options);
+}
+
 async function buildSectionSnapshot(
   sectionId: ExplorerSectionId,
   provider: ExplorerTreeProvider,
@@ -1117,7 +1141,8 @@ async function buildSectionSnapshot(
     label: EXPLORER_SECTION_LABELS[sectionId],
     count: countForSection(sectionId, nodes),
     nodes,
-    toolbarActions: toolbarActionsForSection(sectionId, registry, options)
+    toolbarActions: toolbarActionsForSection(sectionId, registry, options),
+    contextActions: contextActionsForSection(sectionId, registry, options)
   };
 }
 
@@ -1163,7 +1188,8 @@ async function buildSectionSnapshotSafe(
       label: EXPLORER_SECTION_LABELS[sectionId],
       count: 0,
       nodes: [],
-      toolbarActions: toolbarActionsForSection(sectionId, registry, options)
+      toolbarActions: toolbarActionsForSection(sectionId, registry, options),
+      contextActions: contextActionsForSection(sectionId, registry, options)
     };
   }
 }

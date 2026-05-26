@@ -595,13 +595,14 @@ async function performPaste(params: PerformPasteParams): Promise<boolean> {
 
   const pastePosition = calculatePastePosition(params.position, params.rfInstance ?? null);
   pasteCounter++;
+  const pasteOffset = params.position ? 0 : pasteCounter * 20;
 
   const currentNodes = params.rfInstance?.getNodes() ?? params.getNodes();
   const existingNodeIds = new Set<string>(currentNodes.map((n: { id: string }) => n.id));
 
   const ctx = createPasteContext(clipboardData, {
     pastePosition,
-    offset: pasteCounter * 20,
+    offset: pasteOffset,
     addNode: params.addNode,
     addEdge: params.addEdge,
     onNodeCreated: params.onPasteComplete ? undefined : params.onNodeCreated,

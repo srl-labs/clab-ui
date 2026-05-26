@@ -22,6 +22,35 @@ interface AnnotationsClipboardSubset {
 
 /** Debounce interval in milliseconds */
 const DEBOUNCE_MS = 50;
+const CANVAS_SELECTOR = ".react-flow-canvas, .react-flow";
+
+type FlowPosition = { x: number; y: number };
+
+function mouseEventIsOverCanvas(event: MouseEvent): boolean {
+  const canvases = document.querySelectorAll(CANVAS_SELECTOR);
+  for (const canvas of canvases) {
+    const rect = canvas.getBoundingClientRect();
+    if (
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function mouseEventToFlowPosition(
+  event: MouseEvent,
+  rfInstance: ReactFlowInstance
+): FlowPosition {
+  return rfInstance.screenToFlowPosition({
+    x: event.clientX,
+    y: event.clientY
+  });
+}
 
 /**
  * Configuration for useClipboardHandlers hook
@@ -119,6 +148,30 @@ export function useClipboardHandlers(config: ClipboardHandlersConfig): Clipboard
   const lastCopyTimeRef = React.useRef(0);
   const lastPasteTimeRef = React.useRef(0);
   const lastDuplicateTimeRef = React.useRef(0);
+  const lastCanvasPastePositionRef = React.useRef<FlowPosition | null>(null);
+
+  React.useEffect(() => {
+    if (!rfInstance) {
+      lastCanvasPastePositionRef.current = null;
+      return;
+    }
+
+    const handleMousePosition = (event: MouseEvent) => {
+      if (!mouseEventIsOverCanvas(event)) return;
+      lastCanvasPastePositionRef.current = mouseEventToFlowPosition(event, rfInstance);
+    };
+
+    window.addEventListener("mousedown", handleMousePosition, true);
+    window.addEventListener("mousemove", handleMousePosition, true);
+    window.addEventListener("pointerdown", handleMousePosition, true);
+    window.addEventListener("pointermove", handleMousePosition, true);
+    return () => {
+      window.removeEventListener("mousedown", handleMousePosition, true);
+      window.removeEventListener("mousemove", handleMousePosition, true);
+      window.removeEventListener("pointerdown", handleMousePosition, true);
+      window.removeEventListener("pointermove", handleMousePosition, true);
+    };
+  }, [rfInstance]);
 
   // Debounced copy
   const handleUnifiedCopy = React.useCallback(() => {
@@ -133,7 +186,7 @@ export function useClipboardHandlers(config: ClipboardHandlersConfig): Clipboard
     const now = Date.now();
     if (now - lastPasteTimeRef.current < DEBOUNCE_MS) return;
     lastPasteTimeRef.current = now;
-    void clipboard.paste();
+    void clipboard.paste(lastCanvasPastePositionRef.current ?? undefined);
   }, [clipboard]);
 
   // Debounced duplicate (copy + paste)

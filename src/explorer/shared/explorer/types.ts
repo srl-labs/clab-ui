@@ -54,6 +54,7 @@ export interface ExplorerSectionSnapshot {
   appearance?: "default" | "bareTree";
   nodes: ExplorerNode[];
   toolbarActions: ExplorerAction[];
+  contextActions?: ExplorerAction[];
 }
 
 export interface ExplorerUiState {

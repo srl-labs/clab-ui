@@ -1,4 +1,5 @@
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
+import AddIcon from "@mui/icons-material/Add";
 import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import BuildIcon from "@mui/icons-material/Build";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -239,6 +240,7 @@ const ACTION_GROUP_ORDER_BY_NODE_KIND: Record<ExplorerNodeKind, ActionGroupId[]>
 };
 
 const ACTION_ICON_BY_COMMAND: Record<string, SvgIconComponent> = {
+  "containerlab.endpoint.add": AddIcon,
   "containerlab.inspectall": ManageSearchIcon,
   "containerlab.treeview.runninglabs.hidenonownedlabs": VisibilityOffIcon,
   "containerlab.treeview.runninglabs.shownonownedlabs": VisibilityIcon,
@@ -278,7 +280,14 @@ const ACTION_ICON_BY_COMMAND: Record<string, SvgIconComponent> = {
   "containerlab.file.download": DownloadOutlinedIcon,
   "containerlab.file.downloadarchive": DownloadOutlinedIcon,
   "containerlab.file.upload": FileUploadOutlinedIcon,
-  "containerlab.lab.downloadarchive": DownloadOutlinedIcon
+  "containerlab.lab.downloadarchive": DownloadOutlinedIcon,
+  "containerlab.install.edgeshark": SettingsEthernetIcon,
+  "containerlab.uninstall.edgeshark": DeleteOutlineIcon,
+  "containerlab.capture.killallwiresharkvnc": StopIcon,
+  "containerlab.set.sessionhostname": SettingsEthernetIcon,
+  "containerlab.endpoint.reconnect": RefreshIcon,
+  "containerlab.endpoint.remove": DeleteOutlineIcon,
+  "containerlab.endpoint.copyurl": ContentCopyIcon
 };
 
 const ACTION_ICON_RULES: ReadonlyArray<CommandIconRule> = [
@@ -1148,11 +1157,74 @@ function buildInterfaceMenuItems(
   return interfaceItems;
 }
 
+const ENDPOINT_ROOT_MENU_COMMANDS = [
+  "containerlab.editor.topoViewerEditor",
+  "containerlab.lab.cloneRepo",
+  "containerlab.endpoint.reconnect",
+  "containerlab.endpoint.copyUrl",
+  "containerlab.endpoint.remove"
+] as const;
+
+const ENDPOINT_CAPTURE_MENU_COMMANDS = [
+  "containerlab.install.edgeshark",
+  "containerlab.uninstall.edgeshark",
+  "containerlab.capture.killAllWiresharkVNC",
+  "containerlab.set.sessionHostname"
+] as const;
+
+function findActionByCommandId(
+  actions: readonly ExplorerAction[],
+  commandId: string
+): ExplorerAction | undefined {
+  return actions.find((action) => action.commandId === commandId);
+}
+
+function buildEndpointMenuItems(
+  actions: ExplorerAction[],
+  onInvokeAction: (action: ExplorerAction) => void
+): ContextMenuItem[] {
+  const groupedCommandIds = new Set<string>([
+    ...ENDPOINT_ROOT_MENU_COMMANDS,
+    ...ENDPOINT_CAPTURE_MENU_COMMANDS
+  ]);
+  const rootItems = ENDPOINT_ROOT_MENU_COMMANDS
+    .map((commandId) => findActionByCommandId(actions, commandId))
+    .filter((action): action is ExplorerAction => Boolean(action))
+    .map((action) => toContextMenuItem(action, onInvokeAction));
+  const extraEndpointItems = actions
+    .filter((action) => !groupedCommandIds.has(action.commandId))
+    .map((action) => toContextMenuItem(action, onInvokeAction));
+  const captureItems = ENDPOINT_CAPTURE_MENU_COMMANDS
+    .map((commandId) => findActionByCommandId(actions, commandId))
+    .filter((action): action is ExplorerAction => Boolean(action))
+    .map((action) => toContextMenuItem(action, onInvokeAction));
+
+  if (captureItems.length === 0) {
+    return [...rootItems, ...extraEndpointItems];
+  }
+
+  return [
+    ...rootItems,
+    ...extraEndpointItems,
+    {
+      id: "group:endpoint:capture",
+      label: "Capture",
+      icon: <SettingsEthernetIcon fontSize="small" />,
+      children: captureItems
+    }
+  ];
+}
+
 function buildNodeContextMenuItems(
   menuActions: ExplorerAction[],
   nodeKind: ExplorerNodeKind,
+  contextValue: string | undefined,
   onInvokeAction: (action: ExplorerAction) => void
 ): ContextMenuItem[] {
+  if (isEndpointNode(contextValue)) {
+    return buildEndpointMenuItems(menuActions, onInvokeAction);
+  }
+
   if (nodeKind === "interface") {
     return buildInterfaceMenuItems(menuActions, onInvokeAction);
   }
@@ -1517,31 +1589,35 @@ function ExplorerEndpointActionButton({
   }
 
   return (
-    <IconButton
-      size="small"
-      className="explorer-node-actions-trigger"
-      disabled={action.disabled}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (action.disabled === true) {
-          return;
-        }
-        onInvokeAction(action);
-      }}
-      aria-label={ariaLabel}
-      sx={{
-        width: 20,
-        height: 20,
-        p: 0.25,
-        color: "text.secondary",
-        opacity: 0,
-        pointerEvents: "none",
-        transition: "opacity 120ms ease"
-      }}
-    >
-      <Icon sx={{ fontSize: 14 }} />
-    </IconButton>
+    <Tooltip title={action.label || ariaLabel} placement="bottom" enterDelay={300}>
+      <Box component="span" sx={{ display: "inline-flex" }}>
+        <IconButton
+          size="small"
+          className="explorer-node-actions-trigger"
+          disabled={action.disabled}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            if (action.disabled === true) {
+              return;
+            }
+            onInvokeAction(action);
+          }}
+          aria-label={ariaLabel}
+          sx={{
+            width: 20,
+            height: 20,
+            p: 0.25,
+            color: "text.secondary",
+            opacity: 0,
+            pointerEvents: "none",
+            transition: "opacity 120ms ease"
+          }}
+        >
+          <Icon sx={{ fontSize: 14 }} />
+        </IconButton>
+      </Box>
+    </Tooltip>
   );
 }
 
@@ -1728,8 +1804,8 @@ function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<Explore
   const menuActions = useMemo(() => filterNodeMenuActions(node.actions, nodeKind), [node.actions, nodeKind]);
   const hasActions = menuActions.length > 0 && !isDisconnectedPlaceholder;
   const contextMenuItems = useMemo<ContextMenuItem[]>(
-    () => buildNodeContextMenuItems(menuActions, nodeKind, onInvokeAction),
-    [menuActions, nodeKind, onInvokeAction]
+    () => buildNodeContextMenuItems(menuActions, nodeKind, node.contextValue, onInvokeAction),
+    [menuActions, node.contextValue, nodeKind, onInvokeAction]
   );
   const secondaryText = node.description || node.statusDescription;
   const {
@@ -2213,12 +2289,39 @@ function ExplorerSectionCard({
 }: Readonly<ExplorerSectionCardProps>) {
   const expandableIds = useMemo(() => flattenExpandableNodeIds(section.nodes), [section.nodes]);
   const bareTreeSection = isBareTreeSection(section);
+  const [sectionMenuPosition, setSectionMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [sectionMenuOpenToLeft, setSectionMenuOpenToLeft] = useState(false);
+  const sectionContextMenuItems = useMemo(
+    () => (section.contextActions ?? []).map((action) => toContextMenuItem(action, onInvokeAction)),
+    [onInvokeAction, section.contextActions]
+  );
 
   const allExpanded = useMemo(() => {
     return expandableIds.length > 0 && expandableIds.every((id) => expandedItems.includes(id));
   }, [expandableIds, expandedItems]);
 
   const showExpandAllControl = section.id !== "helpFeedback" && expandableIds.length > 0;
+  const handleSectionMenuClose = useCallback(() => {
+    setSectionMenuOpenToLeft(false);
+    setSectionMenuPosition(null);
+  }, []);
+  const handleSectionBodyContextMenu = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      if (sectionContextMenuItems.length === 0) {
+        return;
+      }
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('[data-explorer-node-row="true"]')) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      setSectionMenuOpenToLeft(event.clientX > window.innerWidth - 260);
+      setSectionMenuPosition({ x: event.clientX, y: event.clientY });
+    },
+    [sectionContextMenuItems.length]
+  );
 
   return (
     <Paper
@@ -2321,12 +2424,21 @@ function ExplorerSectionCard({
             minHeight: 0,
             overflowY: "auto"
           }}
+          onContextMenu={handleSectionBodyContextMenu}
         >
           <SectionTree
             section={section}
             expandedItems={expandedItems}
             onExpandedItemsChange={(itemIds) => onExpandedItemsChange(section.id, itemIds)}
             onInvokeAction={onInvokeAction}
+          />
+          <ContextMenu
+            isVisible={Boolean(sectionMenuPosition) && sectionContextMenuItems.length > 0}
+            position={sectionMenuPosition ?? { x: 0, y: 0 }}
+            items={sectionContextMenuItems}
+            compact
+            openToLeft={sectionMenuOpenToLeft}
+            onClose={handleSectionMenuClose}
           />
         </Box>
       )}

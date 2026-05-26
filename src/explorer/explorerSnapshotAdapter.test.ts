@@ -258,7 +258,7 @@ test("buildExplorerSnapshot applies host-contributed endpoint, lab, file, and to
     helpProvider: provider([])
   } as ExplorerSnapshotProviders;
 
-  const { snapshot } = await buildExplorerSnapshot(providers, "", {
+  const { snapshot, actionBindings } = await buildExplorerSnapshot(providers, "", {
     hideNonOwnedLabs: false,
     isLocalCaptureAllowed: true,
     sectionOrder: ["runningLabs", "fileExplorer"],
@@ -268,7 +268,8 @@ test("buildExplorerSnapshot applies host-contributed endpoint, lab, file, and to
         ["host.endpoint.import", "Import Archive"],
         ["host.lab.export", "Export Archive"],
         ["host.file.downloadArchive", "Download Archive"],
-        ["host.file.import", "Import Archive"]
+        ["host.file.import", "Import Archive"],
+        ["host.section.addEndpoint", "Add Endpoint"]
       ]),
       contributedEndpointActions: [{ commandId: "host.endpoint.import" }],
       contributedLabActions: [{ commandId: "host.lab.export" }],
@@ -280,6 +281,9 @@ test("buildExplorerSnapshot applies host-contributed endpoint, lab, file, and to
       ],
       contributedToolbarActions: {
         fileExplorer: [{ commandId: "host.file.import" }]
+      },
+      contributedSectionContextActions: {
+        runningLabs: [{ commandId: "host.section.addEndpoint" }]
       }
     }
   });
@@ -294,6 +298,12 @@ test("buildExplorerSnapshot applies host-contributed endpoint, lab, file, and to
     runningSection.nodes[0].children[0].actions.some((action) => action.commandId === "host.lab.export"),
     true
   );
+  const addEndpointAction = runningSection.contextActions?.find(
+    (action) => action.commandId === "host.section.addEndpoint"
+  );
+  assert.ok(addEndpointAction);
+  assert.equal(addEndpointAction.label, "Add Endpoint");
+  assert.equal(actionBindings.get(addEndpointAction.actionRef)?.commandId, "host.section.addEndpoint");
 
   const fileSection = snapshot.sections.find((section) => section.id === "fileExplorer");
   assert.ok(fileSection);

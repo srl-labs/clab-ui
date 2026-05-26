@@ -60,6 +60,22 @@ async function selectContextPanelText(page: Page): Promise<void> {
   });
 }
 
+async function screenToFlowPosition(
+  page: Page,
+  x: number,
+  y: number
+): Promise<{ x: number; y: number }> {
+  return await page.evaluate(
+    ({ clientX, clientY }) => {
+      const dev = (window as any).__DEV__;
+      const rf = dev?.rfInstance;
+      if (!rf?.screenToFlowPosition) return { x: 0, y: 0 };
+      return rf.screenToFlowPosition({ x: clientX, y: clientY });
+    },
+    { clientX: x, clientY: y }
+  );
+}
+
 test.describe("Copy, Paste, and Cut Operations", () => {
   test.beforeEach(async ({ topoViewerPage }) => {
     await topoViewerPage.resetFiles();
@@ -222,6 +238,31 @@ test.describe("Copy, Paste, and Cut Operations", () => {
     // When the copied selection is visible, paste is anchored near it (with a small offset).
     const distance = Math.hypot(offsetX, offsetY);
     expect(distance).toBeGreaterThan(10);
+  });
+
+  test("paste places node at canvas cursor position", async ({ topoViewerPage, page }) => {
+    await topoViewerPage.selectNode("srl1");
+    await topoViewerPage.copy();
+
+    const canvasBox = await topoViewerPage.getCanvas().boundingBox();
+    if (!canvasBox) throw new Error("Canvas bounding box unavailable");
+    const cursor = {
+      x: canvasBox.x + canvasBox.width * 0.72,
+      y: canvasBox.y + canvasBox.height * 0.62
+    };
+    const expectedPosition = await screenToFlowPosition(page, cursor.x, cursor.y);
+
+    await page.mouse.move(cursor.x, cursor.y);
+    await page.waitForTimeout(100);
+    await topoViewerPage.paste();
+
+    const nodeIds = await topoViewerPage.getNodeIds();
+    const pastedNodeId = nodeIds.find((id) => id !== "srl1" && id !== "srl2");
+    expect(pastedNodeId).toBeDefined();
+
+    const pastedPosition = await topoViewerPage.getNodePosition(pastedNodeId!);
+    expect(Math.abs(pastedPosition.x - expectedPosition.x)).toBeLessThan(5);
+    expect(Math.abs(pastedPosition.y - expectedPosition.y)).toBeLessThan(5);
   });
 
   test("paste persists to YAML", async ({ topoViewerPage, page }) => {

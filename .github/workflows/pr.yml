@@ -43,9 +43,6 @@ jobs:
         run: |
           "${{ steps.setup-chrome.outputs.chrome-path }}" --version
 
-      - name: Install Playwright ffmpeg
-        run: npx playwright install ffmpeg
-
       - name: Browser harness tests
         env:
           PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: ${{ steps.setup-chrome.outputs.chrome-path }}

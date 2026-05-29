@@ -22,7 +22,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:5184",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    video: isCI ? "off" : "retain-on-failure",
     actionTimeout: 15000,
     navigationTimeout: 30000
   },

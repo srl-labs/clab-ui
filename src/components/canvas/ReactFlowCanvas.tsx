@@ -46,8 +46,8 @@ import {
   useCanvasStore,
   useFitViewRequestId,
   useGraphActions,
+  useInteractionMode,
   useIsLocked,
-  useMode,
   useTopoViewerActions
 } from "../../stores";
 import { invertHexColor, resolveComputedColor } from "../../utils/color";
@@ -1089,7 +1089,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
     },
     ref
   ) => {
-    const mode = useMode();
+    const mode = useInteractionMode();
     const isLocked = useIsLocked();
     const {
       selectNode,

@@ -326,7 +326,9 @@ function normalizeGroupStyleAnnotations(
 function syncUndoRedo(snapshot: TopologySnapshot): void {
   useTopoViewerStore.getState().setInitialData({
     canUndo: snapshot.canUndo,
-    canRedo: snapshot.canRedo
+    canRedo: snapshot.canRedo,
+    liveApplyEnabled: snapshot.liveApplyEnabled === true,
+    pendingTopologyApply: snapshot.pendingTopologyApply === true
   });
 }
 
@@ -672,6 +674,8 @@ function buildInitialTopoViewerData(
     labName: snapshot.labName,
     mode: snapshot.mode,
     deploymentState: snapshot.deploymentState,
+    liveApplyEnabled: snapshot.liveApplyEnabled === true,
+    pendingTopologyApply: snapshot.pendingTopologyApply === true,
     labSettings: snapshot.labSettings,
     yamlFileName: snapshot.yamlFileName,
     annotationsFileName: snapshot.annotationsFileName,

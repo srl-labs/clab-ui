@@ -6,6 +6,7 @@
 /** Lifecycle commands */
 export const LIFECYCLE_COMMANDS = {
   DEPLOY_LAB: "deployLab",
+  APPLY_LAB: "applyLab",
   DESTROY_LAB: "destroyLab",
   REDEPLOY_LAB: "redeployLab",
   DEPLOY_LAB_CLEANUP: "deployLabCleanup",

@@ -35,6 +35,7 @@ interface TopologyHostCoreOptions {
   yamlFilePath: string;
   mode: "edit" | "view";
   deploymentState: DeploymentState;
+  liveApplyEnabled?: boolean;
   containerDataProvider?: ContainerDataProvider;
   setInternalUpdate?: (updating: boolean) => void;
   logger?: IOLogger;
@@ -80,6 +81,8 @@ export class TopologyHostCore implements TopologyHost {
   private yamlFilePath: string;
   private mode: "edit" | "view";
   private deploymentState: DeploymentState;
+  private liveApplyEnabled: boolean;
+  private pendingTopologyApply = false;
   private containerDataProvider?: ContainerDataProvider;
   private setInternalUpdate?: (updating: boolean) => void;
   private logger: IOLogger;
@@ -104,6 +107,7 @@ export class TopologyHostCore implements TopologyHost {
     this.yamlFilePath = options.yamlFilePath;
     this.mode = options.mode;
     this.deploymentState = options.deploymentState;
+    this.liveApplyEnabled = options.liveApplyEnabled === true;
     this.containerDataProvider = options.containerDataProvider;
     this.setInternalUpdate = options.setInternalUpdate;
     this.logger = options.logger ?? noopLogger;
@@ -128,7 +132,10 @@ export class TopologyHostCore implements TopologyHost {
 
   updateContext(
     context: Partial<
-      Pick<TopologyHostCoreOptions, "mode" | "deploymentState" | "containerDataProvider">
+      Pick<
+        TopologyHostCoreOptions,
+        "mode" | "deploymentState" | "liveApplyEnabled" | "containerDataProvider"
+      >
     >
   ): void {
     const modeChanged = context.mode !== undefined && context.mode !== this.mode;
@@ -137,6 +144,12 @@ export class TopologyHostCore implements TopologyHost {
 
     if (context.mode) this.mode = context.mode;
     if (context.deploymentState) this.deploymentState = context.deploymentState;
+    if (context.liveApplyEnabled !== undefined) {
+      this.liveApplyEnabled = context.liveApplyEnabled;
+    }
+    if (!this.canTrackPendingTopologyApply()) {
+      this.pendingTopologyApply = false;
+    }
     if (context.containerDataProvider !== undefined) {
       this.containerDataProvider = context.containerDataProvider;
     }
@@ -210,6 +223,8 @@ export class TopologyHostCore implements TopologyHost {
       this.setInternalUpdate?.(false);
     }
 
+    this.markPendingTopologyApplyForCommand(command);
+
     const now = Date.now();
     const mergeHistory = this.historyMergeUntil !== null && now <= this.historyMergeUntil;
     const skipHistory = shouldSkipHistory(command);
@@ -236,13 +251,16 @@ export class TopologyHostCore implements TopologyHost {
     };
   }
 
-  async onExternalChange(): Promise<TopologySnapshot> {
+  async onExternalChange(options: { topologyChanged?: boolean } = {}): Promise<TopologySnapshot> {
     this.past = [];
     this.future = [];
     this.revision += 1;
     try {
       this.setInternalUpdate?.(true);
       await this.reloadFromDisk();
+      if (options.topologyChanged === true) {
+        this.markPendingTopologyApply();
+      }
       this.snapshot = await this.buildSnapshot();
       return this.snapshot;
     } finally {
@@ -255,6 +273,29 @@ export class TopologyHostCore implements TopologyHost {
     this.future = [];
     this.snapshot = null;
     this.annotationsIO.clearCache();
+  }
+
+  async markTopologyApplied(): Promise<TopologySnapshot> {
+    this.pendingTopologyApply = false;
+    this.revision += 1;
+    this.snapshot = await this.buildSnapshot();
+    return this.snapshot;
+  }
+
+  private canTrackPendingTopologyApply(): boolean {
+    return this.liveApplyEnabled && this.deploymentState === "deployed";
+  }
+
+  private markPendingTopologyApply(): void {
+    if (this.canTrackPendingTopologyApply()) {
+      this.pendingTopologyApply = true;
+    }
+  }
+
+  private markPendingTopologyApplyForCommand(command: TopologyHostCommand): void {
+    if (shouldMarkTopologyApplyPending(command)) {
+      this.markPendingTopologyApply();
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -553,6 +594,9 @@ export class TopologyHostCore implements TopologyHost {
     try {
       this.setInternalUpdate?.(true);
       await this.restoreHistoryEntry(entry);
+      if (current.yamlContent !== entry.yamlContent) {
+        this.markPendingTopologyApply();
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
@@ -660,6 +704,8 @@ export class TopologyHostCore implements TopologyHost {
       labName: labName ?? "",
       mode: this.mode,
       deploymentState: this.deploymentState,
+      liveApplyEnabled: this.liveApplyEnabled,
+      pendingTopologyApply: this.pendingTopologyApply,
       labSettings: Object.keys(labSettings).length > 0 ? labSettings : undefined,
       canUndo: this.past.length > 0,
       canRedo: this.future.length > 0
@@ -918,6 +964,15 @@ function shouldSkipHistory(command: TopologyHostCommand): boolean {
     command.command === "setAnnotationsContent"
   ) {
     return command.skipHistory === true;
+  }
+  return false;
+}
+
+function shouldMarkTopologyApplyPending(command: TopologyHostCommand): boolean {
+  if (isNodeHostCommand(command) || isLinkHostCommand(command)) return true;
+  if (command.command === "setYamlContent" || command.command === "setLabSettings") return true;
+  if (command.command === "batch") {
+    return command.payload.commands.some(shouldMarkTopologyApplyPending);
   }
   return false;
 }

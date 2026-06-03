@@ -55,7 +55,9 @@ async function handleHostResponse(
   const syncUndoRedo = (snapshot: TopologySnapshot) => {
     useTopoViewerStore.getState().setInitialData({
       canUndo: snapshot.canUndo,
-      canRedo: snapshot.canRedo
+      canRedo: snapshot.canRedo,
+      liveApplyEnabled: snapshot.liveApplyEnabled === true,
+      pendingTopologyApply: snapshot.pendingTopologyApply === true
     });
   };
 

@@ -18,6 +18,6 @@ export interface TopologyHost {
     command: TopologyHostCommand,
     baseRevision: number
   ): Promise<TopologyHostResponseMessage>;
-  onExternalChange(): Promise<TopologySnapshot>;
+  onExternalChange(options?: { topologyChanged?: boolean }): Promise<TopologySnapshot>;
   dispose(): void;
 }

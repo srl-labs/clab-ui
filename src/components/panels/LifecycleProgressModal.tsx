@@ -38,6 +38,8 @@ function getModeLabel(mode: ProcessingMode): string {
   switch (mode) {
     case "destroy":
       return "Destroying";
+    case "apply":
+      return "Applying";
     case "start":
       return "Starting";
     case "stop":

@@ -129,13 +129,18 @@ export interface ExplorerController {
 }
 
 export interface TopologySyncController {
-  schedule(delay?: number, options?: { externalChange?: boolean }): void;
-  refresh(options?: { externalChange?: boolean }): Promise<void>;
+  schedule(delay?: number, options?: TopologySyncRefreshOptions): void;
+  refresh(options?: TopologySyncRefreshOptions): Promise<void>;
   dispose(): void;
 }
 
+export interface TopologySyncRefreshOptions {
+  externalChange?: boolean;
+  externalChangeKind?: "topology" | "annotations";
+}
+
 interface TopologySyncControllerOptions {
-  refresh: (options?: { externalChange?: boolean }) => Promise<void>;
+  refresh: (options?: TopologySyncRefreshOptions) => Promise<void>;
   debounceMs?: number;
 }
 
@@ -337,6 +342,7 @@ export function createTopologySyncController(
   let refreshInFlight = false;
   let refreshQueued = false;
   let pendingExternalChange = false;
+  let pendingExternalChangeKind: TopologySyncRefreshOptions["externalChangeKind"] | undefined;
 
   const flushRefresh = async (): Promise<void> => {
     if (refreshInFlight) {
@@ -346,9 +352,11 @@ export function createTopologySyncController(
 
     refreshInFlight = true;
     const externalChange = pendingExternalChange;
+    const externalChangeKind = pendingExternalChangeKind;
     pendingExternalChange = false;
+    pendingExternalChangeKind = undefined;
     try {
-      await options.refresh({ externalChange });
+      await options.refresh({ externalChange, externalChangeKind });
     } finally {
       refreshInFlight = false;
       if (refreshQueued) {
@@ -371,11 +379,19 @@ export function createTopologySyncController(
   return {
     schedule(delay = options.debounceMs ?? 120, refreshOptions = {}): void {
       pendingExternalChange = pendingExternalChange || refreshOptions.externalChange === true;
+      pendingExternalChangeKind = mergeExternalChangeKind(
+        pendingExternalChangeKind,
+        refreshOptions.externalChangeKind
+      );
       schedule(delay);
     },
 
     async refresh(refreshOptions = {}): Promise<void> {
       pendingExternalChange = pendingExternalChange || refreshOptions.externalChange === true;
+      pendingExternalChangeKind = mergeExternalChangeKind(
+        pendingExternalChangeKind,
+        refreshOptions.externalChangeKind
+      );
       await flushRefresh();
     },
 
@@ -386,6 +402,15 @@ export function createTopologySyncController(
       }
       refreshQueued = false;
       pendingExternalChange = false;
+      pendingExternalChangeKind = undefined;
     }
   };
+}
+
+function mergeExternalChangeKind(
+  current: TopologySyncRefreshOptions["externalChangeKind"] | undefined,
+  next: TopologySyncRefreshOptions["externalChangeKind"] | undefined
+): TopologySyncRefreshOptions["externalChangeKind"] | undefined {
+  if (current === "topology" || next === "topology") return "topology";
+  return current ?? next;
 }

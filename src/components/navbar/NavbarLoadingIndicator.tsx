@@ -6,7 +6,7 @@ import React from "react";
 
 interface NavbarLoadingIndicatorProps {
   isActive: boolean;
-  mode: "deploy" | "destroy" | null;
+  mode: "deploy" | "apply" | "destroy" | "start" | "stop" | "restart" | null;
 }
 
 export const NavbarLoadingIndicator: React.FC<NavbarLoadingIndicatorProps> = ({
@@ -17,7 +17,7 @@ export const NavbarLoadingIndicator: React.FC<NavbarLoadingIndicatorProps> = ({
   const indicatorClass = [
     "navbar-loading-indicator",
     isActive && "is-active",
-    isActive && mode === "deploy" && "is-deploy",
+    isActive && (mode === "deploy" || mode === "apply") && "is-deploy",
     isActive && mode === "destroy" && "is-destroy"
   ]
     .filter(Boolean)

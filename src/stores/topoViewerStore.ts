@@ -22,7 +22,7 @@ export type DeploymentState = "deployed" | "undeployed" | "unknown";
 export type LinkLabelMode = "show-all" | "on-select" | "hide" | "telemetry-style";
 export type NonTelemetryLinkLabelMode = Exclude<LinkLabelMode, "telemetry-style">;
 export type GridStyle = "dotted" | "quadratic";
-export type ProcessingMode = "deploy" | "destroy" | "start" | "stop" | "restart" | null;
+export type ProcessingMode = "deploy" | "apply" | "destroy" | "start" | "stop" | "restart" | null;
 export type LifecycleLogStream = "stdout" | "stderr";
 export type LifecycleStatus = "running" | "success" | "error" | null;
 
@@ -35,6 +35,8 @@ export interface TopoViewerState {
   labName: string;
   mode: "edit" | "view";
   deploymentState: DeploymentState;
+  liveApplyEnabled: boolean;
+  pendingTopologyApply: boolean;
   labSettings?: LabSettings;
   yamlFileName: string;
   annotationsFileName: string;
@@ -152,6 +154,8 @@ const initialState: TopoViewerState = {
   labName: "",
   mode: "edit",
   deploymentState: "unknown",
+  liveApplyEnabled: false,
+  pendingTopologyApply: false,
   labSettings: undefined,
   yamlFileName: "topology.clab.yml",
   annotationsFileName: "topology.clab.yml.annotations.json",
@@ -559,11 +563,26 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
 /** Get mode */
 export const useMode = () => useTopoViewerStore((state) => state.mode);
 
+/** Get mode after live-apply interaction overrides */
+export const useInteractionMode = () =>
+  useTopoViewerStore((state) => {
+    if (state.isProcessing) return "view";
+    if (state.deploymentState === "deployed" && state.liveApplyEnabled) return "edit";
+    return state.mode;
+  });
+
 /** Get lab name */
 export const useLabName = () => useTopoViewerStore((state) => state.labName);
 
 /** Get deployment state */
 export const useDeploymentState = () => useTopoViewerStore((state) => state.deploymentState);
+
+/** Get live apply capability */
+export const useLiveApplyEnabled = () => useTopoViewerStore((state) => state.liveApplyEnabled);
+
+/** Get pending topology apply state */
+export const usePendingTopologyApply = () =>
+  useTopoViewerStore((state) => state.pendingTopologyApply);
 
 /** Get selected node */
 export const useSelectedNode = () => useTopoViewerStore((state) => state.selectedNode);
@@ -632,6 +651,8 @@ export const useTopoViewerState = () =>
       labName: state.labName,
       mode: state.mode,
       deploymentState: state.deploymentState,
+      liveApplyEnabled: state.liveApplyEnabled,
+      pendingTopologyApply: state.pendingTopologyApply,
       labSettings: state.labSettings,
       yamlFileName: state.yamlFileName,
       annotationsFileName: state.annotationsFileName,

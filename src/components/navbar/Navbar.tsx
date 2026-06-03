@@ -40,7 +40,10 @@ import {
   useIsLocked,
   useIsProcessing,
   useLabName,
+  useDeploymentState,
+  useLiveApplyEnabled,
   useMode,
+  usePendingTopologyApply,
   useTopoViewerActions
 } from "../../stores/topoViewerStore";
 import { useDeploymentCommands } from "../../hooks/ui";
@@ -126,14 +129,20 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const isTopologyActive = hasActiveTopology;
   const mode = useMode();
+  const deploymentState = useDeploymentState();
+  const liveApplyEnabled = useLiveApplyEnabled();
+  const pendingTopologyApply = usePendingTopologyApply();
   const labName = useLabName();
   const isLocked = useIsLocked();
   const isProcessing = useIsProcessing();
   const { toggleLock, setProcessing } = useTopoViewerActions();
   const deploymentCommands = useDeploymentCommands();
 
-  const isEditMode = mode === "edit" && !isProcessing;
-  const isViewerMode = mode === "view";
+  const isDeployed = deploymentState === "deployed";
+  const canLiveApply = isDeployed && liveApplyEnabled;
+  const hasPendingApply = canLiveApply && pendingTopologyApply;
+  const isEditMode = (mode === "edit" || canLiveApply) && !isProcessing;
+  const isViewerMode = isDeployed;
   const isGeneratedLayoutDisabled = !isTopologyActive || isLocked;
 
   const appBarRef = React.useRef<HTMLDivElement>(null);
@@ -187,6 +196,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     deploymentCommands.onDeploy();
   }, [setProcessing, deploymentCommands]);
 
+  const handleApply = React.useCallback(() => {
+    setDeployMenuPosition(null);
+    setProcessing(true, "apply");
+    deploymentCommands.onApply();
+  }, [setProcessing, deploymentCommands]);
+
   const handleDeployCleanup = React.useCallback(() => {
     setDeployMenuPosition(null);
     setProcessing(true, "deploy");
@@ -237,12 +252,24 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Primary action depends on mode
   const handlePrimaryAction = React.useCallback(() => {
     if (!isTopologyActive) return;
-    if (isViewerMode) {
+    if (hasPendingApply) {
+      handleApply();
+    } else if (isViewerMode) {
       handleDestroy();
     } else {
       handleDeploy();
     }
-  }, [isTopologyActive, isViewerMode, handleDestroy, handleDeploy]);
+  }, [isTopologyActive, hasPendingApply, isViewerMode, handleApply, handleDestroy, handleDeploy]);
+
+  let primaryActionTitle = "Deploy Lab";
+  let primaryActionIcon = <PlayArrowIcon fontSize="small" />;
+  if (hasPendingApply) {
+    primaryActionTitle = "Apply Changes";
+    primaryActionIcon = <CheckIcon fontSize="small" />;
+  } else if (isViewerMode) {
+    primaryActionTitle = "Destroy Lab";
+    primaryActionIcon = <StopIcon fontSize="small" />;
+  }
 
   const [layoutMenuPosition, setLayoutMenuPosition] = React.useState<{
     top: number;
@@ -319,16 +346,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         </Typography>
 
         {/* Deploy / Destroy */}
-        <Tooltip title={isViewerMode ? "Destroy Lab" : "Deploy Lab"}>
+        <Tooltip title={primaryActionTitle}>
           <span>
             <IconButton
               size="small"
               onClick={handlePrimaryAction}
               disabled={isProcessing || !isTopologyActive}
-              sx={{ color: isViewerMode ? ERROR_MAIN : SUCCESS_MAIN }}
+              sx={{ color: isViewerMode && !hasPendingApply ? ERROR_MAIN : SUCCESS_MAIN }}
               data-testid="navbar-deploy"
             >
-              {isViewerMode ? <StopIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+              {primaryActionIcon}
             </IconButton>
           </span>
         </Tooltip>
@@ -339,7 +366,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           aria-controls={deployMenuOpen ? "deploy-split-menu" : undefined}
           aria-haspopup="true"
           aria-expanded={deployMenuOpen ? "true" : undefined}
-          sx={{ color: isViewerMode ? ERROR_MAIN : SUCCESS_MAIN, ml: -0.5 }}
+          sx={{ color: isViewerMode && !hasPendingApply ? ERROR_MAIN : SUCCESS_MAIN, ml: -0.5 }}
           data-testid="navbar-deploy-menu"
         >
           <ExpandMoreIcon fontSize="small" />
@@ -354,6 +381,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           {isViewerMode
             ? [
+                <MenuItem
+                  key="apply"
+                  onClick={handleApply}
+                  disabled={!hasPendingApply}
+                  data-testid="navbar-deploy-item-apply"
+                >
+                  <ListItemIcon>
+                    <CheckIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+                  </ListItemIcon>
+                  <ListItemText>Apply Changes</ListItemText>
+                </MenuItem>,
+                <Divider key="apply-divider" sx={{ my: 0.5 }} />,
                 <MenuItem
                   key="destroy"
                   onClick={handleDestroy}

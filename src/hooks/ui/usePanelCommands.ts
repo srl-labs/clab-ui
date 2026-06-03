@@ -12,6 +12,7 @@ import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 
 export interface DeploymentCommands {
   onDeploy: () => void;
+  onApply: () => void;
   onDeployCleanup: () => void;
   onDestroy: () => void;
   onDestroyCleanup: () => void;
@@ -28,6 +29,7 @@ export function useDeploymentCommands(): DeploymentCommands {
 
   return {
     onDeploy: useCallback(() => sendLifecycleCommand("deployLab"), [sendLifecycleCommand]),
+    onApply: useCallback(() => sendLifecycleCommand("applyLab"), [sendLifecycleCommand]),
     onDeployCleanup: useCallback(
       () => sendLifecycleCommand("deployLabCleanup"),
       [sendLifecycleCommand]

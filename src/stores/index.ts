@@ -13,6 +13,7 @@ export {
   useTopoViewerActions,
   useTopoViewerState,
   useMode,
+  useInteractionMode,
   useIsLocked
 } from "./topoViewerStore";
 export {

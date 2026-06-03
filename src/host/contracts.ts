@@ -20,6 +20,7 @@ import type {
 
 export type TopoViewerLifecycleAction =
   | "deployLab"
+  | "applyLab"
   | "deployLabCleanup"
   | "destroyLab"
   | "destroyLabCleanup"
@@ -143,6 +144,7 @@ export type TopologySessionContext = TopologyUiContext;
 
 export interface TopologyUiRequestOptions {
   externalChange?: boolean;
+  externalChangeKind?: "topology" | "annotations";
 }
 
 export interface ClabUiExplorerHost {

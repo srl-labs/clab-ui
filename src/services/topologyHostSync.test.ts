@@ -58,6 +58,8 @@ function createSnapshot(nodes: TopoNode[]): TopologySnapshot {
     labName: "dfg",
     mode: "edit",
     deploymentState: "undeployed",
+    liveApplyEnabled: false,
+    pendingTopologyApply: false,
     canUndo: false,
     canRedo: false
   };

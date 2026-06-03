@@ -309,8 +309,15 @@ function buildAnnotationSaveCommand(graphNodesForSave: TopoNode[]): TopologyHost
   };
 }
 
-function getInteractionMode(mode: "view" | "edit", isProcessing: boolean): "view" | "edit" {
+function getInteractionMode(params: {
+  mode: "view" | "edit";
+  isProcessing: boolean;
+  deploymentState: "deployed" | "undeployed" | "unknown";
+  liveApplyEnabled: boolean;
+}): "view" | "edit" {
+  const { mode, isProcessing, deploymentState, liveApplyEnabled } = params;
   if (isProcessing) return "view";
+  if (deploymentState === "deployed" && liveApplyEnabled) return "edit";
   return mode;
 }
 
@@ -785,7 +792,12 @@ export const AppContent: React.FC<AppContentProps> = ({
   const hasActiveTopology = hasActiveTopologySession(sessionClient, state.labName);
   const topologyViewportKey = resolveTopologyViewportKey(sessionClient, state.labName);
   const isInteractionLocked = getInteractionLockState(state.isLocked, isProcessing);
-  const interactionMode = getInteractionMode(state.mode, isProcessing);
+  const interactionMode = getInteractionMode({
+    mode: state.mode,
+    isProcessing,
+    deploymentState: state.deploymentState,
+    liveApplyEnabled: state.liveApplyEnabled
+  });
   const isDevMock = React.useMemo(() => isDevMockWebview(host), [host]);
   const showDevExplorer = React.useMemo(
     () => isDevMock && !isDevExplorerDisabledByUrl(),
@@ -1682,7 +1694,7 @@ export const AppContent: React.FC<AppContentProps> = ({
               onToggleSide={panelVisibility.handleTogglePanelSide}
               rfInstance={rfInstance}
               palette={{
-                mode: state.mode,
+                mode: interactionMode,
                 requestedTab: paletteTabRequest,
 
                 onEditCustomNode: customNodeCommands.onEditCustomNode,
@@ -1836,7 +1848,7 @@ export const AppContent: React.FC<AppContentProps> = ({
             <LazyLabSettingsModal
               isOpen={panelVisibility.showLabSettingsModal}
               onClose={panelVisibility.handleCloseLabSettings}
-              mode={state.mode}
+              mode={interactionMode}
               isLocked={isInteractionLocked}
               labSettings={state.labSettings ?? { name: state.labName }}
               gridLineWidth={layoutControls.gridLineWidth}

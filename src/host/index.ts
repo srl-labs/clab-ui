@@ -573,7 +573,8 @@ export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiH
             {
               type: "topology-host:get-snapshot",
               protocolVersion: TOPOLOGY_HOST_PROTOCOL_VERSION,
-              externalChange: options.externalChange ?? false
+              externalChange: options.externalChange ?? false,
+              externalChangeKind: options.externalChangeKind
             },
             "snapshot"
           )) as TopologySnapshot;
@@ -656,7 +657,8 @@ export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
             mode: context.mode,
             deploymentState: context.deploymentState,
             runtimeContainers: context.runtimeContainers,
-            externalChange: options.externalChange ?? false
+            externalChange: options.externalChange ?? false,
+            externalChangeKind: options.externalChangeKind
           }
         );
 

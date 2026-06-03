@@ -117,6 +117,8 @@ export interface TopologySnapshot {
   labName: string;
   mode: "edit" | "view";
   deploymentState: DeploymentState;
+  liveApplyEnabled?: boolean;
+  pendingTopologyApply?: boolean;
   labSettings?: LabSettings;
   canUndo: boolean;
   canRedo: boolean;
@@ -130,6 +132,8 @@ export interface TopologyPatch {
   labName?: string;
   mode?: "edit" | "view";
   deploymentState?: DeploymentState;
+  liveApplyEnabled?: boolean;
+  pendingTopologyApply?: boolean;
   labSettings?: LabSettings;
   canUndo?: boolean;
   canRedo?: boolean;

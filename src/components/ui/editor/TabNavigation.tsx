@@ -28,7 +28,21 @@ export const TabNavigation: React.FC<TabNavigationProps> = ({ tabs, activeTab, o
 
   return (
     <>
-      <Tabs value={renderedTab} onChange={handleChange} variant="scrollable" scrollButtons="auto">
+      <Tabs
+        value={renderedTab}
+        onChange={handleChange}
+        variant="scrollable"
+        scrollButtons="auto"
+        sx={{
+          minHeight: 36,
+          "& .MuiTabs-scrollButtons.Mui-disabled": {
+            width: 0,
+            minWidth: 0,
+            opacity: 0,
+            overflow: "hidden"
+          }
+        }}
+      >
         {visibleTabs.map((tab) => (
           <Tab
             key={tab.id}

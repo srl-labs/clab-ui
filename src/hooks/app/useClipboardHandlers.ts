@@ -130,18 +130,27 @@ export function useClipboardHandlers(config: ClipboardHandlersConfig): Clipboard
 
   // Use the React Flow clipboard hook with persistence callbacks
   const clipboard = useClipboard(clipboardOptions);
+  
+  // Stable ref so callbacks below don't re-create on every render.
+  // useClipboard returns a new object literal each render even though the
+  // inner functions (copy/paste/hasClipboardData) are stable useCallbacks.
+  const clipboardRef = React.useRef(clipboard);
+  clipboardRef.current = clipboard;
 
-  // Track if clipboard has data (synced periodically)
+  // Track if clipboard has data (synced on mount + window focus)
   const [hasData, setHasData] = React.useState(false);
 
   // Check clipboard on mount and after operations
   const checkClipboard = React.useCallback(async () => {
-    const has = await clipboard.hasClipboardData();
+    const has = await clipboardRef.current.hasClipboardData();
     setHasData(has);
-  }, [clipboard]);
+  }, []);
 
   React.useEffect(() => {
     void checkClipboard();
+     // Re-check when the user returns to this tab
+    window.addEventListener("focus", checkClipboard);
+    return () => window.removeEventListener("focus", checkClipboard); 
   }, [checkClipboard]);
 
   // Debounce refs
@@ -178,28 +187,28 @@ export function useClipboardHandlers(config: ClipboardHandlersConfig): Clipboard
     const now = Date.now();
     if (now - lastCopyTimeRef.current < DEBOUNCE_MS) return;
     lastCopyTimeRef.current = now;
-    void clipboard.copy().then(() => checkClipboard());
-  }, [clipboard, checkClipboard]);
+    void clipboardRef.current.copy().then(() => checkClipboard());
+  }, [checkClipboard]);
 
   // Debounced paste
   const handleUnifiedPaste = React.useCallback(() => {
     const now = Date.now();
     if (now - lastPasteTimeRef.current < DEBOUNCE_MS) return;
     lastPasteTimeRef.current = now;
-    void clipboard.paste(lastCanvasPastePositionRef.current ?? undefined);
-  }, [clipboard]);
+    void clipboardRef.current.paste(lastCanvasPastePositionRef.current ?? undefined);
+  }, []);
 
   // Debounced duplicate (copy + paste)
   const handleUnifiedDuplicate = React.useCallback(() => {
     const now = Date.now();
     if (now - lastDuplicateTimeRef.current < DEBOUNCE_MS) return;
     lastDuplicateTimeRef.current = now;
-    void clipboard.copy().then(async (success) => {
+    void clipboardRef.current.copy().then(async (success) => {
       if (success) {
-        await clipboard.paste(undefined, { preferMemory: true });
+        await clipboardRef.current.paste(undefined, { preferMemory: true });
       }
     });
-  }, [clipboard]);
+  }, []);
 
   // Delete handler (graph elements + annotations)
   const handleUnifiedDelete = React.useCallback(() => {

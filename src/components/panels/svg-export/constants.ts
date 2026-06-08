@@ -16,8 +16,13 @@ export const NODE_ICON_SIZE = 40;
 /** Node icon corner radius */
 export const NODE_ICON_RADIUS = 4;
 
-/** Default icon color (matches graph.ts DEFAULT_ICON_COLOR) */
-export const DEFAULT_ICON_COLOR = "#005aff";
+/** Default icon color (matches graph.ts DEFAULT_ICON_COLOR). Host apps may
+ *  override it via window.__CLAB_UI_DEFAULT_ICON_COLOR__ set before load. */
+const iconColorOverride =
+  typeof window !== "undefined"
+    ? (window as Window & { __CLAB_UI_DEFAULT_ICON_COLOR__?: string }).__CLAB_UI_DEFAULT_ICON_COLOR__
+    : undefined;
+export const DEFAULT_ICON_COLOR = iconColorOverride || "#005aff";
 
 // ============================================================================
 // Node Label Constants (matches nodeStyles.ts LABEL_STYLE_BASE)

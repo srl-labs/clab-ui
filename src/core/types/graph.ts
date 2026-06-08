@@ -35,15 +35,15 @@ export interface TopologyNodeData {
 export interface NetworkNodeData {
   label: string;
   nodeType:
-    | "host"
-    | "mgmt-net"
-    | "macvlan"
-    | "vxlan"
-    | "vxlan-stitch"
-    | "dummy"
-    | "bridge"
-    | "ovs-bridge"
-    | string;
+  | "host"
+  | "mgmt-net"
+  | "macvlan"
+  | "vxlan"
+  | "vxlan-stitch"
+  | "dummy"
+  | "bridge"
+  | "ovs-bridge"
+  | string;
   labelPosition?: string;
   direction?: string;
   labelBackgroundColor?: string;
@@ -241,8 +241,13 @@ export type NodeCreatedHandler = (
 // Constants
 // ============================================================================
 
-// Default node icon color
-export const DEFAULT_ICON_COLOR = "#005aff";
+// Host apps may override the default node icon color by setting
+// window.__CLAB_UI_DEFAULT_ICON_COLOR__ before this module loads.
+const iconColorOverride =
+  typeof window !== "undefined"
+    ? (window as Window & { __CLAB_UI_DEFAULT_ICON_COLOR__?: string }).__CLAB_UI_DEFAULT_ICON_COLOR__
+    : undefined;
+export const DEFAULT_ICON_COLOR = iconColorOverride || "#005aff";
 
 /**
  * Role to SVG node type mapping

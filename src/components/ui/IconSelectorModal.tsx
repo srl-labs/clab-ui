@@ -21,6 +21,7 @@ import { useEscapeKey } from "../../hooks/ui/useDomInteractions";
 import { useCustomIcons } from "../../stores/topoViewerStore";
 import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 import { isBuiltInIcon } from "../../core/types/icons";
+import { DEFAULT_ICON_COLOR } from "../../core/types/graph";
 
 import { DialogCancelSaveActions, DialogTitleWithClose } from "./dialog/DialogChrome";
 import { ColorField, IconPreview, InputField } from "./form";
@@ -59,7 +60,7 @@ const ICON_LABELS: Record<string, string> = {
   client: "Client"
 };
 
-const DEFAULT_COLOR = "#1a73e8";
+const DEFAULT_COLOR = DEFAULT_ICON_COLOR;
 const MAX_RADIUS = 40;
 const COLOR_DEBOUNCE_MS = 50;
 const NODE_TYPE_SET: ReadonlySet<string> = new Set(AVAILABLE_ICONS);
@@ -467,8 +468,8 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
                   <span>
                     <MuiIconButton
                       size="small"
-                      onClick={() => setColor(DEFAULT_COLOR)}
-                      disabled={!isBuiltInIcon(icon) || color === DEFAULT_COLOR}
+                      onClick={() => setColor(DEFAULT_ICON_COLOR)}
+                      disabled={!isBuiltInIcon(icon) || color === DEFAULT_ICON_COLOR}
                     >
                       <ResetIcon fontSize="small" />
                     </MuiIconButton>

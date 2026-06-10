@@ -4,15 +4,28 @@
  * file format and merge semantics stay identical everywhere.
  */
 import type { CustomNodeTemplate } from "../types/editors";
+import type { CustomIconInfo } from "../types/icons";
 
 export const NODE_TEMPLATES_EXPORT_FILE_TYPE = "clab-node-templates";
-export const NODE_TEMPLATES_EXPORT_VERSION = 1;
+export const NODE_TEMPLATES_EXPORT_VERSION = 2;
 export const NODE_TEMPLATES_EXPORT_FILENAME = "clab-node-templates.json";
+
+export interface CustomNodeTemplateExportIcon {
+  name: string;
+  dataUri: string;
+  format: "svg" | "png";
+}
 
 export interface NodeTemplatesExportFile {
   fileType: typeof NODE_TEMPLATES_EXPORT_FILE_TYPE;
   version: number;
   templates: CustomNodeTemplate[];
+  icons?: CustomNodeTemplateExportIcon[];
+}
+
+export interface ParseCustomNodeTemplatesExportFileResult {
+  templates: CustomNodeTemplate[];
+  icons: CustomNodeTemplateExportIcon[];
 }
 
 export interface MergeCustomNodeTemplatesResult {
@@ -35,42 +48,71 @@ export function isCustomNodeTemplate(value: unknown): value is CustomNodeTemplat
   );
 }
 
-export function serializeCustomNodeTemplates(templates: CustomNodeTemplate[]): string {
+function isCustomNodeTemplateExportIcon(value: unknown): value is CustomNodeTemplateExportIcon {
+  return (
+    isRecord(value) &&
+    typeof value.name === "string" &&
+    value.name.trim().length > 0 &&
+    typeof value.dataUri === "string" &&
+    value.dataUri.trim().length > 0 &&
+    (value.format === "svg" || value.format === "png")
+  );
+}
+
+export function collectCustomIconsForTemplates(
+  templates: CustomNodeTemplate[],
+  customIcons: CustomIconInfo[]
+): CustomNodeTemplateExportIcon[] {
+  const availableIcons = new Map<string, CustomNodeTemplateExportIcon>();
+  for (const icon of customIcons) {
+    availableIcons.set(icon.name, {
+      name: icon.name,
+      dataUri: icon.dataUri,
+      format: icon.format
+    });
+  }
+
+  const includedIcons = new Map<string, CustomNodeTemplateExportIcon>();
+  for (const template of templates) {
+    const iconName = typeof template.icon === "string" && template.icon.length > 0 ? template.icon : "pe";
+    const icon = availableIcons.get(iconName);
+    if (icon !== undefined) {
+      includedIcons.set(icon.name, icon);
+    }
+  }
+  return Array.from(includedIcons.values());
+}
+
+export function serializeCustomNodeTemplates(
+  templates: CustomNodeTemplate[],
+  icons: CustomNodeTemplateExportIcon[] = []
+): string {
   const file: NodeTemplatesExportFile = {
     fileType: NODE_TEMPLATES_EXPORT_FILE_TYPE,
     version: NODE_TEMPLATES_EXPORT_VERSION,
     templates
   };
+  if (icons.length > 0) {
+    file.icons = icons;
+  }
   return JSON.stringify(file, null, 2);
 }
 
-function extractTemplateEntries(parsed: unknown): unknown[] {
+function extractTemplateEntries(parsed: unknown): { templates: unknown[]; icons: unknown[] } {
   if (Array.isArray(parsed)) {
-    return parsed;
+    return { templates: parsed, icons: [] };
   }
   if (isRecord(parsed) && Array.isArray(parsed.templates)) {
     if (parsed.fileType !== undefined && parsed.fileType !== NODE_TEMPLATES_EXPORT_FILE_TYPE) {
       throw new Error(`Not a node templates file (fileType: ${String(parsed.fileType)})`);
     }
-    return parsed.templates;
+    const icons = Array.isArray(parsed.icons) ? parsed.icons : [];
+    return { templates: parsed.templates, icons };
   }
   throw new Error('Expected a node templates file with a "templates" array');
 }
 
-/**
- * Parse exported node templates from file content.
- * Accepts the wrapped export format or a bare template array.
- * Throws with a user-facing message when the content is not valid.
- */
-export function parseCustomNodeTemplatesExport(content: string): CustomNodeTemplate[] {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(content);
-  } catch {
-    throw new Error("File is not valid JSON");
-  }
-
-  const entries = extractTemplateEntries(parsed);
+function parseCustomNodeTemplateEntries(entries: unknown[]): CustomNodeTemplate[] {
   if (entries.length === 0) {
     throw new Error("File contains no node templates");
   }
@@ -89,6 +131,48 @@ export function parseCustomNodeTemplatesExport(content: string): CustomNodeTempl
     byName.set(template.name, template);
   }
   return Array.from(byName.values());
+}
+
+function parseCustomNodeTemplateIconEntries(entries: unknown[]): CustomNodeTemplateExportIcon[] {
+  const icons: CustomNodeTemplateExportIcon[] = [];
+  for (const [index, entry] of entries.entries()) {
+    if (!isCustomNodeTemplateExportIcon(entry)) {
+      throw new Error(`Icon at index ${index} is missing a valid "name", "dataUri", or "format"`);
+    }
+    icons.push(entry);
+  }
+
+  const byName = new Map<string, CustomNodeTemplateExportIcon>();
+  for (const icon of icons) {
+    byName.set(icon.name, icon);
+  }
+  return Array.from(byName.values());
+}
+
+export function parseCustomNodeTemplatesExportFile(
+  content: string
+): ParseCustomNodeTemplatesExportFileResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error("File is not valid JSON");
+  }
+
+  const entries = extractTemplateEntries(parsed);
+  return {
+    templates: parseCustomNodeTemplateEntries(entries.templates),
+    icons: parseCustomNodeTemplateIconEntries(entries.icons)
+  };
+}
+
+/**
+ * Parse exported node templates from file content.
+ * Accepts the wrapped export format or a bare template array.
+ * Throws with a user-facing message when the content is not valid.
+ */
+export function parseCustomNodeTemplatesExport(content: string): CustomNodeTemplate[] {
+  return parseCustomNodeTemplatesExportFile(content).templates;
 }
 
 /**

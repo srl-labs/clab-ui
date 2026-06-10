@@ -37,9 +37,11 @@ import {
 
 import type { CustomNodeTemplate } from "../../../core/types/editors";
 import {
+  collectCustomIconsForTemplates,
   NODE_TEMPLATES_EXPORT_FILENAME,
   serializeCustomNodeTemplates
 } from "../../../core/utilities/customNodeImportExport";
+import type { CustomIconInfo } from "../../../core/types/icons";
 import { ROLE_SVG_MAP, DEFAULT_ICON_COLOR } from "../../../core/types/graph";
 import { generateEncodedSVG, type NodeType } from "../../../icons/SvgGenerator";
 import {
@@ -134,8 +136,12 @@ function getTemplateIconUrl(
   return generateEncodedSVG(svgType, color);
 }
 
-function downloadNodeTemplates(templates: CustomNodeTemplate[]): void {
-  const blob = new Blob([serializeCustomNodeTemplates(templates)], {
+function downloadNodeTemplates(
+  templates: CustomNodeTemplate[],
+  customIcons: CustomIconInfo[]
+): void {
+  const icons = collectCustomIconsForTemplates(templates, customIcons);
+  const blob = new Blob([serializeCustomNodeTemplates(templates, icons)], {
     type: "application/json;charset=utf-8"
   });
   const url = URL.createObjectURL(blob);
@@ -624,8 +630,8 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
   }, [sendImportCustomNodes]);
 
   const handleExportTemplates = useCallback(() => {
-    downloadNodeTemplates(customNodes);
-  }, [customNodes]);
+    downloadNodeTemplates(customNodes, customIcons);
+  }, [customIcons, customNodes]);
 
   const drawerTitle = useMemo(() => {
     if (activeTab === "info") return infoTabTitle ?? "Properties";

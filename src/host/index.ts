@@ -391,6 +391,9 @@ export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiH
       setDefaultCustomNode(nodeName: string): void {
         postMessage({ command: "set-default-custom-node", name: nodeName });
       },
+      importCustomNodes(): void {
+        postMessage({ command: "import-custom-nodes" });
+      },
       requestIconList(): void {
         postMessage({ command: "icon-list" });
       },

@@ -163,6 +163,7 @@ export interface ClabUiTopoViewerHost {
   saveCustomNode(data: Record<string, unknown>): void;
   deleteCustomNode(nodeName: string): void;
   setDefaultCustomNode(nodeName: string): void;
+  importCustomNodes(): void;
   requestIconList(): void;
   uploadIcon(): void;
   deleteIcon(iconName: string): void;

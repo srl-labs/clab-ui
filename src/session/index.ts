@@ -13,6 +13,7 @@ export * from "../core/messages/extension";
 export * from "../core/messages/webview";
 export * from "../core/schema";
 export * from "../core/types";
+export * from "../core/utilities/customNodeImportExport";
 export {
   executeTopologyCommand,
   executeTopologyCommands,

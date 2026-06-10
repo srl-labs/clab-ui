@@ -26,6 +26,7 @@ export interface ClabUiExtensionMessaging {
     panelYaml: string;
   }): void;
   sendIconReconcile(usedIcons: string[]): void;
+  sendImportCustomNodes(): void;
   sendInterfaceCapture(nodeName: string, interfaceName: string): void;
   sendLifecycleCommand(action: TopoViewerLifecycleAction): void;
   sendLinkImpairment(nodeName: string, interfaceName: string, data: unknown): void;
@@ -77,6 +78,9 @@ export function createExtensionMessaging(host: ClabUiHost): ClabUiExtensionMessa
     },
     sendSaveCustomNode(data) {
       host.topoViewer.saveCustomNode(data as Record<string, unknown>);
+    },
+    sendImportCustomNodes() {
+      host.topoViewer.importCustomNodes();
     },
     sendIconReconcile(usedIcons) {
       host.topoViewer.reconcileIcons(usedIcons);

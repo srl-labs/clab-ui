@@ -10,6 +10,8 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import DeviceHubIcon from "@mui/icons-material/DeviceHub";
 import DnsIcon from "@mui/icons-material/Dns";
 import EditIcon from "@mui/icons-material/Edit";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
+import FileUploadIcon from "@mui/icons-material/FileUpload";
 import HubIcon from "@mui/icons-material/Hub";
 import LanIcon from "@mui/icons-material/Lan";
 import PowerIcon from "@mui/icons-material/Power";
@@ -34,6 +36,12 @@ import {
 } from "@mui/material";
 
 import type { CustomNodeTemplate } from "../../../core/types/editors";
+import {
+  collectCustomIconsForTemplates,
+  NODE_TEMPLATES_EXPORT_FILENAME,
+  serializeCustomNodeTemplates
+} from "../../../core/utilities/customNodeImportExport";
+import type { CustomIconInfo } from "../../../core/types/icons";
 import { ROLE_SVG_MAP, DEFAULT_ICON_COLOR } from "../../../core/types/graph";
 import { generateEncodedSVG, type NodeType } from "../../../icons/SvgGenerator";
 import {
@@ -42,6 +50,7 @@ import {
   useTopoViewerStore
 } from "../../../stores/topoViewerStore";
 import { useTopologySessionClient } from "../../../host";
+import { useExtensionMessaging } from "../../../messaging/extensionMessaging";
 import { buildCustomIconMap } from "../../../utils/iconUtils";
 import type { TabDefinition } from "../../ui/editor";
 import { TabNavigation } from "../../ui/editor/TabNavigation";
@@ -125,6 +134,22 @@ function getTemplateIconUrl(
   const color = template.iconColor ?? DEFAULT_ICON_COLOR;
   const svgType = getRoleSvgType(role);
   return generateEncodedSVG(svgType, color);
+}
+
+function downloadNodeTemplates(
+  templates: CustomNodeTemplate[],
+  customIcons: CustomIconInfo[]
+): void {
+  const icons = collectCustomIconsForTemplates(templates, customIcons);
+  const blob = new Blob([serializeCustomNodeTemplates(templates, icons)], {
+    type: "application/json;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = NODE_TEMPLATES_EXPORT_FILENAME;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 const REACTFLOW_NODE_MIME_TYPE = "application/reactflow-node";
@@ -598,6 +623,16 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     onEditCustomNode?.("__new__");
   }, [onEditCustomNode]);
 
+  const { sendImportCustomNodes } = useExtensionMessaging();
+
+  const handleImportTemplates = useCallback(() => {
+    sendImportCustomNodes();
+  }, [sendImportCustomNodes]);
+
+  const handleExportTemplates = useCallback(() => {
+    downloadNodeTemplates(customNodes, customIcons);
+  }, [customIcons, customNodes]);
+
   const drawerTitle = useMemo(() => {
     if (activeTab === "info") return infoTabTitle ?? "Properties";
     if (activeTab === "edit") return editTabTitle ?? "Editor";
@@ -744,15 +779,38 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
                 title="Node Templates"
                 action={
                   !filter ? (
-                    <Button
-                      variant="text"
-                      size="small"
-                      startIcon={<AddIcon />}
-                      onClick={handleAddNewNode}
-                      sx={{ py: 0 }}
-                    >
-                      Add
-                    </Button>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+                      <Tooltip title="Import templates">
+                        <IconButton
+                          size="small"
+                          onClick={handleImportTemplates}
+                          data-testid="palette-import-templates"
+                        >
+                          <FileUploadIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Export templates">
+                        <span>
+                          <IconButton
+                            size="small"
+                            onClick={handleExportTemplates}
+                            disabled={customNodes.length === 0}
+                            data-testid="palette-export-templates"
+                          >
+                            <FileDownloadIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                      <Button
+                        variant="text"
+                        size="small"
+                        startIcon={<AddIcon />}
+                        onClick={handleAddNewNode}
+                        sx={{ py: 0 }}
+                      >
+                        Add
+                      </Button>
+                    </Box>
                   ) : undefined
                 }
               />

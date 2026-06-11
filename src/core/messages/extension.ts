@@ -62,7 +62,8 @@ export function isInterfaceCommand(command: string): command is InterfaceCommand
 export const CUSTOM_NODE_COMMANDS = {
   SAVE_CUSTOM_NODE: "save-custom-node",
   DELETE_CUSTOM_NODE: "delete-custom-node",
-  SET_DEFAULT_CUSTOM_NODE: "set-default-custom-node"
+  SET_DEFAULT_CUSTOM_NODE: "set-default-custom-node",
+  IMPORT_CUSTOM_NODES: "import-custom-nodes"
 } as const;
 
 const CUSTOM_NODE_COMMANDS_SET: ReadonlySet<string> = new Set(Object.values(CUSTOM_NODE_COMMANDS));

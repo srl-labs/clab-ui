@@ -88,6 +88,7 @@
   },
   "scripts": {
     "build": "node ./build.mjs",
+    "build:viewer": "vite build --config vite.viewer.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "npm run typecheck && npm run lint:ts",
     "lint:ts": "oxlint --import-plugin --react-plugin --jsx-a11y-plugin .",

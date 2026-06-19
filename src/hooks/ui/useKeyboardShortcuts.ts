@@ -682,6 +682,8 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
+      // View mode is read-only: suppress every editor keyboard shortcut.
+      if (mode === "view") return;
       if (isInputElement(event)) return;
 
       if (
@@ -782,6 +784,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
   const handleClipboardEvent = useCallback(
     (event: ClipboardEvent) => {
       if (event.defaultPrevented) return;
+      if (mode === "view") return; // read-only: no copy/paste of topology elements
       if (isClipboardEventInEditableContext(event)) return;
 
       const shouldHandleTopology = shouldHandleTopologyShortcut(

@@ -510,6 +510,8 @@ export interface AppContentProps {
   rfInstance: ReactFlowInstance | null;
   layoutControls: LayoutControls;
   onInit: (instance: ReactFlowInstance) => void;
+  /** "full" (default) shows the editor navbar + side panel; "viewer" renders only the canvas. */
+  chrome?: "full" | "viewer";
 }
 
 interface StoreSelectionState {
@@ -772,8 +774,10 @@ export const AppContent: React.FC<AppContentProps> = ({
   reactFlowRef,
   rfInstance,
   layoutControls,
-  onInit
+  onInit,
+  chrome = "full"
 }) => {
+  const viewerOnly = chrome === "viewer";
   const host = useClabUiHost();
   const sessionClient = useTopologySessionClient();
   const { sendCancelLabLifecycle, sendDumpCssVars } = useExtensionMessaging();
@@ -1608,6 +1612,7 @@ export const AppContent: React.FC<AppContentProps> = ({
           onLockedAction={handleLockedAction}
           runtimeRef={annotationRuntimeRef}
         />
+        {!viewerOnly && (
         <Navbar
           hasActiveTopology={hasActiveTopology}
           onZoomToFit={handleZoomToFit}
@@ -1632,6 +1637,7 @@ export const AppContent: React.FC<AppContentProps> = ({
           logoClickProgress={easterEgg.state.progress}
           isPartyMode={easterEgg.state.isPartyMode}
         />
+        )}
         <Box
           ref={layoutRef}
           sx={{ display: "flex", flexGrow: 1, overflow: "hidden", position: "relative" }}
@@ -1672,7 +1678,7 @@ export const AppContent: React.FC<AppContentProps> = ({
               />
             </Box>
           )}
-          {hasActiveTopology && (
+          {!viewerOnly && hasActiveTopology && (
             <ContextPanel
               isOpen={panelVisibility.isContextPanelOpen}
               side={panelVisibility.panelSide}

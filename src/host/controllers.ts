@@ -166,6 +166,8 @@ function buildFallbackExplorerSnapshot(filterText: string): ExplorerSnapshotMess
   };
 }
 
+const MAX_RETIRED_EXPLORER_ACTION_BINDINGS = 2000;
+
 export function createExplorerController(options: ExplorerControllerOptions): ExplorerController {
   let connected = false;
   let filterText = (options.initialFilterText ?? "").trim();
@@ -174,7 +176,27 @@ export function createExplorerController(options: ExplorerControllerOptions): Ex
   let snapshotInFlight = false;
   let snapshotPending = false;
   let actionBindings = new Map<string, ExplorerActionInvocation>();
-  let prevActionBindings = new Map<string, ExplorerActionInvocation>();
+  let retiredActionBindings = new Map<string, ExplorerActionInvocation>();
+
+  const retireActionBindings = (bindings: Map<string, ExplorerActionInvocation>): void => {
+    for (const [actionRef, binding] of bindings) {
+      retiredActionBindings.set(actionRef, binding);
+    }
+
+    const overflow = retiredActionBindings.size - MAX_RETIRED_EXPLORER_ACTION_BINDINGS;
+    if (overflow <= 0) {
+      return;
+    }
+
+    let deleted = 0;
+    for (const actionRef of retiredActionBindings.keys()) {
+      retiredActionBindings.delete(actionRef);
+      deleted += 1;
+      if (deleted >= overflow) {
+        break;
+      }
+    }
+  };
 
   const publish = async (message: ExplorerIncomingMessage): Promise<void> => {
     if (!connected) {
@@ -209,11 +231,11 @@ export function createExplorerController(options: ExplorerControllerOptions): Ex
         filterText,
         snapshotOptions
       );
-      prevActionBindings = actionBindings;
+      retireActionBindings(actionBindings);
       actionBindings = nextBindings;
       await publish(snapshot);
     } catch (error: unknown) {
-      prevActionBindings = new Map();
+      retireActionBindings(actionBindings);
       actionBindings = new Map();
       const message = error instanceof Error ? error.message : String(error);
       await publishError(`Explorer refresh failed: ${message}`);
@@ -275,7 +297,7 @@ export function createExplorerController(options: ExplorerControllerOptions): Ex
     },
 
     async invokeAction(actionRef: string): Promise<void> {
-      const binding = actionBindings.get(actionRef) ?? prevActionBindings.get(actionRef);
+      const binding = actionBindings.get(actionRef) ?? retiredActionBindings.get(actionRef);
       if (!binding) {
         await publishError("Action is no longer available. Refresh and try again.");
         return;

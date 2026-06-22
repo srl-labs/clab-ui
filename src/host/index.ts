@@ -22,7 +22,7 @@ import type {
   TopoViewerNodeAction,
   TopoViewerSvgExportPayload
 } from "./contracts";
-import type { ClabUiRuntime } from "./runtimeContext";
+import type { ClabUiExtensions, ClabUiRuntime } from "./runtimeContext";
 export * from "./controllers";
 export * from "./contracts";
 export * from "./runtimeContext";
@@ -165,9 +165,9 @@ function toCustomNodeErrorEvent(
 ): Extract<ClabUiTopoViewerEvent, { type: "customNodeError" }> | null {
   return typeof value.error === "string"
     ? {
-        type: "customNodeError",
-        error: value.error
-      }
+      type: "customNodeError",
+      error: value.error
+    }
     : null;
 }
 
@@ -699,22 +699,19 @@ export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
   };
 }
 
-export interface CreateClabUiRuntimeOptions {
+export interface CreateClabUiRuntimeOptions extends ClabUiExtensions {
   host: ClabUiHost;
   session?: TopologySessionClient;
   initialContext?: TopologyUiContext;
 }
 
 export function createClabUiRuntime(options: CreateClabUiRuntimeOptions): ClabUiRuntime {
+  // host/session/initialContext are runtime wiring; everything else is the
+  // ClabUiExtensions surface, passed straight through so adding an extension
+  // never means editing this function.
+  const { host, session: providedSession, initialContext, ...extensions } = options;
   const session =
-    options.session ??
-    createTopologySessionClient({
-      host: options.host,
-      initialContext: options.initialContext
-    });
+    providedSession ?? createTopologySessionClient({ host, initialContext });
 
-  return {
-    host: options.host,
-    session
-  };
+  return { host, session, ...extensions };
 }

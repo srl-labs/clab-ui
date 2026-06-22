@@ -32,6 +32,7 @@ const entryPoints = {
   "welcome/index": "src/welcome/index.ts",
   "node-impairments/index": "src/node-impairments/index.ts",
   "wireshark-vnc/index": "src/wireshark-vnc/index.ts",
+  "viewer/index": "src/viewer/index.ts",
   "monaco/core": "src/monaco/core.ts",
   "monaco/editor-worker": "src/monaco/editor-worker.ts",
   "monaco/json-worker": "src/monaco/json-worker.ts",

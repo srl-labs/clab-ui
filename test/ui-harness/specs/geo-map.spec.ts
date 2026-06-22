@@ -46,7 +46,14 @@ test.describe("GeoMap Layout", () => {
     expect(actual!.lng).toBeCloseTo(expected!.lng, 5);
   };
 
-  test.beforeEach(async ({ topoViewerPage }) => {
+  test.beforeEach(async ({ page, topoViewerPage }) => {
+    await page.addInitScript(() => {
+      (window as Window & { maplibreStyle?: unknown }).maplibreStyle = {
+        version: 8,
+        sources: {},
+        layers: []
+      };
+    });
     await topoViewerPage.resetFiles();
     await topoViewerPage.gotoFile(TEST_FILE);
     await topoViewerPage.waitForCanvasReady();

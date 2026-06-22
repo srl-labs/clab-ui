@@ -57,6 +57,12 @@ const MAP_STYLE: StyleSpecification = {
     }
   ]
 };
+
+function resolveMapStyle(): StyleSpecification {
+  if (typeof window === "undefined") return MAP_STYLE;
+  return window.maplibreStyle ?? MAP_STYLE;
+}
+
 const INITIAL_GEO_SEQUENCE: GeoCoordinates[] = [
   // Stuttgart
   { lat: 48.775846, lng: 9.182932 },
@@ -629,7 +635,7 @@ export function useGeoMapLayout({
         }
         const map = new maplibregl.Map({
           container: containerRef.current,
-          style: MAP_STYLE,
+          style: resolveMapStyle(),
           center: DEFAULT_CENTER,
           zoom: DEFAULT_ZOOM,
           attributionControl: {}

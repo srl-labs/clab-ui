@@ -13,6 +13,7 @@ import {
 } from "../../annotations/annotationNodeConverters";
 
 interface KeyboardShortcutsOptions {
+  disabled?: boolean;
   mode: "edit" | "view";
   isLocked: boolean;
   selectedNode: string | null;
@@ -653,6 +654,7 @@ function handleEscape(
  */
 export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
   const {
+    disabled = false,
     mode,
     isLocked,
     selectedNode,
@@ -682,8 +684,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
-      // View mode is read-only: suppress every editor keyboard shortcut.
-      if (mode === "view") return;
+      if (disabled) return;
       if (isInputElement(event)) return;
 
       if (
@@ -757,6 +758,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
     },
     [
       mode,
+      disabled,
       isLocked,
       selectedNode,
       selectedEdge,
@@ -784,7 +786,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
   const handleClipboardEvent = useCallback(
     (event: ClipboardEvent) => {
       if (event.defaultPrevented) return;
-      if (mode === "view") return; // read-only: no copy/paste of topology elements
+      if (disabled) return;
       if (isClipboardEventInEditableContext(event)) return;
 
       const shouldHandleTopology = shouldHandleTopologyShortcut(
@@ -829,7 +831,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
         event.stopPropagation();
       }
     },
-    [mode, isLocked, selectedNode, selectedEdge, selectedAnnotationIds, onCopy, onPaste]
+    [mode, disabled, isLocked, selectedNode, selectedEdge, selectedAnnotationIds, onCopy, onPaste]
   );
 
   useEffect(() => {

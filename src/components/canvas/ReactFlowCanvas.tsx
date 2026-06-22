@@ -836,6 +836,7 @@ function getCanvasInteractionConfig(params: {
   isGeoLayout: boolean;
   isGeoEdit: boolean;
   isInAddMode: boolean;
+  readOnlyViewer: boolean;
 }): {
   allowPanOnDrag: boolean;
   allowSelectionOnDrag: boolean;
@@ -844,15 +845,12 @@ function getCanvasInteractionConfig(params: {
   elementsSelectable: boolean;
   reactFlowStyle: React.CSSProperties | undefined;
 } {
-  const { mode, isLocked, isGeoLayout, isGeoEdit, isInAddMode } = params;
-  // View mode is a pure read-only viewer: no selection, no rubber-band, no dragging (and no
-  // context menus — gated at the handler level).
-  const isView = mode === "view";
-  const elementsSelectable = !isView;
+  const { mode, isLocked, isGeoLayout, isGeoEdit, isInAddMode, readOnlyViewer } = params;
+  const elementsSelectable = !readOnlyViewer;
   const allowPanOnDrag = !isInAddMode && !isGeoLayout;
-  const allowSelectionOnDrag = !isView && !isInAddMode && !isGeoLayout;
-  const nodesDraggable = !isView && !isLocked && (!isGeoLayout || isGeoEdit);
-  const nodesConnectable = mode === "edit" && !isLocked;
+  const allowSelectionOnDrag = !readOnlyViewer && !isInAddMode && !isGeoLayout;
+  const nodesDraggable = !readOnlyViewer && !isLocked && (!isGeoLayout || isGeoEdit);
+  const nodesConnectable = !readOnlyViewer && mode === "edit" && !isLocked;
   const reactFlowStyle: React.CSSProperties | undefined = isGeoLayout
     ? {
         background: "transparent",
@@ -1073,6 +1071,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       topologyViewportKey,
       isContextPanelOpen = false,
       layout = "preset",
+      readOnlyViewer = false,
       isGeoLayout = false,
       gridLineWidth = DEFAULT_GRID_LINE_WIDTH,
       gridStyle = "dotted",
@@ -1690,7 +1689,8 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       isLocked,
       isGeoLayout,
       isGeoEdit,
-      isInAddMode
+      isInAddMode,
+      readOnlyViewer
     });
     const {
       allowPanOnDrag,
@@ -1700,8 +1700,6 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       elementsSelectable,
       reactFlowStyle
     } = interactionConfig;
-    // View mode is read-only: suppress the right-click context menus on nodes/edges/pane.
-    const isViewMode = mode === "view";
     const renderNodes = useMemo(
       () => getRenderableNodes(allNodes, nodesDraggable),
       [allNodes, nodesDraggable]
@@ -1769,22 +1767,22 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
           onNodesChange={handlers.handleNodesChange}
           onEdgesChange={onEdgesChange}
           onInit={wrappedOnInit}
-          onNodeClick={wrappedOnNodeClick}
-          onNodeDoubleClick={wrappedOnNodeDoubleClick}
+          onNodeClick={readOnlyViewer ? undefined : wrappedOnNodeClick}
+          onNodeDoubleClick={readOnlyViewer ? undefined : wrappedOnNodeDoubleClick}
           onNodeMouseEnter={handleNodeMouseEnter}
           onNodeMouseLeave={handleNodeMouseLeave}
           onNodeDragStart={handleNodeDragStart}
           onNodeDrag={handleNodeDrag}
           onNodeDragStop={handleNodeDragStop}
-          onNodeContextMenu={isViewMode ? undefined : handlers.onNodeContextMenu}
-          onEdgeClick={wrappedOnEdgeClick}
-          onEdgeDoubleClick={handlers.onEdgeDoubleClick}
-          onEdgeContextMenu={isViewMode ? undefined : handlers.onEdgeContextMenu}
-          onPaneClick={wrappedOnPaneClick}
-          onPaneContextMenu={isViewMode ? undefined : handlers.onPaneContextMenu}
+          onNodeContextMenu={readOnlyViewer ? undefined : handlers.onNodeContextMenu}
+          onEdgeClick={readOnlyViewer ? undefined : wrappedOnEdgeClick}
+          onEdgeDoubleClick={readOnlyViewer ? undefined : handlers.onEdgeDoubleClick}
+          onEdgeContextMenu={readOnlyViewer ? undefined : handlers.onEdgeContextMenu}
+          onPaneClick={readOnlyViewer ? undefined : wrappedOnPaneClick}
+          onPaneContextMenu={readOnlyViewer ? undefined : handlers.onPaneContextMenu}
           onMoveEnd={handleViewportMoveEnd}
           onConnect={handlers.onConnect}
-          onSelectionChange={handlers.onSelectionChange}
+          onSelectionChange={readOnlyViewer ? undefined : handlers.onSelectionChange}
           connectionLineComponent={CustomConnectionLine}
           fitView={!isGeoLayout}
           fitViewOptions={fitViewOptions}
@@ -1811,9 +1809,9 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
           style={reactFlowStyle}
         >
           {overlays.backgroundLayer}
-          {/* View mode has no navbar — give it the standard zoom in/out + fit controls.
+          {/* Embedded viewer has no navbar — give it the standard zoom in/out + fit controls.
               showInteractive is hidden: it toggles node draggability, which a viewer locks off. */}
-          {isViewMode && <Controls position="top-right" showInteractive={false} />}
+          {readOnlyViewer && <Controls position="top-right" showInteractive={false} />}
         </ReactFlow>
 
         <ContextMenu

@@ -1,8 +1,8 @@
 import type { ClabUiHost } from "../host/contracts";
 import {
+  TOPOLOGY_HOST_PROTOCOL_VERSION,
   TopologySessionCore,
   type FileSystemAdapter,
-  type TopologyHostCommand,
   type TopologyHostResponseMessage,
   type TopologySnapshot
 } from "../session";
@@ -136,8 +136,13 @@ export function createViewerHost({ yaml, annotations }: ViewerHostInput): ClabUi
       async requestSnapshot(): Promise<TopologySnapshot> {
         return core.getSnapshot();
       },
-      async dispatchCommand(_context, baseRevision, command): Promise<TopologyHostResponseMessage> {
-        return core.applyCommand(command as TopologyHostCommand, baseRevision);
+      async dispatchCommand(): Promise<TopologyHostResponseMessage> {
+        return {
+          type: "topology-host:error",
+          protocolVersion: TOPOLOGY_HOST_PROTOCOL_VERSION,
+          requestId: "",
+          error: "The standalone viewer is read-only"
+        };
       }
     }
   };

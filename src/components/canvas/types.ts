@@ -173,6 +173,8 @@ export interface ReactFlowCanvasProps {
   isContextPanelOpen?: boolean;
   /** Current layout (used for geo layout transitions) */
   layout?: LayoutName;
+  /** Pure embedded viewer mode: pan/zoom only, no selection, dragging, or context menus. */
+  readOnlyViewer?: boolean;
   /** Geo layout active */
   isGeoLayout?: boolean;
   /** Grid line thickness for the background */

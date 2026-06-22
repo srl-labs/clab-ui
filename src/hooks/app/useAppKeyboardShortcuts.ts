@@ -15,6 +15,7 @@ import type { ClipboardHandlersReturn } from "./useClipboardHandlers";
  * Configuration for useAppKeyboardShortcuts hook
  */
 export interface AppKeyboardShortcutsConfig {
+  disabled?: boolean;
   state: {
     mode: "edit" | "view";
     isLocked: boolean;
@@ -50,8 +51,15 @@ export interface AppKeyboardShortcutsConfig {
  * Simplifies the 20+ argument useKeyboardShortcuts call into a structured config.
  */
 export function useAppKeyboardShortcuts(config: AppKeyboardShortcutsConfig): void {
-  const { state, undoRedo, annotations, clipboardHandlers, deleteHandlers, handleDeselectAll } =
-    config;
+  const {
+    disabled = false,
+    state,
+    undoRedo,
+    annotations,
+    clipboardHandlers,
+    deleteHandlers,
+    handleDeselectAll
+  } = config;
 
   // Combined selection IDs (text + shape + group annotations)
   const combinedSelectedAnnotationIds = React.useMemo(() => {
@@ -71,6 +79,7 @@ export function useAppKeyboardShortcuts(config: AppKeyboardShortcutsConfig): voi
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
+    disabled,
     mode: state.mode,
     isLocked: state.isLocked,
     selectedNode: state.selectedNode,

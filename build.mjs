@@ -16,7 +16,11 @@ const tscBin = path.join(__dirname, "node_modules/typescript/bin/tsc");
 const copiedCssAssets = [
   {
     from: path.join(__dirname, "src/components/canvas/nodes/FreeTextNode.css"),
-    to: path.join(distDir, "FreeTextNode.css")
+    to: [
+      path.join(distDir, "FreeTextNode.css"),
+      path.join(distDir, "chunks/FreeTextNode.css"),
+      path.join(distDir, "components/canvas/nodes/FreeTextNode.css")
+    ]
   }
 ];
 
@@ -100,7 +104,12 @@ async function buildJavaScript() {
 async function copyCss() {
   await fs.copyFile(cssSource, cssOutput);
   await Promise.all(
-    copiedCssAssets.map((asset) => fs.copyFile(asset.from, asset.to))
+    copiedCssAssets.flatMap((asset) =>
+      asset.to.map(async (target) => {
+        await fs.mkdir(path.dirname(target), { recursive: true });
+        await fs.copyFile(asset.from, target);
+      })
+    )
   );
 }
 

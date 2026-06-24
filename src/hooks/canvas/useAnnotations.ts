@@ -390,6 +390,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
       boxSelectTextAnnotations: uiActions.boxSelectTextAnnotations,
       clearTextAnnotationSelection: uiActions.clearTextAnnotationSelection,
       editTextAnnotation: textActions.editTextAnnotation,
+      duplicateTextAnnotation: textActions.duplicateTextAnnotation,
       closeTextEditor: uiActions.closeTextEditor,
       saveTextAnnotation: textActions.saveTextAnnotation,
       previewTextAnnotation: (annotation) => {

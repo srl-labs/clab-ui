@@ -59,6 +59,7 @@ function getAnnotationHandlerSnapshot(annotations: AnnotationContextValue) {
     disableAddTextMode: annotations.disableAddTextMode,
     disableAddShapeMode: annotations.disableAddShapeMode,
     editTextAnnotation: annotations.editTextAnnotation,
+    duplicateTextAnnotation: annotations.duplicateTextAnnotation,
     editShapeAnnotation: annotations.editShapeAnnotation,
     editTrafficRateAnnotation: annotations.editTrafficRateAnnotation,
     deleteTextAnnotation: annotations.deleteTextAnnotation,
@@ -251,6 +252,9 @@ export function useAnnotationCanvasHandlers(annotations: AnnotationContextValue)
   const onEditFreeText = React.useCallback((id: string) => {
     latestAnnotationsRef.current.editTextAnnotation(id);
   }, []);
+  const onDuplicateFreeText = React.useCallback((id: string) => {
+    latestAnnotationsRef.current.duplicateTextAnnotation(id);
+  }, []);
   const onEditFreeShape = React.useCallback((id: string) => {
     latestAnnotationsRef.current.editShapeAnnotation(id);
   }, []);
@@ -335,6 +339,7 @@ export function useAnnotationCanvasHandlers(annotations: AnnotationContextValue)
       disableAddShapeMode,
       // Edit handlers
       onEditFreeText,
+      onDuplicateFreeText,
       onEditFreeShape,
       onEditTrafficRate,
       // Delete handlers
@@ -373,6 +378,7 @@ export function useAnnotationCanvasHandlers(annotations: AnnotationContextValue)
       disableAddTextMode,
       disableAddShapeMode,
       onEditFreeText,
+      onDuplicateFreeText,
       onEditFreeShape,
       onEditTrafficRate,
       onDeleteFreeText,

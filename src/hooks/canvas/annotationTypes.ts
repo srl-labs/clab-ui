@@ -56,6 +56,7 @@ export interface AnnotationActions {
   boxSelectTextAnnotations: (ids: string[]) => void;
   clearTextAnnotationSelection: () => void;
   editTextAnnotation: (id: string) => void;
+  duplicateTextAnnotation: (id: string) => void;
   closeTextEditor: () => void;
   saveTextAnnotation: (annotation: FreeTextAnnotation) => void;
   previewTextAnnotation: (annotation: FreeTextAnnotation) => void;

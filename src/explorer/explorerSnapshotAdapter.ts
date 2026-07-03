@@ -89,6 +89,7 @@ const COMMAND_LABELS: Record<string, string> = {
   "containerlab.lab.toggleFavorite": "Toggle Favorite",
   "containerlab.lab.deploy": "Deploy",
   "containerlab.lab.deploy.cleanup": "Deploy (Cleanup)",
+  "containerlab.lab.apply": "Apply Topology",
   "containerlab.lab.destroy": "Destroy",
   "containerlab.lab.destroy.cleanup": "Destroy (Cleanup)",
   "containerlab.lab.redeploy": "Redeploy",
@@ -608,12 +609,14 @@ function appendLabActions(
   );
 
   if (isUndeployed) {
+    pushAction(actions, seen, registry, "containerlab.lab.apply", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.deploy", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.deploy.cleanup", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.delete", [item], undefined, true);
   }
 
   if (isDeployed) {
+    pushAction(actions, seen, registry, "containerlab.lab.apply", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.destroy", [item], undefined, true);
     pushAction(actions, seen, registry, "containerlab.lab.destroy.cleanup", [item], undefined, true);
     pushAction(actions, seen, registry, "containerlab.lab.redeploy", [item]);

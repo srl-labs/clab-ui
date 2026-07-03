@@ -8,7 +8,7 @@ import { EdgeLabelRenderer, useStore, type EdgeProps, type Edge, type Node } fro
 import { SELECTION_COLOR, type EdgeLabelMode } from "../types";
 import { useEdgeInfo, useEdgeRenderConfig } from "../../../stores/canvasStore";
 import { useEdges, useGraphStore } from "../../../stores/graphStore";
-import { useTelemetryLabelSettings, useMode } from "../../../stores/topoViewerStore";
+import { useTelemetryLabelSettings, useDeploymentState } from "../../../stores/topoViewerStore";
 import {
   calculateControlPoint,
   getEdgePoints,
@@ -1047,7 +1047,7 @@ function shouldRenderEdgeLabels(
  * Supports bezier curves for parallel edges between the same node pair
  */
 const TopologyEdgeComponent: React.FC<EdgeProps> = ({ id, source, target, data, selected }) => {
-  const mode = useMode();
+  const deploymentState = useDeploymentState();
   const telemetryLabelSettings = useTelemetryLabelSettings();
   const edgeData = useMemo(() => toEdgeData(data), [data]);
   const { labelMode, suppressLabels, suppressHitArea } = useEdgeRenderConfig();
@@ -1121,7 +1121,8 @@ const TopologyEdgeComponent: React.FC<EdgeProps> = ({ id, source, target, data, 
   const shouldRenderLabels = shouldRenderEdgeLabels(labelMode, suppressLabels, selected === true);
   const labelVariant: EdgeLabelVariant =
     labelMode === "telemetry-style" ? "telemetry-style" : "default";
-  const colorInterfacesByState = labelMode === "telemetry-style" && mode === "view";
+  // Interface state coloring needs runtime data, which exists once deployed.
+  const colorInterfacesByState = labelMode === "telemetry-style" && deploymentState === "deployed";
 
   const stroke = getStrokeStyle(edgeData.linkStatus, selected === true, !colorInterfacesByState);
   const sourceInterfaceState = normalizeInterfaceState(edgeData.sourceInterfaceState);

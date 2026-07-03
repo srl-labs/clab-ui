@@ -71,16 +71,22 @@ function resolveAnnotationView(annotationUI: AnnotationUIState): PanelView | nul
 }
 
 function resolveSelectionView(
-  state: Pick<TopoViewerState, "selectedNode" | "selectedEdge" | "mode" | "isLocked">
+  state: Pick<
+    TopoViewerState,
+    "selectedNode" | "selectedEdge" | "mode" | "isLocked" | "deploymentState"
+  >
 ): PanelView | null {
-  if (hasId(state.selectedNode) && state.mode === "view")
+  // Info panels show runtime properties, so they follow the deployment state
+  // (read-only view mode keeps them too, even when the state is unknown).
+  const showInfoOnSelect = state.deploymentState === "deployed" || state.mode === "view";
+  if (hasId(state.selectedNode) && showInfoOnSelect)
     return {
       kind: "nodeInfo",
       title: "Node Properties",
-      // In unlocked view mode, node selection can also drive visual edits (Icon/Label/Direction).
+      // When unlocked, node selection can also drive visual edits (Icon/Label/Direction).
       hasFooter: !state.isLocked
     };
-  if (hasId(state.selectedEdge) && state.mode === "view")
+  if (hasId(state.selectedEdge) && showInfoOnSelect)
     return { kind: "linkInfo", title: "Link Properties", hasFooter: false };
   return null;
 }

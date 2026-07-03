@@ -11,6 +11,7 @@ import { useCallback, useState } from "react";
 import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 
 export interface DeploymentCommands {
+  onApply: () => void;
   onDeploy: () => void;
   onDeployCleanup: () => void;
   onDestroy: () => void;
@@ -27,6 +28,7 @@ export function useDeploymentCommands(): DeploymentCommands {
   const { sendLifecycleCommand } = useExtensionMessaging();
 
   return {
+    onApply: useCallback(() => sendLifecycleCommand("applyLab"), [sendLifecycleCommand]),
     onDeploy: useCallback(() => sendLifecycleCommand("deployLab"), [sendLifecycleCommand]),
     onDeployCleanup: useCallback(
       () => sendLifecycleCommand("deployLabCleanup"),

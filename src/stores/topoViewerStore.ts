@@ -22,7 +22,7 @@ export type DeploymentState = "deployed" | "undeployed" | "unknown";
 export type LinkLabelMode = "show-all" | "on-select" | "hide" | "telemetry-style";
 export type NonTelemetryLinkLabelMode = Exclude<LinkLabelMode, "telemetry-style">;
 export type GridStyle = "dotted" | "quadratic";
-export type ProcessingMode = "deploy" | "destroy" | "start" | "stop" | "restart" | null;
+export type ProcessingMode = "deploy" | "destroy" | "apply" | "start" | "stop" | "restart" | null;
 export type LifecycleLogStream = "stdout" | "stderr";
 export type LifecycleStatus = "running" | "success" | "error" | null;
 
@@ -35,6 +35,11 @@ export interface TopoViewerState {
   labName: string;
   mode: "edit" | "view";
   deploymentState: DeploymentState;
+  /**
+   * Whether the on-disk topology diverged from the deployed runtime state
+   * (i.e. apply would change something). `undefined` = unknown.
+   */
+  isDirty: boolean | undefined;
   labSettings?: LabSettings;
   yamlFileName: string;
   annotationsFileName: string;
@@ -95,6 +100,7 @@ export interface TopoViewerActions {
   // Mode and state
   setMode: (mode: "edit" | "view") => void;
   setDeploymentState: (state: DeploymentState) => void;
+  setDirty: (dirty: boolean | undefined) => void;
   toggleLock: () => void;
 
   // Rendering settings
@@ -152,6 +158,7 @@ const initialState: TopoViewerState = {
   labName: "",
   mode: "edit",
   deploymentState: "unknown",
+  isDirty: undefined,
   labSettings: undefined,
   yamlFileName: "topology.clab.yml",
   annotationsFileName: "topology.clab.yml.annotations.json",
@@ -325,6 +332,10 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
 
   setDeploymentState: (deploymentState) => {
     set({ deploymentState });
+  },
+
+  setDirty: (isDirty) => {
+    set({ isDirty });
   },
 
   toggleLock: () => {
@@ -565,6 +576,18 @@ export const useLabName = () => useTopoViewerStore((state) => state.labName);
 /** Get deployment state */
 export const useDeploymentState = () => useTopoViewerStore((state) => state.deploymentState);
 
+/** Get dirty state (on-disk topology diverged from runtime; undefined = unknown) */
+export const useIsDirty = () => useTopoViewerStore((state) => state.isDirty);
+
+/**
+ * Whether applying the topology would (potentially) change the runtime:
+ * the lab is not deployed, or the topology is dirty / of unknown sync state.
+ */
+export const useNeedsApply = () =>
+  useTopoViewerStore(
+    (state) => state.deploymentState !== "deployed" || state.isDirty !== false
+  );
+
 /** Get selected node */
 export const useSelectedNode = () => useTopoViewerStore((state) => state.selectedNode);
 
@@ -632,6 +655,7 @@ export const useTopoViewerState = () =>
       labName: state.labName,
       mode: state.mode,
       deploymentState: state.deploymentState,
+      isDirty: state.isDirty,
       labSettings: state.labSettings,
       yamlFileName: state.yamlFileName,
       annotationsFileName: state.annotationsFileName,
@@ -687,6 +711,7 @@ export const useTopoViewerActions = () =>
       editNetwork: state.editNetwork,
       setMode: state.setMode,
       setDeploymentState: state.setDeploymentState,
+      setDirty: state.setDirty,
       toggleLock: state.toggleLock,
       setLinkLabelMode: state.setLinkLabelMode,
       toggleDummyLinks: state.toggleDummyLinks,

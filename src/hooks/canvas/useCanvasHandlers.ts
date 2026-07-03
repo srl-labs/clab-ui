@@ -37,6 +37,7 @@ import {
   saveNodePositionsWithMemberships
 } from "../../services";
 import { useGraphStore } from "../../stores/graphStore";
+import { useDeploymentState } from "../../stores/topoViewerStore";
 import { allocateEndpointsForLink } from "../../utils/endpointAllocator";
 import { buildEdgeId } from "../../utils/edgeId";
 import { snapToGrid } from "../../utils/grid";
@@ -747,32 +748,52 @@ function useNodeClickHandlers(
   editNode: (id: string | null) => void,
   editNetwork: (id: string | null) => void,
   closeContextMenu: () => void,
-  modeRef: React.RefObject<"view" | "edit">
+  modeRef: React.RefObject<"view" | "edit">,
+  isDeployedRef: React.RefObject<boolean>
 ) {
+  const openNodeEditor = useCallback(
+    (node: Node) => {
+      if (node.type === NODE_TYPE_NETWORK) {
+        editNetwork(node.id);
+      } else {
+        editNode(node.id);
+      }
+    },
+    [editNode, editNetwork]
+  );
+
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
       log.info(`[ReactFlowCanvas] Node clicked: ${node.id}`);
       closeContextMenu();
       if (isAnnotationNodeType(node.type)) return;
-      // In edit mode, open editor directly (read-only when locked)
-      if (modeRef.current === "edit" && EDITABLE_NODE_TYPES.includes(node.type ?? "")) {
-        if (node.type === NODE_TYPE_NETWORK) {
-          editNetwork(node.id);
-        } else {
-          editNode(node.id);
-        }
+      // Deployed labs select on click so the info panel shows runtime data;
+      // the editor opens via double-click or the context menu instead.
+      if (
+        modeRef.current === "edit" &&
+        !isDeployedRef.current &&
+        EDITABLE_NODE_TYPES.includes(node.type ?? "")
+      ) {
+        openNodeEditor(node);
       } else {
         selectNode(node.id);
         selectEdge(null);
       }
     },
-    [selectNode, selectEdge, editNode, editNetwork, closeContextMenu, modeRef]
+    [selectNode, selectEdge, openNodeEditor, closeContextMenu, modeRef, isDeployedRef]
   );
 
-  const onNodeDoubleClick: NodeMouseHandler = useCallback((_event, _node) => {
-    // Node editing in edit mode is handled by single click.
-    // Annotation double-click (text/shape/group) is handled by the annotation wrapper.
-  }, []);
+  const onNodeDoubleClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      // Annotation double-click (text/shape/group) is handled by the annotation wrapper.
+      if (isAnnotationNodeType(node.type)) return;
+      // Undeployed labs open the editor on single click already.
+      if (modeRef.current === "edit" && EDITABLE_NODE_TYPES.includes(node.type ?? "")) {
+        openNodeEditor(node);
+      }
+    },
+    [openNodeEditor, modeRef]
+  );
 
   return { onNodeClick, onNodeDoubleClick };
 }
@@ -783,26 +804,34 @@ function useEdgeClickHandlers(
   selectEdge: (id: string | null) => void,
   editEdge: (id: string | null) => void,
   closeContextMenu: () => void,
-  modeRef: React.RefObject<"view" | "edit">
+  modeRef: React.RefObject<"view" | "edit">,
+  isDeployedRef: React.RefObject<boolean>
 ) {
   const onEdgeClick: EdgeMouseHandler = useCallback(
     (_event, edge) => {
       log.info(`[ReactFlowCanvas] Edge clicked: ${edge.id}`);
       closeContextMenu();
-      // In edit mode, open editor directly (read-only when locked)
-      if (modeRef.current === "edit") {
+      // Deployed labs select on click so the info panel shows runtime data;
+      // the editor opens via double-click or the context menu instead.
+      if (modeRef.current === "edit" && !isDeployedRef.current) {
         editEdge(edge.id);
       } else {
         selectEdge(edge.id);
         selectNode(null);
       }
     },
-    [selectNode, selectEdge, editEdge, closeContextMenu, modeRef]
+    [selectNode, selectEdge, editEdge, closeContextMenu, modeRef, isDeployedRef]
   );
 
-  const onEdgeDoubleClick: EdgeMouseHandler = useCallback((_event, _edge) => {
-    // Edge editing in edit mode is handled by single click.
-  }, []);
+  const onEdgeDoubleClick: EdgeMouseHandler = useCallback(
+    (_event, edge) => {
+      // Undeployed labs open the editor on single click already.
+      if (modeRef.current === "edit") {
+        editEdge(edge.id);
+      }
+    },
+    [editEdge, modeRef]
+  );
 
   return { onEdgeClick, onEdgeDoubleClick };
 }
@@ -977,10 +1006,13 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
   } = config;
 
   const reactFlowInstance = reactFlowInstanceRef ?? useRef<ReactFlowInstance | null>(null);
+  const deploymentState = useDeploymentState();
   const modeRef = useRef(mode);
   const isLockedRef = useRef(isLocked);
+  const isDeployedRef = useRef(deploymentState === "deployed");
   modeRef.current = mode;
   isLockedRef.current = isLocked;
+  isDeployedRef.current = deploymentState === "deployed";
 
   // Context menu state
   const { contextMenu, closeContextMenu, openNodeMenu, openEdgeMenu, openPaneMenu } =
@@ -1006,14 +1038,16 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     editNode,
     editNetwork,
     closeContextMenu,
-    modeRef
+    modeRef,
+    isDeployedRef
   );
   const { onEdgeClick, onEdgeDoubleClick } = useEdgeClickHandlers(
     selectNode,
     selectEdge,
     editEdge,
     closeContextMenu,
-    modeRef
+    modeRef,
+    isDeployedRef
   );
   const onPaneClick = usePaneClickHandler(
     selectNode,

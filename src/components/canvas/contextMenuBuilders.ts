@@ -45,6 +45,8 @@ interface MenuBuilderContext {
   targetNodeType?: string;
   targetRuntimeState?: NodeRuntimeActionState;
   isEditMode: boolean;
+  /** Whether the lab is deployed, i.e. runtime node/interface actions apply. */
+  isDeployed: boolean;
   isLocked: boolean;
   onNodeAction: (action: TopoViewerNodeAction, nodeName: string) => void;
   closeContextMenu: () => void;
@@ -86,6 +88,8 @@ interface EdgeMenuBuilderContext {
   targetEndpoint?: string;
   extraData?: Record<string, unknown>;
   isEditMode: boolean;
+  /** Whether the lab is deployed, i.e. capture/impairment actions apply. */
+  isDeployed: boolean;
   isLocked: boolean;
   onInterfaceCapture: (nodeName: string, interfaceName: string) => void;
   closeContextMenu: () => void;
@@ -310,8 +314,8 @@ function buildTrafficRateContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
   return items;
 }
 
-function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, targetRuntimeState, closeContextMenu, onNodeAction, showNodeInfo } = ctx;
+function buildNodeRuntimeItems(ctx: MenuBuilderContext): ContextMenuItem[] {
+  const { targetId, targetRuntimeState, closeContextMenu, onNodeAction } = ctx;
   return [
     {
       id: "start-node",
@@ -372,28 +376,14 @@ function buildNodeViewContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
         onNodeAction("logs", targetId);
         closeContextMenu();
       }
-    },
-    { id: DIVIDER_ID, label: "", divider: true },
-    {
-      id: "info-node",
-      label: "Info",
-      icon: React.createElement(InfoIcon, { fontSize: "small" }),
-      onClick: () => {
-        showNodeInfo?.(targetId);
-        closeContextMenu();
-      }
     }
   ];
 }
 
-/**
- * Build node context menu items
- */
-export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
+function buildNodeEditItems(ctx: MenuBuilderContext): ContextMenuItem[] {
   const {
     targetId,
     targetNodeType,
-    isEditMode,
     isLocked,
     closeContextMenu,
     editNode,
@@ -403,24 +393,6 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
     startLinkCreation,
     cancelLinkCreation
   } = ctx;
-
-  // Handle annotation nodes with specific menus
-  if (targetNodeType === FREE_TEXT_NODE_TYPE) {
-    return buildFreeTextContextMenu(ctx);
-  }
-  if (targetNodeType === FREE_SHAPE_NODE_TYPE) {
-    return buildFreeShapeContextMenu(ctx);
-  }
-  if (targetNodeType === TRAFFIC_RATE_NODE_TYPE) {
-    return buildTrafficRateContextMenu(ctx);
-  }
-  if (targetNodeType === GROUP_NODE_TYPE) {
-    return buildGroupContextMenu(ctx);
-  }
-
-  if (!isEditMode) {
-    return buildNodeViewContextMenu(ctx);
-  }
 
   const items: ContextMenuItem[] = [];
   const isNetworkNode = targetNodeType === "network-node";
@@ -486,27 +458,72 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
 }
 
 /**
- * Build edge context menu items
+ * Build node context menu items.
+ *
+ * Runtime actions (start/stop/ssh/...) appear when the lab is deployed, edit
+ * actions when the topology is editable — a deployed editable lab gets both.
  */
-export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuItem[] {
+export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
+  const { targetId, targetNodeType, isEditMode, isDeployed, closeContextMenu, showNodeInfo } = ctx;
+
+  // Handle annotation nodes with specific menus
+  if (targetNodeType === FREE_TEXT_NODE_TYPE) {
+    return buildFreeTextContextMenu(ctx);
+  }
+  if (targetNodeType === FREE_SHAPE_NODE_TYPE) {
+    return buildFreeShapeContextMenu(ctx);
+  }
+  if (targetNodeType === TRAFFIC_RATE_NODE_TYPE) {
+    return buildTrafficRateContextMenu(ctx);
+  }
+  if (targetNodeType === GROUP_NODE_TYPE) {
+    return buildGroupContextMenu(ctx);
+  }
+
+  const isNetworkNode = targetNodeType === "network-node";
+  const items: ContextMenuItem[] = [];
+
+  if (isDeployed && !isNetworkNode) {
+    items.push(...buildNodeRuntimeItems(ctx));
+  }
+
+  if (isEditMode) {
+    if (items.length > 0) {
+      items.push({ id: "divider-runtime-edit", label: "", divider: true });
+    }
+    items.push(...buildNodeEditItems(ctx));
+  }
+
+  if (isDeployed) {
+    if (items.length > 0) {
+      items.push({ id: DIVIDER_ID + "-info", label: "", divider: true });
+    }
+    items.push({
+      id: "info-node",
+      label: "Info",
+      icon: React.createElement(InfoIcon, { fontSize: "small" }),
+      onClick: () => {
+        showNodeInfo?.(targetId);
+        closeContextMenu();
+      }
+    });
+  }
+
+  return items;
+}
+
+/** Build interface capture items for each edge endpoint. */
+function buildEdgeCaptureItems(ctx: EdgeMenuBuilderContext): ContextMenuItem[] {
   const {
-    targetId,
     sourceNode,
     targetNode,
     sourceEndpoint,
     targetEndpoint,
     extraData,
-    isEditMode,
-    isLocked,
     onInterfaceCapture,
-    closeContextMenu,
-    editEdge,
-    handleDeleteEdge,
-    showLinkInfo,
-    showLinkImpairment
+    closeContextMenu
   } = ctx;
 
-  // Build capture items for each endpoint
   const captureItems: ContextMenuItem[] = [];
   const srcCaptureName = getExtraDataString(extraData, "clabSourceLongName") ?? sourceNode;
   const dstCaptureName = getExtraDataString(extraData, "clabTargetLongName") ?? targetNode;
@@ -543,6 +560,27 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
     });
   }
 
+  return captureItems;
+}
+
+/**
+ * Build edge context menu items
+ */
+export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuItem[] {
+  const {
+    targetId,
+    isEditMode,
+    isDeployed,
+    isLocked,
+    closeContextMenu,
+    editEdge,
+    handleDeleteEdge,
+    showLinkInfo,
+    showLinkImpairment
+  } = ctx;
+
+  const captureItems = buildEdgeCaptureItems(ctx);
+
   const impairmentItem: ContextMenuItem = {
     id: "impair-edge",
     label: "Link Impairments",
@@ -561,17 +599,24 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
       closeContextMenu();
     }
   };
-  if (!isEditMode) {
-    return [
-      ...captureItems,
-      ...(captureItems.length > 0 ? [{ id: "divider-capture", label: "", divider: true }] : []),
-      impairmentItem,
-      { id: "divider-info", label: "", divider: true },
-      linkInfoItem
-    ];
+
+  // Runtime actions (capture/impairments/info) when deployed, edit actions
+  // when the topology is editable — a deployed editable lab gets both.
+  const items: ContextMenuItem[] = [];
+
+  if (isDeployed) {
+    items.push(...captureItems);
+    if (captureItems.length > 0) {
+      items.push({ id: "divider-capture", label: "", divider: true });
+    }
+    items.push(impairmentItem);
   }
-  return [
-    {
+
+  if (isEditMode) {
+    if (items.length > 0) {
+      items.push({ id: "divider-runtime-edit", label: "", divider: true });
+    }
+    items.push({
       id: "edit-edge",
       label: "Edit Link",
       icon: React.createElement(EditIcon, { fontSize: "small" }),
@@ -580,17 +625,27 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
         editEdge(targetId);
         closeContextMenu();
       }
-    },
-    { id: DIVIDER_ID, label: "", divider: true },
-    {
+    });
+  }
+
+  if (isDeployed) {
+    items.push({ id: "divider-info", label: "", divider: true });
+    items.push(linkInfoItem);
+  }
+
+  if (isEditMode) {
+    items.push({ id: DIVIDER_ID, label: "", divider: true });
+    items.push({
       id: "delete-edge",
       label: "Delete Link",
       icon: React.createElement(DeleteIcon, { fontSize: "small" }),
       disabled: isLocked,
       danger: true,
       onClick: () => handleDeleteEdge(targetId)
-    }
-  ];
+    });
+  }
+
+  return items;
 }
 
 /**
@@ -614,7 +669,7 @@ export function buildPaneContextMenu(ctx: PaneMenuBuilderContext): ContextMenuIt
   } = ctx;
   const items: ContextMenuItem[] = [];
 
-  // Add Node is only available in edit mode (not when deployed)
+  // Add Node is only available when the topology is editable
   if (isEditMode) {
     items.push(
       {

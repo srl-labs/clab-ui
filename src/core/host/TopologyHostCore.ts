@@ -35,6 +35,12 @@ interface TopologyHostCoreOptions {
   yamlFilePath: string;
   mode: "edit" | "view";
   deploymentState: DeploymentState;
+  /**
+   * Baseline sync state between the on-disk topology and the deployed runtime.
+   * `undefined` = unknown. The core flips this to `true` on its own whenever a
+   * command or external change mutates the YAML content.
+   */
+  dirty?: boolean;
   containerDataProvider?: ContainerDataProvider;
   setInternalUpdate?: (updating: boolean) => void;
   logger?: IOLogger;
@@ -80,6 +86,7 @@ export class TopologyHostCore implements TopologyHost {
   private yamlFilePath: string;
   private mode: "edit" | "view";
   private deploymentState: DeploymentState;
+  private dirty: boolean | undefined;
   private containerDataProvider?: ContainerDataProvider;
   private setInternalUpdate?: (updating: boolean) => void;
   private logger: IOLogger;
@@ -104,6 +111,7 @@ export class TopologyHostCore implements TopologyHost {
     this.yamlFilePath = options.yamlFilePath;
     this.mode = options.mode;
     this.deploymentState = options.deploymentState;
+    this.dirty = options.dirty;
     this.containerDataProvider = options.containerDataProvider;
     this.setInternalUpdate = options.setInternalUpdate;
     this.logger = options.logger ?? noopLogger;
@@ -128,15 +136,19 @@ export class TopologyHostCore implements TopologyHost {
 
   updateContext(
     context: Partial<
-      Pick<TopologyHostCoreOptions, "mode" | "deploymentState" | "containerDataProvider">
+      Pick<TopologyHostCoreOptions, "mode" | "deploymentState" | "dirty" | "containerDataProvider">
     >
   ): void {
     const modeChanged = context.mode !== undefined && context.mode !== this.mode;
     const deploymentChanged =
       context.deploymentState !== undefined && context.deploymentState !== this.deploymentState;
+    // `dirty` is tri-state: only a key present in the context object updates it,
+    // and an explicit `undefined` resets the sync state to "unknown".
+    const dirtyChanged = "dirty" in context && context.dirty !== this.dirty;
 
     if (context.mode) this.mode = context.mode;
     if (context.deploymentState) this.deploymentState = context.deploymentState;
+    if (dirtyChanged) this.dirty = context.dirty;
     if (context.containerDataProvider !== undefined) {
       this.containerDataProvider = context.containerDataProvider;
     }
@@ -145,6 +157,8 @@ export class TopologyHostCore implements TopologyHost {
     // Avoid forcing full YAML/annotations reloads on each runtime tick.
     if (modeChanged || deploymentChanged) {
       this.snapshot = null;
+    } else if (dirtyChanged && this.snapshot) {
+      this.snapshot = { ...this.snapshot, dirty: this.dirty };
     }
   }
 
@@ -226,6 +240,7 @@ export class TopologyHostCore implements TopologyHost {
     this.future = [];
     this.revision += 1;
     this.snapshot = await this.buildSnapshot();
+    this.markDirtyIfYamlChanged(beforeState.yamlContent, this.snapshot);
 
     return {
       type: TOPOLOGY_HOST_ACK,
@@ -237,6 +252,7 @@ export class TopologyHostCore implements TopologyHost {
   }
 
   async onExternalChange(): Promise<TopologySnapshot> {
+    const previousYamlContent = this.snapshot?.yamlContent;
     this.past = [];
     this.future = [];
     this.revision += 1;
@@ -244,10 +260,27 @@ export class TopologyHostCore implements TopologyHost {
       this.setInternalUpdate?.(true);
       await this.reloadFromDisk();
       this.snapshot = await this.buildSnapshot();
+      this.markDirtyIfYamlChanged(previousYamlContent, this.snapshot);
       return this.snapshot;
     } finally {
       this.setInternalUpdate?.(false);
     }
+  }
+
+  /**
+   * Flip the dirty flag once the persisted YAML no longer matches the content
+   * the runtime was told about. Annotation-only edits never reach this path
+   * with different YAML, so they keep the lab in sync.
+   */
+  private markDirtyIfYamlChanged(
+    previousYamlContent: string | undefined,
+    snapshot: TopologySnapshot
+  ): void {
+    if (previousYamlContent === undefined || previousYamlContent === snapshot.yamlContent) {
+      return;
+    }
+    this.dirty = true;
+    snapshot.dirty = true;
   }
 
   dispose(): void {
@@ -567,6 +600,7 @@ export class TopologyHostCore implements TopologyHost {
 
     this.revision += 1;
     this.snapshot = await this.buildSnapshot();
+    this.markDirtyIfYamlChanged(current.yamlContent, this.snapshot);
     return {
       type: TOPOLOGY_HOST_ACK,
       protocolVersion: TOPOLOGY_HOST_PROTOCOL_VERSION,
@@ -660,6 +694,7 @@ export class TopologyHostCore implements TopologyHost {
       labName: labName ?? "",
       mode: this.mode,
       deploymentState: this.deploymentState,
+      dirty: this.dirty,
       labSettings: Object.keys(labSettings).length > 0 ? labSettings : undefined,
       canUndo: this.past.length > 0,
       canRedo: this.future.length > 0
@@ -677,7 +712,9 @@ export class TopologyHostCore implements TopologyHost {
     graphLabelMigrations: GraphLabelMigration[];
   } {
     const parserLabName = this.getParserLabName(parsed);
-    if (this.mode === "view") {
+    // Merge runtime container data whenever the host provides it (i.e. the lab
+    // is deployed), independent of whether the topology is editable.
+    if (this.containerDataProvider) {
       return parsed
         ? TopologyParser.parseToReactFlowFromParsed(parsed, {
             annotations,

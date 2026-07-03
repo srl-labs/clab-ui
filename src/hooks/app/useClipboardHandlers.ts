@@ -9,7 +9,11 @@ import type { ReactFlowInstance } from "@xyflow/react";
 
 import type { TopoNode, TopoEdge } from "../../core/types/graph";
 
-import { useClipboard, type UseClipboardOptions } from "./useClipboard";
+import {
+  useClipboard,
+  type ClipboardPasteOptions,
+  type UseClipboardOptions
+} from "./useClipboard";
 /**
  * Annotations interface subset for clipboard operations
  * Avoids circular dependency with AnnotationContext.tsx
@@ -25,6 +29,7 @@ const DEBOUNCE_MS = 50;
 const CANVAS_SELECTOR = ".react-flow-canvas, .react-flow";
 
 type FlowPosition = { x: number; y: number };
+type ClipboardHandlerOptions = Pick<ClipboardPasteOptions, "annotationsOnly">;
 
 function mouseEventIsOverCanvas(event: MouseEvent): boolean {
   const canvases = document.querySelectorAll(CANVAS_SELECTOR);
@@ -87,9 +92,9 @@ export interface ClipboardHandlersReturn {
   /** Debounced copy handler */
   handleUnifiedCopy: () => void;
   /** Debounced paste handler */
-  handleUnifiedPaste: () => void;
+  handleUnifiedPaste: (options?: ClipboardHandlerOptions) => void;
   /** Debounced duplicate handler (copy + paste) */
-  handleUnifiedDuplicate: () => void;
+  handleUnifiedDuplicate: (options?: ClipboardHandlerOptions) => void;
   /** Delete selected elements (graph + annotations) */
   handleUnifiedDelete: () => void;
   /** Check if clipboard has data (async) */
@@ -191,21 +196,24 @@ export function useClipboardHandlers(config: ClipboardHandlersConfig): Clipboard
   }, [checkClipboard]);
 
   // Debounced paste
-  const handleUnifiedPaste = React.useCallback(() => {
+  const handleUnifiedPaste = React.useCallback((options?: ClipboardHandlerOptions) => {
     const now = Date.now();
     if (now - lastPasteTimeRef.current < DEBOUNCE_MS) return;
     lastPasteTimeRef.current = now;
-    void clipboardRef.current.paste(lastCanvasPastePositionRef.current ?? undefined);
+    void clipboardRef.current.paste(lastCanvasPastePositionRef.current ?? undefined, options);
   }, []);
 
   // Debounced duplicate (copy + paste)
-  const handleUnifiedDuplicate = React.useCallback(() => {
+  const handleUnifiedDuplicate = React.useCallback((options?: ClipboardHandlerOptions) => {
     const now = Date.now();
     if (now - lastDuplicateTimeRef.current < DEBOUNCE_MS) return;
     lastDuplicateTimeRef.current = now;
     void clipboardRef.current.copy().then(async (success) => {
       if (success) {
-        await clipboardRef.current.paste(undefined, { preferMemory: true });
+        await clipboardRef.current.paste(undefined, {
+          preferMemory: true,
+          annotationsOnly: options?.annotationsOnly
+        });
       }
     });
   }, []);

@@ -29,7 +29,7 @@ const CLIPBOARD_VERSION = "1.0";
 const MEMORY_CLIPBOARD_INVALID_BROWSER_TTL_MS = 5 * 60 * 1000;
 
 /** Serialized node data for clipboard */
-interface SerializedNode {
+export interface SerializedNode {
   id: string;
   data: Record<string, unknown>;
   position: { x: number; y: number };
@@ -44,7 +44,7 @@ interface SerializedNode {
 }
 
 /** Serialized edge data for clipboard */
-interface SerializedEdge {
+export interface SerializedEdge {
   id: string;
   source: string;
   target: string;
@@ -80,12 +80,17 @@ type PasteCallbacks = {
 type PasteTimeRef = { current: number };
 
 /** Clipboard data structure */
-interface ClipboardData {
+export interface ClipboardData {
   version: string;
   origin: { x: number; y: number };
   nodes: SerializedNode[];
   edges: SerializedEdge[];
   timestamp: number;
+}
+
+export interface ClipboardPasteOptions {
+  preferMemory?: boolean;
+  annotationsOnly?: boolean;
 }
 
 /** Options for useClipboard hook */
@@ -105,7 +110,7 @@ export interface UseClipboardReturn {
   /** Paste clipboard contents at position */
   paste: (
     position?: { x: number; y: number },
-    options?: { preferMemory?: boolean }
+    options?: ClipboardPasteOptions
   ) => Promise<boolean>;
   /** Check if browser clipboard has compatible data */
   hasClipboardData: () => Promise<boolean>;
@@ -194,6 +199,19 @@ function resolveNodeType(type: string | undefined): TopoNode["type"] {
     default:
       return "topology-node";
   }
+}
+
+export function filterClipboardDataForPaste(
+  clipboardData: ClipboardData,
+  options: Pick<ClipboardPasteOptions, "annotationsOnly"> = {}
+): ClipboardData {
+  if (options.annotationsOnly !== true) return clipboardData;
+
+  return {
+    ...clipboardData,
+    nodes: clipboardData.nodes.filter((node) => ANNOTATION_TYPES.has(node.type ?? "")),
+    edges: []
+  };
 }
 
 // ============================================================================
@@ -574,6 +592,7 @@ function finalizePaste(
 interface PerformPasteParams extends PasteCallbacks {
   position?: { x: number; y: number };
   preferMemory?: boolean;
+  annotationsOnly?: boolean;
   useMemoryOnInvalidBrowserData?: boolean;
   memoryClipboardData: ClipboardData | null;
   rfInstance?: ReactFlowInstance | null;
@@ -584,12 +603,24 @@ interface PerformPasteParams extends PasteCallbacks {
 }
 
 async function performPaste(params: PerformPasteParams): Promise<boolean> {
-  const clipboardData = await readClipboardData(params.memoryClipboardData, {
+  const sourceClipboardData = await readClipboardData(params.memoryClipboardData, {
     preferFallback: params.preferMemory === true,
     useFallbackOnInvalidData: params.useMemoryOnInvalidBrowserData === true
   });
+  const clipboardData =
+    sourceClipboardData == null
+      ? null
+      : filterClipboardDataForPaste(sourceClipboardData, {
+          annotationsOnly: params.annotationsOnly
+        });
   if (!clipboardData || clipboardData.nodes.length === 0) {
-    if (clipboardData?.nodes.length === 0) log.info("[Clipboard] No nodes to paste");
+    if (clipboardData?.nodes.length === 0) {
+      log.info(
+        params.annotationsOnly === true
+          ? "[Clipboard] No annotation nodes to paste"
+          : "[Clipboard] No nodes to paste"
+      );
+    }
     return false;
   }
 
@@ -754,7 +785,7 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
   const paste = useCallback(
     async (
       position?: { x: number; y: number },
-      pasteOptions?: { preferMemory?: boolean }
+      pasteOptions?: ClipboardPasteOptions
     ): Promise<boolean> => {
       if (shouldThrottlePaste(Date.now(), lastPasteTimeRef)) return false;
       const shouldUseMemoryOnInvalidBrowserData =
@@ -765,6 +796,7 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
       return performPaste({
         position,
         preferMemory: pasteOptions?.preferMemory,
+        annotationsOnly: pasteOptions?.annotationsOnly,
         useMemoryOnInvalidBrowserData: shouldUseMemoryOnInvalidBrowserData,
         memoryClipboardData: memoryClipboardDataRef.current,
         rfInstance,

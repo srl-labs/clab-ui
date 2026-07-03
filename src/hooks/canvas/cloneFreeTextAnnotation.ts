@@ -11,8 +11,12 @@ export function cloneFreeTextAnnotation(
   source: FreeTextAnnotation,
   newId: string
 ): FreeTextAnnotation {
+  const copy = { ...source };
+  // Geo layout projects from geoCoordinates; reusing them would stack the copy on the source.
+  delete copy.geoCoordinates;
+
   return {
-    ...source,
+    ...copy,
     id: newId,
     position: {
       x: source.position.x + DUPLICATE_OFFSET,

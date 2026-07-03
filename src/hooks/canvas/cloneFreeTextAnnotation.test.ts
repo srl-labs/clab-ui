@@ -31,6 +31,18 @@ test("cloneFreeTextAnnotation preserves text, style and group membership", () =>
   assert.equal(copy.groupId, "group-1");
 });
 
+test("cloneFreeTextAnnotation omits geo coordinates so geo layout can place the copy", () => {
+  const geoSource: FreeTextAnnotation = {
+    ...source,
+    geoCoordinates: { lat: 48, lng: 11 }
+  };
+
+  const copy = cloneFreeTextAnnotation(geoSource, "freeText_2");
+
+  assert.equal(copy.geoCoordinates, undefined);
+  assert.deepEqual(geoSource.geoCoordinates, { lat: 48, lng: 11 });
+});
+
 test("cloneFreeTextAnnotation does not mutate the source", () => {
   cloneFreeTextAnnotation(source, "freeText_2");
 

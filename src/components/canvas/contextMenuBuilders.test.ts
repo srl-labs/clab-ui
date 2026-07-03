@@ -67,6 +67,46 @@ test("deployed editable node context menu offers runtime and edit actions", () =
   assert.equal(itemById(items, "info-node").disabled, undefined);
 });
 
+test("read-only view menus keep runtime actions when deployment state is unknown", () => {
+  const nodeItems = buildNodeContextMenu({
+    targetId: "srl1",
+    targetNodeType: "topology-node",
+    isEditMode: false,
+    isDeployed: false,
+    isLocked: true,
+    onNodeAction: () => {},
+    closeContextMenu: () => {},
+    editNode: () => {},
+    editNetwork: () => {},
+    handleDeleteNode: () => {},
+    showNodeInfo: () => {}
+  });
+
+  assert.notEqual(nodeItems.length, 0);
+  assert.equal(itemById(nodeItems, "ssh-node").disabled, false);
+  assert.equal(itemById(nodeItems, "info-node").disabled, undefined);
+  assert.equal(nodeItems.find((item) => item.id === "edit-node"), undefined);
+
+  const edgeItems = buildEdgeContextMenu({
+    targetId: "edge-1",
+    sourceNode: "srl1",
+    targetNode: "srl2",
+    sourceEndpoint: "e1-1",
+    targetEndpoint: "e1-1",
+    isEditMode: false,
+    isDeployed: false,
+    isLocked: true,
+    onInterfaceCapture: () => {},
+    closeContextMenu: () => {},
+    editEdge: () => {},
+    handleDeleteEdge: () => {}
+  });
+
+  assert.notEqual(edgeItems.length, 0);
+  assert.equal(itemById(edgeItems, "info-edge").disabled, undefined);
+  assert.equal(edgeItems.find((item) => item.id === "edit-edge"), undefined);
+});
+
 test("undeployed editable node context menu has no runtime actions", () => {
   const items = buildNodeContextMenu({
     targetId: "srl1",

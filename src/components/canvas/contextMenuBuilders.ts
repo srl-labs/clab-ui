@@ -460,8 +460,10 @@ function buildNodeEditItems(ctx: MenuBuilderContext): ContextMenuItem[] {
 /**
  * Build node context menu items.
  *
- * Runtime actions (start/stop/ssh/...) appear when the lab is deployed, edit
- * actions when the topology is editable — a deployed editable lab gets both.
+ * Edit actions appear when the topology is editable. Runtime actions
+ * (start/stop/ssh/...) appear when the lab is deployed — and always in
+ * read-only view mode, which exists to inspect labs — so a deployed editable
+ * lab gets both sections.
  */
 export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
   const { targetId, targetNodeType, isEditMode, isDeployed, closeContextMenu, showNodeInfo } = ctx;
@@ -481,9 +483,10 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
   }
 
   const isNetworkNode = targetNodeType === "network-node";
+  const showRuntimeActions = isDeployed || !isEditMode;
   const items: ContextMenuItem[] = [];
 
-  if (isDeployed && !isNetworkNode) {
+  if (showRuntimeActions && !isNetworkNode) {
     items.push(...buildNodeRuntimeItems(ctx));
   }
 
@@ -494,7 +497,7 @@ export function buildNodeContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
     items.push(...buildNodeEditItems(ctx));
   }
 
-  if (isDeployed) {
+  if (showRuntimeActions) {
     if (items.length > 0) {
       items.push({ id: DIVIDER_ID + "-info", label: "", divider: true });
     }
@@ -600,11 +603,13 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
     }
   };
 
-  // Runtime actions (capture/impairments/info) when deployed, edit actions
-  // when the topology is editable — a deployed editable lab gets both.
+  // Edit actions appear when the topology is editable; runtime actions
+  // (capture/impairments/info) when the lab is deployed — and always in
+  // read-only view mode — so a deployed editable lab gets both sections.
+  const showRuntimeActions = isDeployed || !isEditMode;
   const items: ContextMenuItem[] = [];
 
-  if (isDeployed) {
+  if (showRuntimeActions) {
     items.push(...captureItems);
     if (captureItems.length > 0) {
       items.push({ id: "divider-capture", label: "", divider: true });
@@ -628,7 +633,7 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
     });
   }
 
-  if (isDeployed) {
+  if (showRuntimeActions) {
     items.push({ id: "divider-info", label: "", divider: true });
     items.push(linkInfoItem);
   }

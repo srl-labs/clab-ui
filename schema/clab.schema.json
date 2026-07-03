@@ -103,6 +103,7 @@
                         "ext-container",
                         "rare",
                         "cisco_xrd",
+                        "cisco_xrd_vrouter",
                         "cisco_c8000",
                         "cisco_c8000v",
                         "cisco_cat9kv",
@@ -285,6 +286,16 @@
                     "description": "node network mode (can only be set host, defaults to bridge)",
                     "markdownDescription": "node [network mode](https://containerlab.dev/manual/nodes/#network-mode) (can only be set host, defaults to bridge)",
                     "pattern": "^(host)|(container:\\S+)|(none)$"
+                },
+                "link-apply-mode": {
+                    "type": "string",
+                    "description": "how `containerlab apply` handles dataplane link changes for this node: live (no lifecycle action), restart or recreate; overrides the kind default",
+                    "markdownDescription": "how `containerlab apply` handles [link changes](https://containerlab.dev/cmd/apply/#link-apply-modes) for this node: live (no lifecycle action), restart or recreate; overrides the kind default",
+                    "enum": [
+                        "live",
+                        "restart",
+                        "recreate"
+                    ]
                 },
                 "cpu": {
                     "type": "number",
@@ -558,6 +569,8 @@
                                     "ixr-h5-64d",
                                     "ixrh564o",
                                     "ixr-h5-64o",
+                                    "ixr-h6",
+                                    "ixrh6",
                                     "ixr6",
                                     "ixr-6",
                                     "ixr6e",
@@ -2052,6 +2065,9 @@
                             "$ref": "#/definitions/node-config"
                         },
                         "cisco_xrd": {
+                            "$ref": "#/definitions/node-config"
+                        },
+                        "cisco_xrd_vrouter": {
                             "$ref": "#/definitions/node-config"
                         },
                         "cisco_xrv": {

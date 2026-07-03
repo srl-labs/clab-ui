@@ -96,6 +96,10 @@ export interface NavbarProps {
   onLogoClick?: () => void;
   linkLabelMode: LinkLabelMode;
   onLinkLabelModeChange: (mode: LinkLabelMode) => void;
+  renderDeployMenuItems?: (context: {
+    isViewerMode: boolean;
+    closeMenu: () => void;
+  }) => React.ReactNode;
 }
 
 // This is a UI composition component with lots of conditional rendering and menu wiring.
@@ -122,7 +126,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   logoClickProgress = 0,
   isPartyMode = false,
   linkLabelMode,
-  onLinkLabelModeChange
+  onLinkLabelModeChange,
+  renderDeployMenuItems
 }) => {
   const isTopologyActive = hasActiveTopology;
   const mode = useMode();
@@ -181,6 +186,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   const handleDeployMenuClose = React.useCallback(() => {
     setDeployMenuPosition(null);
   }, []);
+
+  const extraDeployMenuItems = renderDeployMenuItems?.({
+    isViewerMode,
+    closeMenu: handleDeployMenuClose
+  });
 
   const handleDeploy = React.useCallback(() => {
     setProcessing(true, "deploy");
@@ -452,6 +462,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <ListItemText>Deploy (cleanup)</ListItemText>
                 </MenuItem>
               ]}
+          {extraDeployMenuItems ? <Divider sx={{ my: 0.5 }} /> : null}
+          {extraDeployMenuItems}
         </Menu>
 
         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />

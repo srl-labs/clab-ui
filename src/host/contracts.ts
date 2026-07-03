@@ -202,3 +202,9 @@ export interface ClabUiHost {
     ): Promise<TopologyHostResponseMessage>;
   };
 }
+
+export interface CustomPaletteTab {
+  id: string;
+  label: string;
+  render: () => React.ReactNode;
+}

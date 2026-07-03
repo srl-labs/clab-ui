@@ -72,7 +72,7 @@ import {
   getCustomIconMap,
   saveViewerSettings
 } from "./services";
-import { useClabUiHost, useTopologySessionClient } from "./host";
+import { useClabUiHost, useTopologySessionClient, useClabUiRuntime } from "./host";
 import {
   PENDING_NETEM_KEY,
   areNetemEquivalent,
@@ -559,8 +559,8 @@ function useGraphNodeById(nodeId: string | null): TopoNode | null {
       (graphState) =>
         nodeId != null && nodeId.length > 0
           ? (graphState.nodes.find(
-              (node): node is TopoNode => node.id === nodeId && isTopoNode(node)
-            ) ?? null)
+            (node): node is TopoNode => node.id === nodeId && isTopoNode(node)
+          ) ?? null)
           : null,
       [nodeId]
     ),
@@ -574,8 +574,8 @@ function useGraphEdgeById(edgeId: string | null): TopoEdge | null {
       (graphState) =>
         edgeId != null && edgeId.length > 0
           ? (graphState.edges.find(
-              (edge): edge is TopoEdge => edge.id === edgeId && isTopoEdge(edge)
-            ) ?? null)
+            (edge): edge is TopoEdge => edge.id === edgeId && isTopoEdge(edge)
+          ) ?? null)
           : null,
       [edgeId]
     ),
@@ -698,7 +698,10 @@ const AnnotationRuntimeBridge: React.FC<AnnotationRuntimeBridgeProps> = ({
   runtimeRef
 }) => {
   const annotations = useAnnotations({ rfInstance, onLockedAction });
-  runtimeRef.current = annotations;
+
+  React.useEffect(() => {
+    runtimeRef.current = annotations;
+  }, [annotations, runtimeRef]);
 
   React.useEffect(
     () => () => {
@@ -776,6 +779,7 @@ export const AppContent: React.FC<AppContentProps> = ({
 }) => {
   const host = useClabUiHost();
   const sessionClient = useTopologySessionClient();
+  const { renderAboutModal, renderDeployMenuItems } = useClabUiRuntime();
   const { sendCancelLabLifecycle, sendDumpCssVars } = useExtensionMessaging();
   const state = useTopoViewerState();
   const topoActions = useTopoViewerActions();
@@ -1593,6 +1597,25 @@ export const AppContent: React.FC<AppContentProps> = ({
     [sessionClient, topoActions, state.lastNonTelemetryLinkLabelMode]
   );
 
+  let aboutModal: React.ReactNode = null;
+  if (panelVisibility.showAboutPanel) {
+    if (renderAboutModal) {
+      aboutModal = renderAboutModal({
+        isOpen: panelVisibility.showAboutPanel,
+        onClose: panelVisibility.handleCloseAbout
+      });
+    } else {
+      aboutModal = (
+        <React.Suspense fallback={null}>
+          <LazyAboutModal
+            isOpen={panelVisibility.showAboutPanel}
+            onClose={panelVisibility.handleCloseAbout}
+          />
+        </React.Suspense>
+      );
+    }
+  }
+
   return (
     <MuiThemeProvider>
       <Box
@@ -1631,6 +1654,7 @@ export const AppContent: React.FC<AppContentProps> = ({
           onLogoClick={easterEgg.handleLogoClick}
           logoClickProgress={easterEgg.state.progress}
           isPartyMode={easterEgg.state.isPartyMode}
+          renderDeployMenuItems={renderDeployMenuItems}
         />
         <Box
           ref={layoutRef}
@@ -1664,9 +1688,9 @@ export const AppContent: React.FC<AppContentProps> = ({
                   "&:hover": { bgcolor: "primary.main", opacity: 0.3 },
                   ...(isDevExplorerDragging
                     ? {
-                        bgcolor: "primary.main",
-                        opacity: 0.28
-                      }
+                      bgcolor: "primary.main",
+                      opacity: 0.28
+                    }
                     : {})
                 }}
               />
@@ -1877,14 +1901,7 @@ export const AppContent: React.FC<AppContentProps> = ({
             />
           </React.Suspense>
         ) : null}
-        {panelVisibility.showAboutPanel ? (
-          <React.Suspense fallback={null}>
-            <LazyAboutModal
-              isOpen={panelVisibility.showAboutPanel}
-              onClose={panelVisibility.handleCloseAbout}
-            />
-          </React.Suspense>
-        ) : null}
+        {aboutModal}
 
         {/* Popovers */}
         {panelVisibility.findPopoverPosition ? (

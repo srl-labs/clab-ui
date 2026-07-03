@@ -148,9 +148,14 @@ export function useClipboardHandlers(config: ClipboardHandlersConfig): Clipboard
 
   React.useEffect(() => {
     void checkClipboard();
-     // Re-check when the user returns to this tab
-    window.addEventListener("focus", checkClipboard);
-    return () => window.removeEventListener("focus", checkClipboard); 
+    // Re-check when the user returns to this tab (visibilitychange does not
+    // fire during drag-end, unlike the focus event which triggers the Firefox
+    // clipboard permission popup mid-drag).
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void checkClipboard();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [checkClipboard]);
 
   // Debounce refs

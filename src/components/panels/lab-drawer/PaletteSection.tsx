@@ -49,7 +49,7 @@ import {
   useCustomNodes,
   useTopoViewerStore
 } from "../../../stores/topoViewerStore";
-import { useTopologySessionClient } from "../../../host";
+import { useTopologySessionClient, useClabUiRuntime } from "../../../host";
 import { useExtensionMessaging } from "../../../messaging/extensionMessaging";
 import { buildCustomIconMap } from "../../../utils/iconUtils";
 import type { TabDefinition } from "../../ui/editor";
@@ -269,7 +269,6 @@ type AnnotationPayload = {
 function setCanvasDragPayload(event: React.DragEvent, payload: CanvasDragPayload): void {
   const serialized = JSON.stringify(payload);
   event.dataTransfer.setData(REACTFLOW_NODE_MIME_TYPE, serialized);
-  event.dataTransfer.setData("text/plain", serialized);
   event.dataTransfer.effectAllowed = "move";
   (window as CanvasDragWindow)[CANVAS_DRAG_FALLBACK_KEY] = {
     payload,
@@ -468,6 +467,7 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
   infoTabTitle
 }) => {
   const sessionClient = useTopologySessionClient();
+  const { customPaletteTabs, disabledTabIds, yamlSchema, paletteTabLabels } = useClabUiRuntime();
   const customNodes = useCustomNodes();
   const customIcons = useCustomIcons();
   const defaultNode = useTopoViewerStore((state) => state.defaultNode);
@@ -479,13 +479,19 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
   const isViewMode = mode === "view";
 
   const visibleTabs = useMemo(
-    () =>
-      PALETTE_TABS.filter((t) => {
+    () => {
+      const base = PALETTE_TABS.filter((t) => {
         if (t.id === "info" && !showInfoTab) return false;
         if (t.id === "edit" && !showEditTab) return false;
+        if (disabledTabIds?.includes(t.id)) return false;
         return true;
-      }),
-    [showInfoTab, showEditTab]
+      }).map((t) => ({ id: t.id, label: paletteTabLabels?.[t.id] ?? t.label }));
+      const custom = (customPaletteTabs ?? [])
+        .map((t) => ({ id: t.id, label: t.label }))
+        .filter((t) => !disabledTabIds?.includes(t.id));
+      return [...base, ...custom];
+    },
+    [showInfoTab, showEditTab, customPaletteTabs, disabledTabIds, paletteTabLabels]
   );
 
   const [userTab, setUserTab] = useState("nodes");
@@ -510,19 +516,11 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     if (showInfoTab && (isViewMode || !showEditTab)) setUserTab("info");
   }, [showInfoTab, showEditTab, isViewMode]);
 
-  // Fall back to "nodes" when current tab is no longer visible
+  // Fall back to the first visible tab when current tab is no longer visible.
   useEffect(() => {
     if (visibleTabs.some((t) => t.id === userTab)) return;
-    if (showEditTab) {
-      setUserTab("edit");
-      return;
-    }
-    if (showInfoTab) {
-      setUserTab("info");
-      return;
-    }
-    setUserTab("nodes");
-  }, [visibleTabs, userTab, showEditTab, showInfoTab]);
+    setUserTab(visibleTabs[0]?.id ?? "");
+  }, [visibleTabs, userTab]);
 
   const activeTab = userTab;
 
@@ -639,8 +637,10 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     if (activeTab === "nodes" || activeTab === "annotations") return "Palette";
     if (activeTab === "yaml") return yamlFileName || "Topology";
     if (activeTab === "json") return annotationsFileName || "Annotations";
+    const custom = customPaletteTabs?.find((t) => t.id === activeTab);
+    if (custom) return custom.label;
     return "";
-  }, [activeTab, yamlFileName, annotationsFileName, editTabTitle, infoTabTitle]);
+  }, [activeTab, yamlFileName, annotationsFileName, editTabTitle, infoTabTitle, customPaletteTabs]);
 
   const handleSaveYaml = useCallback(async () => {
     try {
@@ -912,7 +912,7 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
           error={yamlError}
           language="yaml"
           value={yamlDraft}
-          jsonSchema={clabSchema}
+          jsonSchema={yamlSchema ?? clabSchema}
           onChange={(next) => {
             setYamlDraft(next);
             setYamlDirty(true);
@@ -940,6 +940,18 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
       {activeTab === "edit" && (
         <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>{editTabContent}</Box>
       )}
+
+      {(() => {
+        const custom = customPaletteTabs?.find((t) => t.id === activeTab);
+        if (custom) {
+          return (
+            <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+              {custom.render()}
+            </Box>
+          );
+        }
+        return null;
+      })()}
     </Box>
   );
 };

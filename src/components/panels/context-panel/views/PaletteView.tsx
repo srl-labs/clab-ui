@@ -107,12 +107,12 @@ export const PaletteView: React.FC<PaletteViewProps> = ({
     wrappedOnFooterRef(null);
   }, [wrappedOnFooterRef]);
 
-  const infoTabContent = (
+  const infoTabContent = selectedNodeData ? (
     <InfoTabContent
-      selectedNodeData={selectedNodeData ?? null}
+      selectedNodeData={selectedNodeData}
       selectedLinkData={selectedLinkData ?? null}
     />
-  );
+  ) : null;
 
   const editTabContent = editor ? (
     <EditorTabContent

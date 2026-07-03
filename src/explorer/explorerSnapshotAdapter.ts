@@ -370,9 +370,36 @@ function getStatusIndicator(item: ExplorerTreeItemLike): ExplorerNode["statusInd
   return undefined;
 }
 
+function stableActionValue(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (seen.has(value)) {
+    return "[Circular]";
+  }
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.map((entry) => stableActionValue(entry, seen));
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableActionValue(entry, seen)])
+  );
+}
+
+function hashActionRef(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 class ExplorerActionRegistry {
-  private counter = 0;
   private readonly bindings = new Map<string, ExplorerActionInvocation>();
+  private readonly actionRefCounts = new Map<string, number>();
 
   public createAction(
     commandId: string,
@@ -382,7 +409,11 @@ class ExplorerActionRegistry {
     iconId?: string,
     disabled = false
   ): ExplorerAction {
-    const actionRef = `action:${this.counter++}`;
+    const stablePayload = JSON.stringify(stableActionValue({ commandId, label, args, destructive, iconId }));
+    const baseActionRef = `action:${hashActionRef(stablePayload)}`;
+    const count = this.actionRefCounts.get(baseActionRef) ?? 0;
+    this.actionRefCounts.set(baseActionRef, count + 1);
+    const actionRef = count === 0 ? baseActionRef : `${baseActionRef}:${count}`;
     this.bindings.set(actionRef, { commandId, args, disabled });
     return {
       id: `${commandId}:${label}:${actionRef}`,

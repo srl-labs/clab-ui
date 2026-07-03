@@ -1597,6 +1597,25 @@ export const AppContent: React.FC<AppContentProps> = ({
     [sessionClient, topoActions, state.lastNonTelemetryLinkLabelMode]
   );
 
+  let aboutModal: React.ReactNode = null;
+  if (panelVisibility.showAboutPanel) {
+    if (renderAboutModal) {
+      aboutModal = renderAboutModal({
+        isOpen: panelVisibility.showAboutPanel,
+        onClose: panelVisibility.handleCloseAbout
+      });
+    } else {
+      aboutModal = (
+        <React.Suspense fallback={null}>
+          <LazyAboutModal
+            isOpen={panelVisibility.showAboutPanel}
+            onClose={panelVisibility.handleCloseAbout}
+          />
+        </React.Suspense>
+      );
+    }
+  }
+
   return (
     <MuiThemeProvider>
       <Box
@@ -1882,21 +1901,7 @@ export const AppContent: React.FC<AppContentProps> = ({
             />
           </React.Suspense>
         ) : null}
-        {panelVisibility.showAboutPanel ? (
-          renderAboutModal ? (
-            renderAboutModal({
-              isOpen: panelVisibility.showAboutPanel,
-              onClose: panelVisibility.handleCloseAbout
-            })
-          ) : (
-            <React.Suspense fallback={null}>
-              <LazyAboutModal
-                isOpen={panelVisibility.showAboutPanel}
-                onClose={panelVisibility.handleCloseAbout}
-              />
-            </React.Suspense>
-          )
-        ) : null}
+        {aboutModal}
 
         {/* Popovers */}
         {panelVisibility.findPopoverPosition ? (

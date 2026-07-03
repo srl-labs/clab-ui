@@ -516,19 +516,11 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     if (showInfoTab && (isViewMode || !showEditTab)) setUserTab("info");
   }, [showInfoTab, showEditTab, isViewMode]);
 
-  // Fall back to "nodes" when current tab is no longer visible
+  // Fall back to the first visible tab when current tab is no longer visible.
   useEffect(() => {
     if (visibleTabs.some((t) => t.id === userTab)) return;
-    if (showEditTab) {
-      setUserTab("edit");
-      return;
-    }
-    if (showInfoTab) {
-      setUserTab("info");
-      return;
-    }
-    setUserTab("nodes");
-  }, [visibleTabs, userTab, showEditTab, showInfoTab]);
+    setUserTab(visibleTabs[0]?.id ?? "");
+  }, [visibleTabs, userTab]);
 
   const activeTab = userTab;
 

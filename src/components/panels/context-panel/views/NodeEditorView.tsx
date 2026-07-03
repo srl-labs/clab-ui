@@ -5,9 +5,9 @@ import { EditorPanel } from "../../../ui/editor/EditorPanel";
 import type { TabConfig } from "../../../ui/editor/EditorPanel";
 import { useApplySaveHandlers, useFooterControlsRef } from "../../../../hooks/ui";
 import { useNodeEditorForm, hasFieldChanged } from "../../../../hooks/editor/useNodeEditorForm";
+import { useClabUiRuntime } from "../../../../host";
 import type {
   NodeEditorData,
-  NodeEditorTabId,
   TabProps as NodeEditorTabProps
 } from "../../node-editor/types";
 import { BasicTab } from "../../node-editor/BasicTab";
@@ -59,18 +59,23 @@ function getTabsForNode(kind: string | undefined): Array<TabConfig<NodeEditorTab
   return BASE_TABS;
 }
 
-function isNodeEditorTabId(value: string): value is NodeEditorTabId {
-  switch (value) {
-    case "basic":
-    case "components":
-    case "config":
-    case "runtime":
-    case "network":
-    case "advanced":
-      return true;
-    default:
-      return false;
+function mergeNodeEditorTabs(
+  baseTabs: Array<TabConfig<NodeEditorTabProps>>,
+  extensionTabs: Array<TabConfig<NodeEditorTabProps>>
+): Array<TabConfig<NodeEditorTabProps>> {
+  const tabs = [...baseTabs];
+  const tabIndexById = new Map(tabs.map((tab, index) => [tab.id, index]));
+
+  for (const tab of extensionTabs) {
+    const existingIndex = tabIndexById.get(tab.id);
+    if (existingIndex === undefined) {
+      tabIndexById.set(tab.id, tabs.length);
+      tabs.push(tab);
+    } else {
+      tabs[existingIndex] = tab;
+    }
   }
+  return tabs;
 }
 
 export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
@@ -83,6 +88,7 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
   readOnly = false,
   onFooterRef
 }) => {
+  const { nodeEditorTabs = [] } = useClabUiRuntime();
   const {
     activeTab,
     setActiveTab,
@@ -98,8 +104,8 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
     if (visualOnly) {
       return [BASE_TABS[0]];
     }
-    return getTabsForNode(formData?.kind);
-  }, [formData?.kind, visualOnly]);
+    return mergeNodeEditorTabs(getTabsForNode(formData?.kind), nodeEditorTabs);
+  }, [formData?.kind, nodeEditorTabs, visualOnly]);
 
   const effectiveInheritedProps = useMemo(() => {
     if (!formData || !originalData) return inheritedProps;
@@ -124,6 +130,13 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
     }
   }, [activeTab, setActiveTab, visualOnly]);
 
+  useEffect(() => {
+    if (tabs.some((tab) => tab.hidden !== true && tab.id === activeTab)) {
+      return;
+    }
+    setActiveTab(tabs.find((tab) => tab.hidden !== true)?.id ?? "basic");
+  }, [activeTab, setActiveTab, tabs]);
+
   useFooterControlsRef(
     onFooterRef,
     Boolean(formData),
@@ -146,11 +159,7 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
     <EditorPanel
       tabs={tabs}
       activeTab={activeTab}
-      onTabChange={(id) => {
-        if (isNodeEditorTabId(id)) {
-          setActiveTab(id);
-        }
-      }}
+      onTabChange={setActiveTab}
       tabProps={tabProps}
       readOnly={readOnly}
     />

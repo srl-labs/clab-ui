@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
-import type { NodeEditorData, NodeEditorTabId } from "../../components/panels/node-editor/types";
+import type { NodeEditorData } from "../../components/panels/node-editor/types";
 import { convertEditorDataToNodeSaveData } from "../../core/utilities";
 
 import { applyFormUpdates } from "./formState";
@@ -39,8 +39,8 @@ export function hasFieldChanged(
 }
 
 export interface UseNodeEditorFormReturn {
-  activeTab: NodeEditorTabId;
-  setActiveTab: (tab: NodeEditorTabId) => void;
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
   formData: NodeEditorData | null;
   handleChange: (updates: Partial<NodeEditorData>) => void;
   hasChanges: boolean;
@@ -84,7 +84,7 @@ export function useNodeEditorForm(
   nodeData: NodeEditorData | null,
   readOnly = false
 ): UseNodeEditorFormReturn {
-  const [activeTab, setActiveTab] = useState<NodeEditorTabId>("basic");
+  const [activeTab, setActiveTab] = useState("basic");
   const [formData, setFormData] = useState<NodeEditorData | null>(null);
   const [lastAppliedData, setLastAppliedData] = useState<NodeEditorData | null>(null);
   const [originalData, setOriginalData] = useState<NodeEditorData | null>(null);

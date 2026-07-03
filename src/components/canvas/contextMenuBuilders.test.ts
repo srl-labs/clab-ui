@@ -5,6 +5,7 @@ import type { TopoViewerNodeAction } from "../../host";
 
 import { buildEdgeContextMenu, buildNodeContextMenu } from "./contextMenuBuilders";
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
+import { FREE_TEXT_NODE_TYPE } from "../../annotations/annotationNodeConverters";
 
 function buildViewNodeMenu(runtimeState?: "running" | "stopped" | "paused" | "undeployed") {
   const actions: Array<{ action: TopoViewerNodeAction; nodeName: string }> = [];
@@ -87,4 +88,54 @@ test("edge capture menu displays topology names but invokes runtime container na
       interfaceName: "e1-50"
     }
   ]);
+});
+
+test("free text context menu offers Duplicate Text that duplicates the target and closes", () => {
+  const duplicated: string[] = [];
+  let closes = 0;
+  const items = buildNodeContextMenu({
+    targetId: "freeText_1",
+    targetNodeType: FREE_TEXT_NODE_TYPE,
+    isEditMode: true,
+    isLocked: false,
+    onNodeAction: () => {},
+    closeContextMenu: () => {
+      closes += 1;
+    },
+    editNode: () => {},
+    editNetwork: () => {},
+    handleDeleteNode: () => {},
+    editFreeText: () => {},
+    deleteFreeText: () => {},
+    duplicateFreeText: (id) => duplicated.push(id)
+  });
+
+  const duplicateItem = itemById(items, "duplicate-text");
+  assert.equal(duplicateItem.label, "Duplicate Text");
+
+  duplicateItem.onClick?.();
+  assert.deepEqual(duplicated, ["freeText_1"]);
+  assert.equal(closes, 1);
+});
+
+test("free text context menu hides Duplicate Text when locked", () => {
+  const items = buildNodeContextMenu({
+    targetId: "freeText_1",
+    targetNodeType: FREE_TEXT_NODE_TYPE,
+    isEditMode: true,
+    isLocked: true,
+    onNodeAction: () => {},
+    closeContextMenu: () => {},
+    editNode: () => {},
+    editNetwork: () => {},
+    handleDeleteNode: () => {},
+    editFreeText: () => {},
+    deleteFreeText: () => {},
+    duplicateFreeText: () => {}
+  });
+
+  assert.equal(
+    items.find((item) => item.id === "duplicate-text"),
+    undefined
+  );
 });

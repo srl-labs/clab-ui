@@ -103,6 +103,8 @@ export interface AnnotationHandlers {
   onAddShapeClick: (position: { x: number; y: number }) => void;
   /** Edit a free text annotation */
   onEditFreeText: (id: string) => void;
+  /** Duplicate a free text annotation */
+  onDuplicateFreeText: (id: string) => void;
   /** Edit a free shape annotation */
   onEditFreeShape: (id: string) => void;
   /** Delete a free text annotation */

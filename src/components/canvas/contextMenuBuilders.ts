@@ -6,6 +6,7 @@ import ArticleIcon from "@mui/icons-material/Article";
 import CategoryIcon from "@mui/icons-material/Category";
 import CircleOutlinedIcon from "@mui/icons-material/CircleOutlined";
 import CloseIcon from "@mui/icons-material/Close";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CropSquareIcon from "@mui/icons-material/CropSquare";
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -63,6 +64,8 @@ interface MenuBuilderContext {
   editFreeShape?: (id: string) => void;
   /** Delete free text annotation */
   deleteFreeText?: (id: string) => void;
+  /** Duplicate free text annotation */
+  duplicateFreeText?: (id: string) => void;
   /** Delete free shape annotation */
   deleteFreeShape?: (id: string) => void;
   /** Edit group annotation */
@@ -151,7 +154,8 @@ function isNodeActionDisabled(
  * Build context menu for free text annotations
  */
 function buildFreeTextContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, isLocked, closeContextMenu, editFreeText, deleteFreeText } = ctx;
+  const { targetId, isLocked, closeContextMenu, editFreeText, duplicateFreeText, deleteFreeText } =
+    ctx;
 
   const items: ContextMenuItem[] = [
     {
@@ -167,6 +171,15 @@ function buildFreeTextContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
   ];
   if (!isLocked) {
     items.push(
+      {
+        id: "duplicate-text",
+        label: "Duplicate Text",
+        icon: React.createElement(ContentCopyIcon, { fontSize: "small" }),
+        onClick: () => {
+          duplicateFreeText?.(targetId);
+          closeContextMenu();
+        }
+      },
       { id: DIVIDER_ID, label: "", divider: true },
       {
         id: "delete-text",

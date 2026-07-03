@@ -7,6 +7,7 @@ import { saveAnnotationNodesFromGraph } from "../../services";
 import { log } from "../../utils/logger";
 
 import type { UseDerivedAnnotationsReturn } from "./useDerivedAnnotations";
+import { cloneFreeTextAnnotation } from "./cloneFreeTextAnnotation";
 import { findDeepestGroupAtPosition } from "./groupUtils";
 import { readThemeColor } from "./themeColor";
 interface UseTextAnnotationsParams {
@@ -26,6 +27,7 @@ export interface TextAnnotationActions {
   createTextAtPosition: (position: { x: number; y: number }) => void;
   editTextAnnotation: (id: string) => void;
   saveTextAnnotation: (annotation: FreeTextAnnotation) => void;
+  duplicateTextAnnotation: (id: string) => void;
   deleteTextAnnotation: (id: string) => void;
   deleteSelectedTextAnnotations: () => void;
   onTextRotationStart: (id: string) => void;
@@ -136,6 +138,16 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
     [derived, persist]
   );
 
+  const duplicateTextAnnotation = useCallback(
+    (id: string) => {
+      const annotation = derived.textAnnotations.find((a) => a.id === id);
+      if (!annotation) return;
+      derived.addTextAnnotation(cloneFreeTextAnnotation(annotation, `freeText_${Date.now()}`));
+      persist();
+    },
+    [derived, persist]
+  );
+
   const deleteTextAnnotation = useCallback(
     (id: string) => {
       derived.deleteTextAnnotation(id);
@@ -183,6 +195,7 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
       createTextAtPosition,
       editTextAnnotation,
       saveTextAnnotation,
+      duplicateTextAnnotation,
       deleteTextAnnotation,
       deleteSelectedTextAnnotations,
       onTextRotationStart,
@@ -194,6 +207,7 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
       createTextAtPosition,
       editTextAnnotation,
       saveTextAnnotation,
+      duplicateTextAnnotation,
       deleteTextAnnotation,
       deleteSelectedTextAnnotations,
       onTextRotationStart,

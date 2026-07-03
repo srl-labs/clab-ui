@@ -978,6 +978,9 @@ export const AppContent: React.FC<AppContentProps> = ({
       onEditFreeText: (id) => {
         annotationRuntimeRef.current?.editTextAnnotation(id);
       },
+      onDuplicateFreeText: (id) => {
+        annotationRuntimeRef.current?.duplicateTextAnnotation(id);
+      },
       onEditFreeShape: (id) => {
         annotationRuntimeRef.current?.editShapeAnnotation(id);
       },

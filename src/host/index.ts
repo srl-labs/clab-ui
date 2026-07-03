@@ -132,7 +132,8 @@ function toModeChangedEvent(
   return {
     type: "modeChanged",
     mode: normalizedMode,
-    deploymentState
+    deploymentState,
+    ...(typeof data?.dirty === "boolean" ? { dirty: data.dirty } : {})
   };
 }
 

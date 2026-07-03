@@ -25,6 +25,7 @@ export type TopoViewerLifecycleAction =
   | "destroyLabCleanup"
   | "redeployLab"
   | "redeployLabCleanup"
+  | "applyLab"
   | "startLab"
   | "stopLab"
   | "restartLab";
@@ -44,6 +45,8 @@ export type ClabUiTopoViewerEvent =
       type: "modeChanged";
       mode: "editor" | "viewer";
       deploymentState: DeploymentState;
+      /** Whether the on-disk topology diverged from the runtime (apply pending). */
+      dirty?: boolean;
     }
   | {
       type: "panelAction";

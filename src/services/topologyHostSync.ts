@@ -672,6 +672,9 @@ function buildInitialTopoViewerData(
     labName: snapshot.labName,
     mode: snapshot.mode,
     deploymentState: snapshot.deploymentState,
+    // Only overwrite the dirty flag when the host actually knows it; hosts that
+    // track sync state elsewhere (e.g. via dry-run apply) omit it from snapshots.
+    ...(snapshot.dirty !== undefined ? { isDirty: snapshot.dirty } : {}),
     labSettings: snapshot.labSettings,
     yamlFileName: snapshot.yamlFileName,
     annotationsFileName: snapshot.annotationsFileName,

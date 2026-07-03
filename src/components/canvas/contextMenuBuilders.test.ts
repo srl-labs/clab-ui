@@ -7,13 +7,17 @@ import { buildEdgeContextMenu, buildNodeContextMenu } from "./contextMenuBuilder
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
 import { FREE_TEXT_NODE_TYPE } from "../../annotations/annotationNodeConverters";
 
-function buildViewNodeMenu(runtimeState?: "running" | "stopped" | "paused" | "undeployed") {
+function buildDeployedNodeMenu(
+  runtimeState?: "running" | "stopped" | "paused" | "undeployed",
+  isEditMode = false
+) {
   const actions: Array<{ action: TopoViewerNodeAction; nodeName: string }> = [];
   const items = buildNodeContextMenu({
     targetId: "srl1",
     targetNodeType: "topology-node",
     targetRuntimeState: runtimeState,
-    isEditMode: false,
+    isEditMode,
+    isDeployed: true,
     isLocked: false,
     onNodeAction: (action, nodeName) => actions.push({ action, nodeName }),
     closeContextMenu: () => {},
@@ -31,8 +35,8 @@ function itemById(items: ContextMenuItem[], id: string): ContextMenuItem {
   return item;
 }
 
-test("view node context menu disables running-only actions for stopped nodes", () => {
-  const { items } = buildViewNodeMenu("stopped");
+test("deployed node context menu disables running-only actions for stopped nodes", () => {
+  const { items } = buildDeployedNodeMenu("stopped");
 
   assert.equal(itemById(items, "start-node").disabled, undefined);
   assert.equal(itemById(items, "info-node").disabled, undefined);
@@ -43,14 +47,85 @@ test("view node context menu disables running-only actions for stopped nodes", (
   assert.equal(itemById(items, "logs-node").disabled, true);
 });
 
-test("view node context menu keeps runtime actions enabled for running nodes", () => {
-  const { items } = buildViewNodeMenu("running");
+test("deployed node context menu keeps runtime actions enabled for running nodes", () => {
+  const { items } = buildDeployedNodeMenu("running");
 
   assert.equal(itemById(items, "stop-node").disabled, false);
   assert.equal(itemById(items, "restart-node").disabled, false);
   assert.equal(itemById(items, "ssh-node").disabled, false);
   assert.equal(itemById(items, "shell-node").disabled, false);
   assert.equal(itemById(items, "logs-node").disabled, false);
+});
+
+test("deployed editable node context menu offers runtime and edit actions", () => {
+  const { items } = buildDeployedNodeMenu("running", true);
+
+  assert.equal(itemById(items, "ssh-node").disabled, false);
+  assert.equal(itemById(items, "edit-node").disabled, false);
+  assert.equal(itemById(items, "delete-node").disabled, false);
+  assert.equal(itemById(items, "create-link").disabled, false);
+  assert.equal(itemById(items, "info-node").disabled, undefined);
+});
+
+test("read-only view menus keep runtime actions when deployment state is unknown", () => {
+  const nodeItems = buildNodeContextMenu({
+    targetId: "srl1",
+    targetNodeType: "topology-node",
+    isEditMode: false,
+    isDeployed: false,
+    isLocked: true,
+    onNodeAction: () => {},
+    closeContextMenu: () => {},
+    editNode: () => {},
+    editNetwork: () => {},
+    handleDeleteNode: () => {},
+    showNodeInfo: () => {}
+  });
+
+  assert.notEqual(nodeItems.length, 0);
+  assert.equal(itemById(nodeItems, "ssh-node").disabled, false);
+  assert.equal(itemById(nodeItems, "info-node").disabled, undefined);
+  assert.equal(nodeItems.find((item) => item.id === "edit-node"), undefined);
+
+  const edgeItems = buildEdgeContextMenu({
+    targetId: "edge-1",
+    sourceNode: "srl1",
+    targetNode: "srl2",
+    sourceEndpoint: "e1-1",
+    targetEndpoint: "e1-1",
+    isEditMode: false,
+    isDeployed: false,
+    isLocked: true,
+    onInterfaceCapture: () => {},
+    closeContextMenu: () => {},
+    editEdge: () => {},
+    handleDeleteEdge: () => {}
+  });
+
+  assert.notEqual(edgeItems.length, 0);
+  assert.equal(itemById(edgeItems, "info-edge").disabled, undefined);
+  assert.equal(edgeItems.find((item) => item.id === "edit-edge"), undefined);
+});
+
+test("undeployed editable node context menu has no runtime actions", () => {
+  const items = buildNodeContextMenu({
+    targetId: "srl1",
+    targetNodeType: "topology-node",
+    isEditMode: true,
+    isDeployed: false,
+    isLocked: false,
+    onNodeAction: () => {},
+    closeContextMenu: () => {},
+    editNode: () => {},
+    editNetwork: () => {},
+    handleDeleteNode: () => {},
+    showNodeInfo: () => {}
+  });
+
+  assert.equal(items.find((item) => item.id === "ssh-node"), undefined);
+  assert.equal(items.find((item) => item.id === "info-node"), undefined);
+  assert.equal(itemById(items, "edit-node").disabled, false);
+  assert.equal(itemById(items, "delete-node").disabled, false);
 });
 
 test("edge capture menu displays topology names but invokes runtime container names", () => {
@@ -68,6 +143,7 @@ test("edge capture menu displays topology names but invokes runtime container na
       clabTargetLongName: '${LAB_PREFIX:-""}-srl-mirroring-lab-leaf2'
     },
     isEditMode: false,
+    isDeployed: true,
     isLocked: false,
     onInterfaceCapture: (nodeName, interfaceName) => captures.push({ nodeName, interfaceName }),
     closeContextMenu: () => {},
@@ -97,6 +173,7 @@ test("free text context menu offers Duplicate Text that duplicates the target an
     targetId: "freeText_1",
     targetNodeType: FREE_TEXT_NODE_TYPE,
     isEditMode: true,
+    isDeployed: false,
     isLocked: false,
     onNodeAction: () => {},
     closeContextMenu: () => {
@@ -123,6 +200,7 @@ test("free text context menu hides Duplicate Text when locked", () => {
     targetId: "freeText_1",
     targetNodeType: FREE_TEXT_NODE_TYPE,
     isEditMode: true,
+    isDeployed: false,
     isLocked: true,
     onNodeAction: () => {},
     closeContextMenu: () => {},

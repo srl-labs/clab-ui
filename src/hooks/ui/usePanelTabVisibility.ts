@@ -2,10 +2,11 @@
  * usePanelTabVisibility - Centralizes mode-based tab visibility rules.
  *
  * Rules:
- * - Info tab: visible in view mode for selected node/link.
+ * - Info tab: visible when node/link selection resolves to an info view
+ *   (deployed labs and read-only view mode).
  * - Edit tab: visible when an editor is active in any mode.
- * - Extra view-mode behavior: for unlocked selected nodes, also show Edit tab
- *   so icon/label/direction can be adjusted while running.
+ * - Extra behavior: for unlocked selected nodes, also show Edit tab so
+ *   icon/label/direction can be adjusted while running.
  */
 import { useTopoViewerState } from "../../stores";
 import { useAnnotationUIStore } from "../../stores/annotationUIStore";
@@ -24,11 +25,9 @@ export function usePanelTabVisibility(): PanelTabVisibility {
   const panelView = useContextPanelContent();
   const annotationUI = useAnnotationUIStore();
 
-  const isViewMode = state.mode === "view";
-
-  // Info tab: ONLY in view mode, when node or link is selected
-  const showInfoTab =
-    isViewMode && (panelView.kind === "nodeInfo" || panelView.kind === "linkInfo");
+  // Info tab: when node or link selection resolves to an info view
+  // (useContextPanelContent gates that on deployment/read-only state).
+  const showInfoTab = panelView.kind === "nodeInfo" || panelView.kind === "linkInfo";
   let infoTabTitle: string | undefined;
   if (panelView.kind === "nodeInfo") {
     infoTabTitle = "Node Properties";
@@ -49,18 +48,15 @@ export function usePanelTabVisibility(): PanelTabVisibility {
     annotationUI.editingGroup
   ].some((value) => value !== null);
 
-  // In unlocked view mode, selected topology nodes can open a visual-only editor tab.
-  const canEditSelectedNodeInViewMode =
-    isViewMode &&
-    state.isLocked === false &&
-    panelView.kind === "nodeInfo" &&
-    state.selectedNode !== null;
-  const showEditTab = hasEditor || canEditSelectedNodeInViewMode;
+  // When unlocked, selected topology nodes can open a visual-only editor tab.
+  const canEditSelectedNode =
+    state.isLocked === false && panelView.kind === "nodeInfo" && state.selectedNode !== null;
+  const showEditTab = hasEditor || canEditSelectedNode;
 
   let editTabTitle: string | undefined;
   if (hasEditor) {
     editTabTitle = panelView.title;
-  } else if (canEditSelectedNodeInViewMode) {
+  } else if (canEditSelectedNode) {
     editTabTitle = "Node Editor";
   }
 

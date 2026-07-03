@@ -117,6 +117,11 @@ export interface TopologySnapshot {
   labName: string;
   mode: "edit" | "view";
   deploymentState: DeploymentState;
+  /**
+   * Whether the on-disk topology diverged from the deployed runtime state,
+   * i.e. `containerlab apply` would change something. `undefined` = unknown.
+   */
+  dirty?: boolean;
   labSettings?: LabSettings;
   canUndo: boolean;
   canRedo: boolean;

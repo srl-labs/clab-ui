@@ -49,6 +49,8 @@ import {
 } from "../../../stores/topoViewerStore";
 import { useClabUiHost, useTopologySessionClient, useClabUiRuntime } from "../../../host";
 import { buildCustomIconMap } from "../../../utils/iconUtils";
+import { getNetworkNodeTypeColor } from "../../canvas/nodes/networkNodeShared";
+import { applyPaletteDragPreview } from "./paletteDragPreview";
 import type { TabDefinition } from "../../ui/editor";
 import { TabNavigation } from "../../ui/editor/TabNavigation";
 import { IconPreview } from "../../ui/form";
@@ -296,19 +298,24 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({
   onSetDefault
 }) => {
   const isDefaultNode = isDefault === true;
+  const iconUrl = useMemo(
+    () => getTemplateIconUrl(template, customIconMap),
+    [template, customIconMap]
+  );
+
   const onDragStart = useCallback(
     (event: React.DragEvent) => {
       setCanvasDragPayload(event, {
         type: "node",
         templateName: template.name
       });
+      applyPaletteDragPreview(event, {
+        label: template.name,
+        iconUrl,
+        iconCornerRadius: template.iconCornerRadius
+      });
     },
-    [template.name]
-  );
-
-  const iconUrl = useMemo(
-    () => getTemplateIconUrl(template, customIconMap),
-    [template, customIconMap]
+    [template.name, template.iconCornerRadius, iconUrl]
   );
 
   return (
@@ -381,19 +388,26 @@ interface PaletteSimpleDraggableProps {
   icon: React.ReactNode;
   label: string;
   subtitle: string;
+  previewIconUrl?: string;
 }
 
 const PaletteSimpleDraggable: React.FC<PaletteSimpleDraggableProps> = ({
   dragPayload,
   icon,
   label,
-  subtitle
+  subtitle,
+  previewIconUrl
 }) => {
   const onDragStart = useCallback(
     (event: React.DragEvent) => {
       setCanvasDragPayload(event, dragPayload);
+      applyPaletteDragPreview(event, {
+        label,
+        iconUrl: previewIconUrl,
+        iconElement: event.currentTarget.querySelector("svg")
+      });
     },
-    [dragPayload]
+    [dragPayload, label, previewIconUrl]
   );
 
   return (
@@ -421,6 +435,7 @@ const DraggableNetwork: React.FC<{ network: NetworkTypeDefinition }> = ({ networ
     icon={network.icon}
     label={network.label}
     subtitle={network.type}
+    previewIconUrl={generateEncodedSVG("cloud", getNetworkNodeTypeColor(network.type))}
   />
 );
 

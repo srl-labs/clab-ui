@@ -41,6 +41,11 @@ export interface TopoViewerState {
    * (i.e. apply would change something). `undefined` = unknown.
    */
   isDirty: boolean | undefined;
+  /**
+   * YAML content captured when the runtime is known to be in sync. Annotation
+   * file updates must not dirty apply state while this content is unchanged.
+   */
+  cleanYamlContent: string | undefined;
   labSettings?: LabSettings;
   yamlFileName: string;
   annotationsFileName: string;
@@ -160,6 +165,7 @@ const initialState: TopoViewerState = {
   mode: "edit",
   deploymentState: "unknown",
   isDirty: undefined,
+  cleanYamlContent: undefined,
   labSettings: undefined,
   yamlFileName: "topology.clab.yml",
   annotationsFileName: "topology.clab.yml.annotations.json",
@@ -232,6 +238,52 @@ function isCustomIconInfo(value: unknown): value is CustomIconInfo {
 function parseCustomIconInfos(value: unknown): CustomIconInfo[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is CustomIconInfo => isCustomIconInfo(entry));
+}
+
+function hasOwnProperty<T extends object, K extends PropertyKey>(
+  value: T,
+  key: K
+): value is T & Record<K, unknown> {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function resolveDirtyUpdate(
+  dirty: boolean | undefined,
+  yamlContent: string,
+  cleanYamlContent: string | undefined
+): Partial<Pick<TopoViewerState, "isDirty" | "cleanYamlContent">> {
+  if (dirty === false) {
+    return { isDirty: false, cleanYamlContent: yamlContent };
+  }
+  if (dirty === true) {
+    if (cleanYamlContent !== undefined && yamlContent === cleanYamlContent) {
+      return { isDirty: false };
+    }
+    return { isDirty: true };
+  }
+  return { isDirty: undefined };
+}
+
+function resolveInitialDataDirtyUpdate(
+  state: TopoViewerState,
+  data: Partial<TopoViewerState>
+): Partial<Pick<TopoViewerState, "isDirty" | "cleanYamlContent">> {
+  const hasYamlContent = hasOwnProperty(data, "yamlContent");
+  const yamlContent = data.yamlContent ?? state.yamlContent;
+  const fileChanged =
+    hasOwnProperty(data, "yamlFileName") && data.yamlFileName !== state.yamlFileName;
+  const cleanYamlContent = fileChanged ? undefined : state.cleanYamlContent;
+
+  if (hasOwnProperty(data, "isDirty")) {
+    return resolveDirtyUpdate(data.isDirty, yamlContent, cleanYamlContent);
+  }
+  if (fileChanged) {
+    return { isDirty: undefined, cleanYamlContent: undefined };
+  }
+  if (hasYamlContent && cleanYamlContent !== undefined) {
+    return { isDirty: yamlContent === cleanYamlContent ? false : true };
+  }
+  return {};
 }
 
 /** Parse non-topology bootstrap data from extension/dev host */
@@ -332,7 +384,7 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
   },
 
   setDirty: (isDirty) => {
-    set({ isDirty });
+    set((state) => resolveDirtyUpdate(isDirty, state.yamlContent, state.cleanYamlContent));
   },
 
   toggleLock: () => {
@@ -536,9 +588,15 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
 
   // Initial data — if mode changes, clear selection & editing so stale tabs disappear
   setInitialData: (data) => {
-    if (data.mode && data.mode !== get().mode) {
+    const currentState = get();
+    const nextData = {
+      ...data,
+      ...resolveInitialDataDirtyUpdate(currentState, data)
+    };
+
+    if (data.mode && data.mode !== currentState.mode) {
       set({
-        ...data,
+        ...nextData,
         selectedNode: null,
         selectedEdge: null,
         editingNode: null,
@@ -553,7 +611,7 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
       if (annotationUI.editingTrafficRateAnnotation) annotationUI.closeTrafficRateEditor();
       if (annotationUI.editingGroup) annotationUI.closeGroupEditor();
     } else {
-      set(data);
+      set(nextData);
     }
   }
 }));

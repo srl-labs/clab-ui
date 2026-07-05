@@ -787,7 +787,6 @@ type AppContentStateSlice = Pick<
   | "editingEdge"
   | "editingNetwork"
   | "isLocked"
-  | "deploymentState"
   | "linkLabelMode"
   | "showDummyLinks"
   | "endpointLabelOffsetEnabled"
@@ -818,7 +817,6 @@ function selectAppContentState(state: TopoViewerState): AppContentStateSlice {
     editingEdge: state.editingEdge,
     editingNetwork: state.editingNetwork,
     isLocked: state.isLocked,
-    deploymentState: state.deploymentState,
     linkLabelMode: state.linkLabelMode,
     showDummyLinks: state.showDummyLinks,
     endpointLabelOffsetEnabled: state.endpointLabelOffsetEnabled,
@@ -1190,19 +1188,19 @@ export const AppContent: React.FC<AppContentProps> = ({
     },
     edgeAnnotationLookup
   );
-  // Node selection resolves to the info view for deployed labs and in
-  // read-only view mode (mirrors resolveSelectionView); when unlocked, that
-  // same selection also drives the visual-only editor (Icon / Label & Direction).
-  const selectionShowsNodeInfo =
-    state.deploymentState === "deployed" || interactionMode === "view";
-  const enableSelectedNodeVisualEditor =
-    selectionShowsNodeInfo &&
-    isInteractionLocked === false &&
-    selectionData.editingNodeData === null &&
-    selectionData.selectedNodeEditorData !== null;
-  const effectiveNodeEditorData =
-    selectionData.editingNodeData ??
-    (enableSelectedNodeVisualEditor ? selectionData.selectedNodeEditorData : null);
+  // Edit tab on a selected node (deployed labs select on click): open the full
+  // node editor, exactly like double-click or the context menu Edit action.
+  const handleOpenSelectedNodeEditor = React.useCallback(() => {
+    const { selectedNode } = useTopoViewerStore.getState();
+    if (selectedNode == null || selectedNode.length === 0) return;
+    const node = useGraphStore.getState().nodes.find((entry) => entry.id === selectedNode);
+    if (!node) return;
+    if (node.type === "network-node") {
+      topoActions.editNetwork(selectedNode);
+    } else {
+      topoActions.editNode(selectedNode);
+    }
+  }, [topoActions]);
 
   const [paletteTabRequest, setPaletteTabRequest] = React.useState<{ tabId: string } | undefined>(
     undefined
@@ -1290,7 +1288,6 @@ export const AppContent: React.FC<AppContentProps> = ({
 
   const { nodeEditorHandlers, linkEditorHandlers, networkEditorHandlers } = useAppEditorBindings({
     selectionData,
-    effectiveNodeEditorData,
     state: {
       edgeAnnotations: state.edgeAnnotations
     },
@@ -1850,13 +1847,7 @@ export const AppContent: React.FC<AppContentProps> = ({
               editor={{
                 editingNodeData: selectionData.editingNodeData,
                 editingNodeInheritedProps: selectionData.editingNodeInheritedProps,
-                selectedNodeVisualData: enableSelectedNodeVisualEditor
-                  ? selectionData.selectedNodeEditorData
-                  : null,
-                selectedNodeVisualInheritedProps: enableSelectedNodeVisualEditor
-                  ? selectionData.selectedNodeInheritedProps
-                  : [],
-                enableSelectedNodeVisualEditor,
+                onOpenSelectedNodeEditor: handleOpenSelectedNodeEditor,
                 nodeEditorHandlers: {
                   handleClose: nodeEditorHandlers.handleClose,
                   handleSave: nodeEditorHandlers.handleSave,

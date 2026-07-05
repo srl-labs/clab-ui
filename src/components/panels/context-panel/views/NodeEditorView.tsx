@@ -23,8 +23,6 @@ export interface NodeEditorViewProps {
   onApply: (data: NodeEditorData) => void;
   onPreview?: (data: NodeEditorData) => void;
   inheritedProps?: string[];
-  /** Show only visual node controls (Icon + Label & Direction). */
-  visualOnly?: boolean;
   /** Disable editing, but keep scrolling and tab navigation available */
   readOnly?: boolean;
   /** Exposed for ContextPanel footer */
@@ -84,7 +82,6 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
   onApply,
   onPreview,
   inheritedProps = [],
-  visualOnly = false,
   readOnly = false,
   onFooterRef
 }) => {
@@ -100,12 +97,10 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
     originalData
   } = useNodeEditorForm(nodeData, readOnly);
 
-  const tabs = useMemo(() => {
-    if (visualOnly) {
-      return [BASE_TABS[0]];
-    }
-    return mergeNodeEditorTabs(getTabsForNode(formData?.kind), nodeEditorTabs);
-  }, [formData?.kind, nodeEditorTabs, visualOnly]);
+  const tabs = useMemo(
+    () => mergeNodeEditorTabs(getTabsForNode(formData?.kind), nodeEditorTabs),
+    [formData?.kind, nodeEditorTabs]
+  );
 
   const effectiveInheritedProps = useMemo(() => {
     if (!formData || !originalData) return inheritedProps;
@@ -123,12 +118,6 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
     if (!formData || readOnly || !onPreview) return;
     onPreview(formData);
   }, [formData, readOnly, onPreview]);
-
-  useEffect(() => {
-    if (visualOnly && activeTab !== "basic") {
-      setActiveTab("basic");
-    }
-  }, [activeTab, setActiveTab, visualOnly]);
 
   useEffect(() => {
     if (tabs.some((tab) => tab.hidden !== true && tab.id === activeTab)) {
@@ -151,8 +140,7 @@ export const NodeEditorView: React.FC<NodeEditorViewProps> = ({
   const tabProps = {
     data: formData,
     onChange: handleChange,
-    inheritedProps: effectiveInheritedProps,
-    visualOnly
+    inheritedProps: effectiveInheritedProps
   };
 
   return (

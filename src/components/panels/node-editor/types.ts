@@ -34,6 +34,4 @@ export interface TabProps {
   onChange: (updates: Partial<NodeEditorData>) => void;
   /** Array of property names that are inherited from defaults/kinds/groups */
   inheritedProps?: string[];
-  /** Visual-only mode used in unlocked view mode node editing */
-  visualOnly?: boolean;
 }

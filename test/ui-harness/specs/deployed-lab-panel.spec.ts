@@ -37,8 +37,8 @@ async function doubleClickNode(page: Page, nodeId: string) {
  * Since the always-editable TopoViewer change, deployed labs keep mode "edit";
  * runtime behavior follows the deployment state instead. Clicking a node in a
  * deployed, unlocked lab selects it: the panel must land on the Info tab with
- * node properties, and the Edit tab must offer the visual-only editor instead
- * of rendering empty (regression: empty Node Editor on click).
+ * node properties (regression: empty Node Editor on click), and activating the
+ * Edit tab must open the full node editor — same as double-click/context menu.
  */
 test.describe("Deployed Lab Panel", () => {
   test.beforeEach(async ({ page, topoViewerPage }) => {
@@ -67,7 +67,7 @@ test.describe("Deployed Lab Panel", () => {
     await expect(infoTab).toHaveAttribute(ATTR_ARIA_SELECTED, ARIA_SELECTED_TRUE);
   });
 
-  test("edit tab shows the visual-only node editor for a selected node", async ({
+  test("edit tab opens the full node editor for a selected node", async ({
     page,
     topoViewerPage
   }) => {
@@ -78,11 +78,13 @@ test.describe("Deployed Lab Panel", () => {
     await expect(editTab).toBeVisible();
     await editTab.click();
 
-    // The visual-only editor renders a single Basic tab; before the fix the
-    // editor content was empty because the visual editor was gated on view mode.
+    // Activating the Edit tab enters the real editing state — the full editor
+    // with all tabs, identical to double-click or context-menu Edit.
+    await expect(page.getByText("Node Editor", { exact: true })).toBeVisible();
     await expect(page.locator(SEL_PANEL_TAB_BASIC)).toBeVisible();
-    // Visual-only mode hides the other editor tabs.
-    await expect(page.locator(SEL_PANEL_TAB_CONFIG)).toHaveCount(0);
+    await expect(page.locator(SEL_PANEL_TAB_CONFIG)).toBeVisible();
+    // Editing replaces the selection-driven info view, like double-click does.
+    await expect(page.locator(SEL_PANEL_TAB_INFO)).toHaveCount(0);
   });
 
   test("double-clicking a node opens the full node editor", async ({

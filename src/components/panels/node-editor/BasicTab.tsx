@@ -438,12 +438,7 @@ const LabelAndDirectionFields: React.FC<TabProps> = ({ data, onChange }) => {
   );
 };
 
-export const BasicTab: React.FC<TabProps> = ({
-  data,
-  onChange,
-  inheritedProps = [],
-  visualOnly = false
-}) => {
+export const BasicTab: React.FC<TabProps> = ({ data, onChange, inheritedProps = [] }) => {
   const isCustomTemplate = data.isCustomTemplate === true;
 
   // Get schema data (kinds and types)
@@ -476,53 +471,51 @@ export const BasicTab: React.FC<TabProps> = ({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column" }}>
-      {isCustomTemplate && !visualOnly && (
+      {isCustomTemplate && (
         <PanelSection title="Template" withTopDivider={false}>
           <CustomNodeTemplateFields data={data} onChange={onChange} />
         </PanelSection>
       )}
 
-      {!visualOnly && (
-        <PanelSection title="Node Parameters">
-          {!isCustomTemplate && <NodeNameField data={data} onChange={onChange} />}
+      <PanelSection title="Node Parameters">
+        {!isCustomTemplate && <NodeNameField data={data} onChange={onChange} />}
 
-          <KindField
+        <KindField
+          data={data}
+          onChange={onChange}
+          kinds={kinds}
+          onKindChange={handleKindChange}
+          inheritedProps={inheritedProps}
+        />
+
+        {showTypeField && (
+          <TypeField
             data={data}
             onChange={onChange}
-            kinds={kinds}
-            onKindChange={handleKindChange}
+            availableTypes={availableTypes}
             inheritedProps={inheritedProps}
           />
+        )}
 
-          {showTypeField && (
-            <TypeField
-              data={data}
-              onChange={onChange}
-              availableTypes={availableTypes}
-              inheritedProps={inheritedProps}
-            />
-          )}
+        <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+          <ImageVersionFields
+            data={data}
+            onChange={onChange}
+            baseImages={baseImages}
+            hasImages={hasImages}
+            getVersionsForImage={getVersionsForImage}
+            parseImageString={parseImageString}
+            combineImageVersion={combineImageVersion}
+            inheritedProps={inheritedProps}
+          />
+        </Box>
 
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
-            <ImageVersionFields
-              data={data}
-              onChange={onChange}
-              baseImages={baseImages}
-              hasImages={hasImages}
-              getVersionsForImage={getVersionsForImage}
-              parseImageString={parseImageString}
-              combineImageVersion={combineImageVersion}
-              inheritedProps={inheritedProps}
-            />
-          </Box>
-
-          {!isLoaded && (
-            <Typography variant="caption" color="text.secondary">
-              Loading schema...
-            </Typography>
-          )}
-        </PanelSection>
-      )}
+        {!isLoaded && (
+          <Typography variant="caption" color="text.secondary">
+            Loading schema...
+          </Typography>
+        )}
+      </PanelSection>
 
       <PanelSection title="Icon" bodySx={{ p: 2 }}>
         <IconField data={data} onChange={onChange} />

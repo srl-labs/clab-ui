@@ -68,6 +68,7 @@ interface PaletteSectionProps {
   showEditTab?: boolean;
   editTabTitle?: string;
   onEditDelete?: () => void;
+  onEditTabOpen?: () => void;
   onEditTabLeave?: () => void;
   infoTabContent?: React.ReactNode;
   showInfoTab?: boolean;
@@ -459,6 +460,7 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
   showEditTab = false,
   editTabTitle,
   onEditDelete,
+  onEditTabOpen,
   onEditTabLeave,
   infoTabContent,
   showInfoTab = false,
@@ -737,6 +739,9 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
             }
             if (activeTab === "edit" && id !== "edit") {
               onEditTabLeave?.();
+            }
+            if (id === "edit" && activeTab !== "edit") {
+              onEditTabOpen?.();
             }
             setUserTab(id);
           }}

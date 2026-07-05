@@ -51,7 +51,16 @@ export const PaletteView: React.FC<PaletteViewProps> = ({
     [onFooterRef]
   );
 
-  const { showInfoTab, showEditTab, infoTabTitle, editTabTitle } = usePanelTabVisibility();
+  const { showInfoTab, showEditTab, editTabOpensSelectedNode, infoTabTitle, editTabTitle } =
+    usePanelTabVisibility();
+
+  // Selecting the Edit tab for a selected node opens the real node editor,
+  // exactly like double-click or the context menu Edit action.
+  const handleEditTabOpen = useCallback(() => {
+    if (editTabOpensSelectedNode) {
+      editor?.onOpenSelectedNodeEditor();
+    }
+  }, [editTabOpensSelectedNode, editor]);
 
   const editDeleteHandler = useMemo(() => {
     if (!editor) return undefined;
@@ -118,9 +127,6 @@ export const PaletteView: React.FC<PaletteViewProps> = ({
     <EditorTabContent
       editingNodeData={editor.editingNodeData}
       editingNodeInheritedProps={editor.editingNodeInheritedProps}
-      selectedNodeVisualData={editor.selectedNodeVisualData}
-      selectedNodeVisualInheritedProps={editor.selectedNodeVisualInheritedProps}
-      enableSelectedNodeVisualEditor={editor.enableSelectedNodeVisualEditor}
       nodeEditorHandlers={editor.nodeEditorHandlers}
       editingLinkData={editor.editingLinkData}
       linkEditorHandlers={editor.linkEditorHandlers}
@@ -154,6 +160,7 @@ export const PaletteView: React.FC<PaletteViewProps> = ({
         showEditTab={showEditTab}
         editTabTitle={editTabTitle}
         onEditDelete={editDeleteHandler}
+        onEditTabOpen={handleEditTabOpen}
         onEditTabLeave={handleEditTabLeave}
         infoTabContent={infoTabContent}
         showInfoTab={showInfoTab}

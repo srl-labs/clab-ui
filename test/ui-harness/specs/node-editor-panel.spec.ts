@@ -125,7 +125,7 @@ test.describe("Node Editor Panel", () => {
     await expect(page.getByPlaceholder("Search nodes...")).toBeVisible();
   });
 
-  test("unlocked view mode keeps Info and adds visual-only Edit tab", async ({
+  test("unlocked view mode keeps Info and offers no Edit tab", async ({
     page,
     topoViewerPage
   }) => {
@@ -144,29 +144,9 @@ test.describe("Node Editor Panel", () => {
       ATTR_ARIA_SELECTED,
       ARIA_SELECTED_TRUE
     );
-    await expect(page.locator('[data-testid="panel-tab-edit"]')).toBeVisible();
 
-    // Visual edit tab is available for node icon / label-direction only.
-    await page.locator('[data-testid="panel-tab-edit"]').click();
-    await expect(page.getByText(TITLE_NODE_EDITOR, { exact: true })).toBeVisible();
-    await expect(page.locator('[data-testid="panel-tab-basic"]')).toBeVisible();
-    await expect(page.locator('[data-testid="panel-tab-config"]')).not.toBeVisible();
-    await expect(page.locator('[data-testid="panel-tab-runtime"]')).not.toBeVisible();
-    await expect(page.locator('[data-testid="panel-tab-network"]')).not.toBeVisible();
-    await expect(page.locator('[data-testid="panel-tab-advanced"]')).not.toBeVisible();
-
-    await expect(page.locator("#node-icon")).toBeVisible();
-    await expect(page.locator("#node-label-position")).toBeVisible();
-    await expect(page.locator("#node-direction")).toBeVisible();
-    await expect(page.locator("#node-name")).not.toBeVisible();
-    await expect(page.locator("#node-kind")).not.toBeVisible();
-
-    // Changing label-position must enable Apply in visual-only editor.
-    const applyBtn = page.locator(SEL_PANEL_APPLY_BTN);
-    await expect(applyBtn).toHaveCount(0);
-    await page.locator("#node-label-position").click();
-    await page.locator('li[role="option"][aria-selected="false"]').first().click();
-    await expect(applyBtn).toBeVisible();
+    // View mode is read-only: node selection offers no Edit tab.
+    await expect(page.locator('[data-testid="panel-tab-edit"]')).toHaveCount(0);
   });
 
   test("locked view mode keeps node properties read-only", async ({ page, topoViewerPage }) => {

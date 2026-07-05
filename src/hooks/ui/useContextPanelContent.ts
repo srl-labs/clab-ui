@@ -81,21 +81,13 @@ function resolveAnnotationView(annotationUI: AnnotationEditingSlice): PanelView 
 }
 
 function resolveSelectionView(
-  state: Pick<
-    TopoViewerState,
-    "selectedNode" | "selectedEdge" | "mode" | "isLocked" | "deploymentState"
-  >
+  state: Pick<TopoViewerState, "selectedNode" | "selectedEdge" | "mode" | "deploymentState">
 ): PanelView | null {
   // Info panels show runtime properties, so they follow the deployment state
   // (read-only view mode keeps them too, even when the state is unknown).
   const showInfoOnSelect = state.deploymentState === "deployed" || state.mode === "view";
   if (hasId(state.selectedNode) && showInfoOnSelect)
-    return {
-      kind: "nodeInfo",
-      title: "Node Properties",
-      // When unlocked, node selection can also drive visual edits (Icon/Label/Direction).
-      hasFooter: !state.isLocked
-    };
+    return { kind: "nodeInfo", title: "Node Properties", hasFooter: false };
   if (hasId(state.selectedEdge) && showInfoOnSelect)
     return { kind: "linkInfo", title: "Link Properties", hasFooter: false };
   return null;
@@ -110,7 +102,6 @@ type ContextPanelStateSlice = Pick<
   | "selectedNode"
   | "selectedEdge"
   | "mode"
-  | "isLocked"
   | "deploymentState"
 >;
 
@@ -125,7 +116,6 @@ function selectContextPanelState(state: TopoViewerState): ContextPanelStateSlice
     selectedNode: state.selectedNode,
     selectedEdge: state.selectedEdge,
     mode: state.mode,
-    isLocked: state.isLocked,
     deploymentState: state.deploymentState
   };
 }

@@ -26,11 +26,18 @@ interface TopoViewerApi {
   waitForCanvasReady(): Promise<void>;
   setEditMode(): Promise<void>;
   unlock(): Promise<void>;
+  lock(): Promise<void>;
   fit(): Promise<void>;
   getCanvas(): Locator;
   getAnnotationsFromFile(
     filename: "datacenter.clab.yml"
   ): Promise<{ freeTextAnnotations?: FreeTextFileEntry[] }>;
+}
+
+interface Viewport {
+  x: number;
+  y: number;
+  zoom: number;
 }
 
 async function setup(page: Page, api: TopoViewerApi) {
@@ -44,11 +51,34 @@ async function setup(page: Page, api: TopoViewerApi) {
   await page.waitForTimeout(300);
 }
 
+async function setupLocked(page: Page, api: TopoViewerApi) {
+  await api.resetFiles();
+  await api.gotoFile(DATACENTER_FILE);
+  await api.waitForCanvasReady();
+  await api.setEditMode();
+  await api.lock();
+  await page.waitForTimeout(500);
+  await api.fit();
+  await page.waitForTimeout(300);
+}
+
 async function getFirstTextAnnotation(api: TopoViewerApi): Promise<FreeTextFileEntry> {
   const annotations = await api.getAnnotationsFromFile(DATACENTER_FILE);
   const text = annotations.freeTextAnnotations?.[0];
   expect(text).toBeDefined();
   return text!;
+}
+
+async function getViewport(page: Page): Promise<Viewport> {
+  const viewport = await page.evaluate(() => {
+    return (
+      window as {
+        __DEV__?: { rfInstance?: { getViewport?: () => Viewport } };
+      }
+    ).__DEV__?.rfInstance?.getViewport?.();
+  });
+  expect(viewport).toBeDefined();
+  return viewport!;
 }
 
 test.describe("Free Text Inline Editing", () => {
@@ -83,6 +113,36 @@ test.describe("Free Text Inline Editing", () => {
         { timeout: 5000 }
       )
       .toBe("Inline edited text");
+  });
+
+  test("double-click edits text inline after locked click then unlock", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const api = topoViewerPage as unknown as TopoViewerApi;
+    await setupLocked(page, api);
+    const text = await getFirstTextAnnotation(api);
+
+    const textElement = page.locator(`[data-id="${text.id}"] .free-text-content`).first();
+    const textNode = page.locator(`[data-id="${text.id}"] .free-text-node`).first();
+    await expect(textElement).toBeVisible();
+    await expect(textNode).toBeVisible();
+
+    await textElement.click();
+    await textElement.dblclick();
+    await api.unlock();
+    await page.waitForTimeout(300);
+    const viewportBeforeDoubleClick = await getViewport(page);
+    const textBox = await textNode.boundingBox();
+    expect(textBox).not.toBeNull();
+    await page.mouse.dblclick(textBox!.x + textBox!.width / 2, textBox!.y + textBox!.height / 2);
+
+    const input = page.locator(SEL_INLINE_INPUT);
+    await expect(input).toBeVisible();
+    await expect(input).toHaveValue(text.text);
+
+    const viewportAfterDoubleClick = await getViewport(page);
+    expect(viewportAfterDoubleClick.zoom).toBe(viewportBeforeDoubleClick.zoom);
   });
 
   test("context-menu Add Text creates annotation with inline editor, blur commits", async ({

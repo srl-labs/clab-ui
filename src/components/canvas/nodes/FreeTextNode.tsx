@@ -330,6 +330,23 @@ const FreeTextNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) => {
     annotationHandlers?.onFreeTextRotationEnd?.(id);
   }, [id, annotationHandlers]);
 
+  const handleNodeDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
+
+      if (annotationHandlers?.onStartInlineFreeTextEdit) {
+        annotationHandlers.onStartInlineFreeTextEdit(id);
+        return;
+      }
+      if (canEditAnnotations) {
+        annotationHandlers?.onEditFreeText(id);
+      }
+    },
+    [id, canEditAnnotations, annotationHandlers]
+  );
+
   const renderedContent = useMemo(
     () => (renderedHtml === null ? nodeData.text : renderHtmlToReactNodes(renderedHtml)),
     [nodeData.text, renderedHtml]
@@ -349,7 +366,7 @@ const FreeTextNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) => {
   const showHandles = (isSelected || isResizing || isRotating) && canEditAnnotations;
 
   return (
-    <div style={wrapperStyle} className="free-text-node">
+    <div style={wrapperStyle} className="free-text-node" onDoubleClick={handleNodeDoubleClick}>
       <NodeResizer
         minWidth={MIN_WIDTH}
         minHeight={MIN_HEIGHT}

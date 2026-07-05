@@ -687,6 +687,53 @@ function getRenderableNodes(allNodes: Node[], nodesDraggable: boolean): Node[] {
   return changed ? nextNodes : allNodes;
 }
 
+function getClosestReactFlowNodeId(target: EventTarget | null): string | null {
+  if (!(target instanceof Element)) return null;
+  const nodeEl = target.closest<HTMLElement>(".react-flow__node[data-id]");
+  return nodeEl?.dataset.id ?? null;
+}
+
+function findFreeTextNodeIdAtPoint(
+  container: HTMLDivElement | null,
+  nodes: Node[],
+  target: EventTarget | null,
+  clientX: number,
+  clientY: number
+): string | null {
+  const freeTextNodeIds = new Set(
+    nodes
+      .filter((node) => node.type === FREE_TEXT_NODE_TYPE && node.hidden !== true)
+      .map((node) => node.id)
+  );
+  if (freeTextNodeIds.size === 0) return null;
+
+  const targetNodeId = getClosestReactFlowNodeId(target);
+  if (targetNodeId !== null && freeTextNodeIds.has(targetNodeId)) {
+    return targetNodeId;
+  }
+
+  if (!container) return null;
+  const nodeElements = Array.from(
+    container.querySelectorAll<HTMLElement>(".react-flow__node[data-id]")
+  ).reverse();
+
+  for (const nodeEl of nodeElements) {
+    const nodeId = nodeEl.dataset.id;
+    if (nodeId === undefined || !freeTextNodeIds.has(nodeId)) continue;
+    const rect = nodeEl.getBoundingClientRect();
+    if (
+      clientX >= rect.left &&
+      clientX <= rect.right &&
+      clientY >= rect.top &&
+      clientY <= rect.bottom
+    ) {
+      return nodeId;
+    }
+  }
+
+  return null;
+}
+
 function relayBackdropContextMenu(event: React.MouseEvent, closeContextMenu: () => void): void {
   const { clientX, clientY } = event;
   flushSync(() => {
@@ -1739,6 +1786,31 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       event.preventDefault();
     }, []);
 
+    const handleCanvasDoubleClickCapture = useCallback(
+      (event: React.MouseEvent<HTMLDivElement>) => {
+        if (isLocked || !annotationHandlers) return;
+
+        const textNodeId = findFreeTextNodeIdAtPoint(
+          canvasContainerRef.current,
+          allNodes,
+          event.target,
+          event.clientX,
+          event.clientY
+        );
+        if (textNodeId === null) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
+        if (annotationHandlers.onStartInlineFreeTextEdit) {
+          annotationHandlers.onStartInlineFreeTextEdit(textNodeId);
+        } else {
+          annotationHandlers.onEditFreeText(textNodeId);
+        }
+      },
+      [allNodes, annotationHandlers, isLocked]
+    );
+
     const handleViewportMoveEnd = useCallback(() => {
       const topologyKey = normalizedTopologyViewportKey;
       const instance = reactFlowInstanceRef.current;
@@ -1756,6 +1828,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
         onDragOver={handleDragOver}
         onDrop={handleDrop}
         onContextMenu={handleCanvasContextMenu}
+        onDoubleClickCapture={handleCanvasDoubleClickCapture}
       >
         {overlays.geoMapLayer}
         <ReactFlow
@@ -1803,7 +1876,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
           elementsSelectable
           zoomOnScroll={!isGeoLayout}
           zoomOnPinch={!isGeoLayout}
-          zoomOnDoubleClick={!isGeoLayout}
+          zoomOnDoubleClick={!isGeoLayout && isLocked}
           panOnScroll={false}
           style={reactFlowStyle}
         >

@@ -71,6 +71,12 @@ import type {
 } from "./types";
 
 type CatalogFilter = "all" | "missing" | "pullable" | "local";
+const CATALOG_FILTER_OPTIONS: ReadonlyArray<{ value: CatalogFilter; label: string }> = [
+  { value: "all", label: "All" },
+  { value: "missing", label: "Missing" },
+  { value: "pullable", label: "Pullable" },
+  { value: "local", label: "Local" }
+];
 const LOCAL_IMAGE_DISPLAY_LIMIT = 12;
 const OTHER_LOCAL_IMAGE_DISPLAY_LIMIT = 80;
 
@@ -84,13 +90,13 @@ interface RowStatusInfo {
   icon: React.ReactNode;
 }
 
-export interface ContainerlabImageManagerProps {
+interface ContainerlabImageManagerProps {
   endpointOptions?: ImageManagerEndpointOption[];
   initialEndpointId?: string;
   onClose?: () => void;
 }
 
-export interface ContainerlabImageManagerDialogProps extends ContainerlabImageManagerProps {
+interface ContainerlabImageManagerDialogProps extends ContainerlabImageManagerProps {
   open: boolean;
   runtime: ClabUiRuntime;
 }
@@ -967,30 +973,14 @@ export function ContainerlabImageManager({
             }
           }}
         >
-          <ToggleButton value="all">
-            All
-            <Typography component="span" variant="caption" color="text.secondary">
-              {filterCounts.all}
-            </Typography>
-          </ToggleButton>
-          <ToggleButton value="missing">
-            Missing
-            <Typography component="span" variant="caption" color="text.secondary">
-              {filterCounts.missing}
-            </Typography>
-          </ToggleButton>
-          <ToggleButton value="pullable">
-            Pullable
-            <Typography component="span" variant="caption" color="text.secondary">
-              {filterCounts.pullable}
-            </Typography>
-          </ToggleButton>
-          <ToggleButton value="local">
-            Local
-            <Typography component="span" variant="caption" color="text.secondary">
-              {filterCounts.local}
-            </Typography>
-          </ToggleButton>
+          {CATALOG_FILTER_OPTIONS.map(({ value, label }) => (
+            <ToggleButton key={value} value={value}>
+              {label}
+              <Typography component="span" variant="caption" color="text.secondary">
+                {filterCounts[value]}
+              </Typography>
+            </ToggleButton>
+          ))}
         </ToggleButtonGroup>
         <Box sx={{ flex: 1 }} />
         <SummaryStats

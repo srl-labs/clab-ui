@@ -8,7 +8,7 @@ import type { Node, Edge } from "@xyflow/react";
 const DEFAULT_INTERFACE_PATTERN = "eth{n}";
 const INTERFACE_PATTERN_REGEX = /^(.+)?\{n(?::(\d+)(?:-(\d+))?)?\}(.+)?$/;
 
-export type ParsedInterfacePattern = {
+type ParsedInterfacePattern = {
   prefix: string;
   suffix: string;
   startIndex: number;
@@ -174,7 +174,7 @@ function collectUsedIndices(edges: Edge[], nodeId: string, patterns: PatternAllo
   }
 }
 
-export function getOrCreateAllocator(
+function getOrCreateAllocator(
   allocators: Map<string, EndpointAllocator>,
   nodes: Node[],
   edges: Edge[],

@@ -22,8 +22,8 @@ const LABEL_STYLE_BASE: React.CSSProperties = {
   whiteSpace: "nowrap"
 };
 
-export type NodeLabelPosition = "top" | "right" | "bottom" | "left";
-export type NodeDirection = "up" | "right" | "down" | "left";
+type NodeLabelPosition = "top" | "right" | "bottom" | "left";
+type NodeDirection = "up" | "right" | "down" | "left";
 
 const NODE_DIRECTION_ROTATION: Record<NodeDirection, number> = {
   right: 0,
@@ -32,7 +32,7 @@ const NODE_DIRECTION_ROTATION: Record<NodeDirection, number> = {
   up: 270
 };
 
-export function normalizeNodeLabelPosition(value: unknown): NodeLabelPosition {
+function normalizeNodeLabelPosition(value: unknown): NodeLabelPosition {
   switch (value) {
     case "top":
     case "right":
@@ -43,7 +43,7 @@ export function normalizeNodeLabelPosition(value: unknown): NodeLabelPosition {
   }
 }
 
-export function normalizeNodeDirection(value: unknown): NodeDirection {
+function normalizeNodeDirection(value: unknown): NodeDirection {
   switch (value) {
     case "up":
     case "right":

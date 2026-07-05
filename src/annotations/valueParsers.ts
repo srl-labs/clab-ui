@@ -1,3 +1,5 @@
+import { isRecord } from "../core/utilities/typeHelpers";
+
 export function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -11,16 +13,20 @@ export function toFiniteNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 export function toPosition(value: unknown): { x: number; y: number } | undefined {
   if (!isRecord(value)) return undefined;
   const x = toFiniteNumber(value.x);
   const y = toFiniteNumber(value.y);
   if (x === undefined || y === undefined) return undefined;
   return { x, y };
+}
+
+export function toLatLng(value: unknown): { lat: number; lng: number } | undefined {
+  if (!isRecord(value)) return undefined;
+  const lat = toFiniteNumber(value.lat);
+  const lng = toFiniteNumber(value.lng);
+  if (lat === undefined || lng === undefined) return undefined;
+  return { lat, lng };
 }
 
 export function normalizePosition(

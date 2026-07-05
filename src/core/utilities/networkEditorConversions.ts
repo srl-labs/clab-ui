@@ -4,6 +4,7 @@
  */
 
 import type { NetworkEditorData, NetworkType } from "../types/editors";
+import { BRIDGE_TYPES, HOST_TYPES, NETWORK_TYPES } from "../types/editors";
 
 import { getStringOrEmpty, getRecord } from "./typeHelpers";
 
@@ -50,20 +51,11 @@ function parseNetworkType(
  * Check if a string is a valid network type
  */
 function isValidNetworkType(type: string): type is NetworkType {
-  return [
-    "host",
-    "mgmt-net",
-    "macvlan",
-    "vxlan",
-    "vxlan-stitch",
-    "dummy",
-    "bridge",
-    "ovs-bridge"
-  ].includes(type);
+  return NETWORK_TYPES.some((t) => t === type);
 }
 
 /** Host-like types that have host-interface property */
-const HOST_INTERFACE_TYPES = new Set(["host", "macvlan", "mgmt-net"]);
+const HOST_INTERFACE_TYPES = new Set<NetworkType>(HOST_TYPES);
 
 /**
  * Parse interface name from node ID or extraData
@@ -77,7 +69,7 @@ function parseInterfaceName(
   extraData: Record<string, unknown>
 ): string {
   // For bridges, prefer extYamlNodeId if available
-  if (networkType === "bridge" || networkType === "ovs-bridge") {
+  if (BRIDGE_TYPES.includes(networkType)) {
     const yamlId = getStringOrEmpty(extraData.extYamlNodeId);
     if (yamlId) return yamlId;
     return nodeId;

@@ -9,6 +9,7 @@ import * as YAML from "yaml";
 
 import type { SaveResult, IOLogger } from "./types";
 import { ERROR_LINKS_NOT_SEQ, noopLogger } from "./types";
+import { SINGLE_ENDPOINT_TYPES } from "../utilities/LinkTypes";
 import { createQuotedScalar, setOrDelete } from "./YamlDocumentIO";
 
 /**
@@ -66,16 +67,6 @@ export interface LinkSaveData {
   originalSourceEndpoint?: string;
   originalTargetEndpoint?: string;
 }
-
-/** Link types that use single endpoint format (type + endpoint, not endpoints array) */
-const SINGLE_ENDPOINT_TYPES = new Set([
-  "host",
-  "mgmt-net",
-  "macvlan",
-  "vxlan",
-  "vxlan-stitch",
-  "dummy"
-]);
 
 function hasText(value: string | undefined): value is string {
   return value !== undefined && value !== "";

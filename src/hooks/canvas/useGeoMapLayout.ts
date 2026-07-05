@@ -11,6 +11,7 @@ import { useTopologySessionClient } from "../../host";
 import { log } from "../../utils/logger";
 import { FREE_SHAPE_NODE_TYPE } from "../../annotations/annotationNodeConverters";
 import { saveNodePositions } from "../../services";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 interface GeoCoordinates {
   lat: number;
@@ -31,6 +32,8 @@ export interface GeoMapLayoutApi {
   containerRef: RefObject<HTMLDivElement | null>;
   mapRef: RefObject<MapLibreMap | null>;
   isReady: boolean;
+  /** Set when map creation failed (e.g. WebGL unavailable in the host webview). */
+  initError: string | null;
   isInteracting: boolean;
   fitToViewport: (options?: { duration?: number }) => void;
   getGeoCoordinatesForNode: (node: Node) => GeoCoordinates | null;
@@ -99,13 +102,23 @@ type MapLibreModuleType = typeof MapLibreModule;
 
 let maplibreModulePromise: Promise<MapLibreModuleType> | null = null;
 
-function loadMapLibreModule(): Promise<MapLibreModuleType> {
-  maplibreModulePromise ??= import("maplibre-gl") as Promise<MapLibreModuleType>;
-  return maplibreModulePromise;
+// What the dynamic import returns depends on the consumer's bundler interop:
+// vite synthesizes named exports on the namespace (use it as-is), but esbuild's
+// ESM code-splitting output (VS Code webview) exposes the API only under
+// `default`. Unwrap only when the namespace lacks the API.
+function unwrapMapLibreModule(mod: MapLibreModuleType): MapLibreModuleType {
+  if (typeof (mod as { setWorkerUrl?: unknown }).setWorkerUrl === "function") {
+    return mod;
+  }
+  const candidate = (mod as unknown as { default?: MapLibreModuleType }).default;
+  return candidate ?? mod;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
+function loadMapLibreModule(): Promise<MapLibreModuleType> {
+  maplibreModulePromise ??= (import("maplibre-gl") as Promise<MapLibreModuleType>).then(
+    unwrapMapLibreModule
+  );
+  return maplibreModulePromise;
 }
 
 function toGeoCoordinates(value: unknown): GeoCoordinates | null {
@@ -593,6 +606,7 @@ export function useGeoMapLayout({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
   const nodesRef = useRef<Node[]>(nodes);
   const setNodesRef = useRef(setNodes);
@@ -647,10 +661,18 @@ export function useGeoMapLayout({
         });
 
         mapRef.current = map;
+        setInitError(null);
       } catch (err) {
-        log.error(
-          `[GeoMap] Failed to initialize map: ${err instanceof Error ? err.message : String(err)}`
-        );
+        const message =
+          err instanceof Error
+            ? err.message
+            : isRecord(err) && typeof err.message === "string"
+              ? err.message
+              : String(err);
+        log.error(`[GeoMap] Failed to initialize map: ${message}`);
+        if (!cancelled) {
+          setInitError(message);
+        }
       }
     });
 
@@ -677,6 +699,7 @@ export function useGeoMapLayout({
       mapRef.current = null;
       setIsReady(false);
     }
+    setInitError(null);
   }, [isGeoLayout]);
 
   useEffect(() => {
@@ -998,11 +1021,12 @@ export function useGeoMapLayout({
       containerRef,
       mapRef,
       isReady,
+      initError,
       isInteracting,
       fitToViewport,
       getGeoCoordinatesForNode,
       getGeoUpdateForNode
     }),
-    [isReady, isInteracting, fitToViewport, getGeoCoordinatesForNode, getGeoUpdateForNode]
+    [isReady, initError, isInteracting, fitToViewport, getGeoCoordinatesForNode, getGeoUpdateForNode]
   );
 }

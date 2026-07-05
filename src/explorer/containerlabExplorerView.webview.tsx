@@ -54,7 +54,6 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import type { Theme } from "@mui/material/styles";
-import { createRoot } from "react-dom/client";
 import {
   type Dispatch,
   type DragEvent,
@@ -68,12 +67,7 @@ import {
   useState
 } from "react";
 
-import {
-  ClabUiRuntimeProvider,
-  useClabUiHost,
-  type ClabUiRuntime
-} from "../host";
-import { MuiThemeProvider } from "../theme/index";
+import { useClabUiHost } from "../host";
 import {
   ContextMenu,
   type ContextMenuItem
@@ -2957,18 +2951,3 @@ export function ContainerlabExplorerView() {
   );
 }
 
-export function bootstrapContainerlabExplorerView(runtime: ClabUiRuntime): void {
-  const container = document.getElementById("root");
-  if (!container) {
-    throw new Error("Explorer root element not found");
-  }
-
-  const root = createRoot(container);
-  root.render(
-    <ClabUiRuntimeProvider runtime={runtime}>
-      <MuiThemeProvider>
-        <ContainerlabExplorerView />
-      </MuiThemeProvider>
-    </ClabUiRuntimeProvider>
-  );
-}

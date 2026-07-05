@@ -37,12 +37,9 @@ import {
 } from "./NodePersistenceIO";
 import type { LinkSaveData } from "./LinkPersistenceIO";
 import { addLinkToDoc, editLinkInDoc, deleteLinkFromDoc } from "./LinkPersistenceIO";
+import { isRecord } from "../utilities/typeHelpers";
 
 // Types are available from ./NodePersistenceIO and ./LinkPersistenceIO directly
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isRecordOfRecords(value: unknown): value is Record<string, Record<string, unknown>> {
   if (!isRecord(value)) return false;

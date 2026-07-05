@@ -24,6 +24,7 @@ import {
   type Node,
   type ReactFlowInstance
 } from "@xyflow/react";
+import { shallow } from "zustand/shallow";
 
 import {
   FREE_SHAPE_NODE_TYPE,
@@ -787,46 +788,14 @@ function useGeoWheelZoom(
   }, [geoLayout.mapRef, geoLayout.isReady, isGeoLayout, isGeoEdit, canvasContainerRef]);
 }
 
-function useSyncCanvasStore(params: {
-  linkSourceNode: string | null;
-  setLinkSourceNode: (id: string | null) => void;
-  edgeRenderConfig: { labelMode: EdgeLabelMode; suppressLabels: boolean; suppressHitArea: boolean };
-  setEdgeRenderConfig: (config: {
-    labelMode: EdgeLabelMode;
-    suppressLabels: boolean;
-    suppressHitArea: boolean;
-  }) => void;
-  nodeRenderConfig: { suppressLabels: boolean };
-  setNodeRenderConfig: (config: { suppressLabels: boolean }) => void;
-  annotationHandlers?: AnnotationHandlers;
-  setAnnotationHandlers: (handlers: AnnotationHandlers | null) => void;
-}) {
-  const {
-    linkSourceNode,
-    setLinkSourceNode,
-    edgeRenderConfig,
-    setEdgeRenderConfig,
-    nodeRenderConfig,
-    setNodeRenderConfig,
-    annotationHandlers,
-    setAnnotationHandlers
-  } = params;
-
+/**
+ * Mirror a derived value into a store via a stable setter.
+ * One effect per value so each store write only fires when its own value changes.
+ */
+function useSyncToStore<T>(value: T, write: (value: T) => void): void {
   useEffect(() => {
-    setLinkSourceNode(linkSourceNode);
-  }, [linkSourceNode, setLinkSourceNode]);
-
-  useEffect(() => {
-    setEdgeRenderConfig(edgeRenderConfig);
-  }, [edgeRenderConfig, setEdgeRenderConfig]);
-
-  useEffect(() => {
-    setNodeRenderConfig(nodeRenderConfig);
-  }, [nodeRenderConfig, setNodeRenderConfig]);
-
-  useEffect(() => {
-    setAnnotationHandlers(annotationHandlers ?? null);
-  }, [annotationHandlers, setAnnotationHandlers]);
+    write(value);
+  }, [value, write]);
 }
 
 function getCanvasInteractionConfig(params: {
@@ -895,7 +864,8 @@ function shouldOnlyRenderVisibleElements(isLowDetail: boolean, isGeoLayout: bool
 }
 
 function renderGeoMapLayer(
-  geoContainerRef: React.RefObject<HTMLDivElement | null>
+  geoContainerRef: React.RefObject<HTMLDivElement | null>,
+  geoInitError: string | null
 ): React.ReactElement {
   return (
     <div
@@ -909,7 +879,33 @@ function renderGeoMapLayer(
         height: "100%",
         zIndex: 0
       }}
-    />
+    >
+      {geoInitError !== null && (
+        <div
+          data-testid="geo-map-init-error"
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            maxWidth: 460,
+            padding: "12px 16px",
+            borderRadius: 6,
+            background: "rgba(30, 30, 30, 0.92)",
+            color: "#f0f0f0",
+            font: "13px/1.5 sans-serif",
+            textAlign: "center",
+            zIndex: 1,
+            pointerEvents: "none"
+          }}
+        >
+          <strong>Geo map unavailable:</strong> {geoInitError}
+          <br />
+          The map requires WebGL. If VS Code is running without GPU acceleration (e.g. after a
+          driver update or suspend), fully restart VS Code and re-open this view.
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -974,6 +970,7 @@ function buildCanvasOverlays(params: {
   isGeoLayout: boolean;
   isLowDetail: boolean;
   geoContainerRef: React.RefObject<HTMLDivElement | null>;
+  geoInitError: string | null;
   linkSourceNode: string | null;
   linkTargetNodeId: string | null;
   nodes: Node[];
@@ -997,6 +994,7 @@ function buildCanvasOverlays(params: {
     isGeoLayout,
     isLowDetail,
     geoContainerRef,
+    geoInitError,
     linkSourceNode,
     linkTargetNodeId,
     nodes,
@@ -1019,7 +1017,7 @@ function buildCanvasOverlays(params: {
   const canShowLinkIndicator = hasLinkSourceNode;
   const canShowAnnotationIndicator = isInAddMode && hasAddModeMessage;
 
-  const geoMapLayer = canShowGeoMap ? renderGeoMapLayer(geoContainerRef) : null;
+  const geoMapLayer = canShowGeoMap ? renderGeoMapLayer(geoContainerRef, geoInitError) : null;
   const backgroundLayer = canShowBackground
     ? renderBackgroundLayer({ gridLineWidth, gridStyle, effectiveGridColor, gridBgColor })
     : null;
@@ -1121,9 +1119,18 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
 
     const topoState = useMemo(() => ({ mode, isLocked }), [mode, isLocked]);
 
-    // Import canvas store actions
+    // Import canvas store actions (select only the stable actions so this
+    // component does not re-render on unrelated canvasStore changes)
     const { setEdgeRenderConfig, setNodeRenderConfig, setAnnotationHandlers, setLinkSourceNode } =
-      useCanvasStore();
+      useCanvasStore(
+        (s) => ({
+          setEdgeRenderConfig: s.setEdgeRenderConfig,
+          setNodeRenderConfig: s.setNodeRenderConfig,
+          setAnnotationHandlers: s.setAnnotationHandlers,
+          setLinkSourceNode: s.setLinkSourceNode
+        }),
+        shallow
+      );
 
     // All nodes (topology + annotation) are now unified in propNodes
     const allNodes = useMemo<Node[]>(() => propNodes ?? [], [propNodes]);
@@ -1467,16 +1474,11 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       () => (isLowDetail ? edgeTypesLite : edgeTypes),
       [isLowDetail]
     );
-    useSyncCanvasStore({
-      linkSourceNode,
-      setLinkSourceNode,
-      edgeRenderConfig: effectiveEdgeRenderConfig,
-      setEdgeRenderConfig,
-      nodeRenderConfig,
-      setNodeRenderConfig,
-      annotationHandlers,
-      setAnnotationHandlers
-    });
+    // Mirror derived canvas state into canvasStore for node/edge components
+    useSyncToStore(linkSourceNode, setLinkSourceNode);
+    useSyncToStore(effectiveEdgeRenderConfig, setEdgeRenderConfig);
+    useSyncToStore(nodeRenderConfig, setNodeRenderConfig);
+    useSyncToStore(annotationHandlers ?? null, setAnnotationHandlers);
 
     // Note: Keyboard delete handling is done by useAppKeyboardShortcuts in App.tsx
     // which uses handleDeleteNode for proper undo/redo support.
@@ -1710,6 +1712,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       isGeoLayout,
       isLowDetail,
       geoContainerRef: geoLayout.containerRef,
+      geoInitError: geoLayout.initError,
       linkSourceNode,
       linkTargetNodeId,
       nodes: allNodes,
@@ -1760,7 +1763,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
           edges={allEdges}
           nodeTypes={activeNodeTypes}
           edgeTypes={activeEdgeTypes}
-          onNodesChange={handlers.handleNodesChange}
+          onNodesChange={handlers.onNodesChange}
           onEdgesChange={onEdgesChange}
           onInit={wrappedOnInit}
           onNodeClick={wrappedOnNodeClick}

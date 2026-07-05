@@ -5,104 +5,77 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import Divider from "@mui/material/Divider";
-import FormControl from "@mui/material/FormControl";
 import FormControlLabel from "@mui/material/FormControlLabel";
-import InputLabel from "@mui/material/InputLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 
-import { KeyValueList } from "../../ui/form";
+import { InputField, KeyValueList, SelectField, type SelectOption } from "../../ui/form";
 
-import type { IpType, DriverOption } from "./types";
+import type {
+  DriverOption,
+  DriverOptionsActions,
+  IpType,
+  MgmtSettingsSetters,
+  MgmtSettingsState
+} from "./types";
 
 interface MgmtTabProps {
-  networkName: string;
-  ipv4Type: IpType;
-  ipv4Subnet: string;
-  ipv4Gateway: string;
-  ipv4Range: string;
-  ipv6Type: IpType;
-  ipv6Subnet: string;
-  ipv6Gateway: string;
-  mtu: string;
-  bridge: string;
-  externalAccess: boolean;
-  driverOptions: DriverOption[];
+  mgmt: MgmtSettingsState;
+  setMgmt: MgmtSettingsSetters;
+  driverOpts: DriverOptionsActions;
   isViewMode: boolean;
-  onNetworkNameChange: (value: string) => void;
-  onIpv4TypeChange: (value: IpType) => void;
-  onIpv4SubnetChange: (value: string) => void;
-  onIpv4GatewayChange: (value: string) => void;
-  onIpv4RangeChange: (value: string) => void;
-  onIpv6TypeChange: (value: IpType) => void;
-  onIpv6SubnetChange: (value: string) => void;
-  onIpv6GatewayChange: (value: string) => void;
-  onMtuChange: (value: string) => void;
-  onBridgeChange: (value: string) => void;
-  onExternalAccessChange: (value: boolean) => void;
-  onAddDriverOption: () => void;
-  onSetDriverOptions: (options: DriverOption[]) => void;
 }
 
-/** IPv4 settings section */
-const Ipv4Section: React.FC<
-  Pick<
-    MgmtTabProps,
-    | "ipv4Type"
-    | "ipv4Subnet"
-    | "ipv4Gateway"
-    | "ipv4Range"
-    | "isViewMode"
-    | "onIpv4TypeChange"
-    | "onIpv4SubnetChange"
-    | "onIpv4GatewayChange"
-    | "onIpv4RangeChange"
-  >
-> = (props) => (
-  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-    <FormControl size="small" fullWidth disabled={props.isViewMode}>
-      <InputLabel>IPv4 Subnet</InputLabel>
-      <Select
-        value={props.ipv4Type}
-        label="IPv4 Subnet"
-        onChange={(e) => props.onIpv4TypeChange(e.target.value as IpType)}
-      >
-        <MenuItem value="default">Default (172.20.20.0/24)</MenuItem>
-        <MenuItem value="auto">Auto-assign</MenuItem>
-        <MenuItem value="custom">Custom</MenuItem>
-      </Select>
-    </FormControl>
+type SectionProps = Omit<MgmtTabProps, "driverOpts">;
 
-    {props.ipv4Type === "custom" && (
+const IPV4_TYPE_OPTIONS: SelectOption[] = [
+  { value: "default", label: "Default (172.20.20.0/24)" },
+  { value: "auto", label: "Auto-assign" },
+  { value: "custom", label: "Custom" }
+];
+
+const IPV6_TYPE_OPTIONS: SelectOption[] = [
+  { value: "default", label: "Default (3fff:172:20:20::/64)" },
+  { value: "auto", label: "Auto-assign" },
+  { value: "custom", label: "Custom" }
+];
+
+/** IPv4 settings section */
+const Ipv4Section: React.FC<SectionProps> = ({ mgmt, setMgmt, isViewMode }) => (
+  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+    <SelectField
+      id="lab-mgmt-ipv4-type"
+      label="IPv4 Subnet"
+      value={mgmt.ipv4Type}
+      onChange={(v) => setMgmt.setIpv4Type(v as IpType)}
+      options={IPV4_TYPE_OPTIONS}
+      disabled={isViewMode}
+    />
+
+    {mgmt.ipv4Type === "custom" && (
       <>
-        <TextField
+        <InputField
+          id="lab-mgmt-ipv4-subnet"
           label="IPv4 Subnet"
           placeholder="e.g., 172.100.100.0/24"
-          value={props.ipv4Subnet}
-          onChange={(e) => props.onIpv4SubnetChange(e.target.value)}
-          disabled={props.isViewMode}
-          size="small"
-          fullWidth
+          value={mgmt.ipv4Subnet}
+          onChange={setMgmt.setIpv4Subnet}
+          disabled={isViewMode}
         />
-        <TextField
+        <InputField
+          id="lab-mgmt-ipv4-gateway"
           label="IPv4 Gateway"
           placeholder="e.g., 172.100.100.1"
-          value={props.ipv4Gateway}
-          onChange={(e) => props.onIpv4GatewayChange(e.target.value)}
-          disabled={props.isViewMode}
-          size="small"
-          fullWidth
+          value={mgmt.ipv4Gateway}
+          onChange={setMgmt.setIpv4Gateway}
+          disabled={isViewMode}
         />
-        <TextField
+        <InputField
+          id="lab-mgmt-ipv4-range"
           label="IPv4 Range"
           placeholder="e.g., 172.100.100.128/25"
-          value={props.ipv4Range}
-          onChange={(e) => props.onIpv4RangeChange(e.target.value)}
-          disabled={props.isViewMode}
-          size="small"
-          fullWidth
+          value={mgmt.ipv4Range}
+          onChange={setMgmt.setIpv4Range}
+          disabled={isViewMode}
         />
       </>
     )}
@@ -110,51 +83,34 @@ const Ipv4Section: React.FC<
 );
 
 /** IPv6 settings section */
-const Ipv6Section: React.FC<
-  Pick<
-    MgmtTabProps,
-    | "ipv6Type"
-    | "ipv6Subnet"
-    | "ipv6Gateway"
-    | "isViewMode"
-    | "onIpv6TypeChange"
-    | "onIpv6SubnetChange"
-    | "onIpv6GatewayChange"
-  >
-> = (props) => (
+const Ipv6Section: React.FC<SectionProps> = ({ mgmt, setMgmt, isViewMode }) => (
   <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-    <FormControl size="small" fullWidth disabled={props.isViewMode}>
-      <InputLabel>IPv6 Subnet</InputLabel>
-      <Select
-        value={props.ipv6Type}
-        label="IPv6 Subnet"
-        onChange={(e) => props.onIpv6TypeChange(e.target.value as IpType)}
-      >
-        <MenuItem value="default">Default (3fff:172:20:20::/64)</MenuItem>
-        <MenuItem value="auto">Auto-assign</MenuItem>
-        <MenuItem value="custom">Custom</MenuItem>
-      </Select>
-    </FormControl>
+    <SelectField
+      id="lab-mgmt-ipv6-type"
+      label="IPv6 Subnet"
+      value={mgmt.ipv6Type}
+      onChange={(v) => setMgmt.setIpv6Type(v as IpType)}
+      options={IPV6_TYPE_OPTIONS}
+      disabled={isViewMode}
+    />
 
-    {props.ipv6Type === "custom" && (
+    {mgmt.ipv6Type === "custom" && (
       <>
-        <TextField
+        <InputField
+          id="lab-mgmt-ipv6-subnet"
           label="IPv6 Subnet"
           placeholder="e.g., 3fff:172:100:100::/80"
-          value={props.ipv6Subnet}
-          onChange={(e) => props.onIpv6SubnetChange(e.target.value)}
-          disabled={props.isViewMode}
-          size="small"
-          fullWidth
+          value={mgmt.ipv6Subnet}
+          onChange={setMgmt.setIpv6Subnet}
+          disabled={isViewMode}
         />
-        <TextField
+        <InputField
+          id="lab-mgmt-ipv6-gateway"
           label="IPv6 Gateway"
           placeholder="e.g., 3fff:172:100:100::1"
-          value={props.ipv6Gateway}
-          onChange={(e) => props.onIpv6GatewayChange(e.target.value)}
-          disabled={props.isViewMode}
-          size="small"
-          fullWidth
+          value={mgmt.ipv6Gateway}
+          onChange={setMgmt.setIpv6Gateway}
+          disabled={isViewMode}
         />
       </>
     )}
@@ -175,61 +131,59 @@ function recordToDriverOptions(record: Record<string, string>): DriverOption[] {
   return Object.entries(record).map(([key, value]) => ({ key, value }));
 }
 
-export const MgmtTab: React.FC<MgmtTabProps> = (props) => {
-  const driverRecord = driverOptionsToRecord(props.driverOptions);
+export const MgmtTab: React.FC<MgmtTabProps> = ({ mgmt, setMgmt, driverOpts, isViewMode }) => {
+  const driverRecord = driverOptionsToRecord(mgmt.driverOptions);
 
   const handleDriverChange = (record: Record<string, string>) => {
-    props.onSetDriverOptions(recordToDriverOptions(record));
+    driverOpts.setAll(recordToDriverOptions(record));
   };
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column" }}>
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, p: 2 }}>
         {/* Network Name */}
-        <TextField
+        <InputField
+          id="lab-mgmt-network-name"
           label="Network Name"
           placeholder="Docker network name (default: clab)"
-          value={props.networkName}
-          onChange={(e) => props.onNetworkNameChange(e.target.value)}
-          disabled={props.isViewMode}
-          size="small"
-          fullWidth
+          value={mgmt.networkName}
+          onChange={setMgmt.setNetworkName}
+          disabled={isViewMode}
         />
 
-        <Ipv4Section {...props} />
-        <Ipv6Section {...props} />
+        <Ipv4Section mgmt={mgmt} setMgmt={setMgmt} isViewMode={isViewMode} />
+        <Ipv6Section mgmt={mgmt} setMgmt={setMgmt} isViewMode={isViewMode} />
 
         {/* MTU */}
-        <TextField
+        <InputField
+          id="lab-mgmt-mtu"
           label="MTU"
           type="number"
+          min={0}
+          step={1}
           placeholder="Defaults to docker0 interface MTU"
-          value={props.mtu}
-          onChange={(e) => props.onMtuChange(e.target.value)}
-          disabled={props.isViewMode}
-          size="small"
-          fullWidth
-          slotProps={{ htmlInput: { min: 0, step: 1 } }}
+          value={mgmt.mtu}
+          onChange={setMgmt.setMtu}
+          disabled={isViewMode}
         />
 
         {/* Bridge Name */}
-        <TextField
+        <InputField
+          id="lab-mgmt-bridge"
           label="Bridge Name"
           placeholder="Linux bridge name (default: br-<network-id>)"
-          value={props.bridge}
-          onChange={(e) => props.onBridgeChange(e.target.value)}
-          disabled={props.isViewMode}
-          size="small"
-          fullWidth
+          value={mgmt.bridge}
+          onChange={setMgmt.setBridge}
+          disabled={isViewMode}
         />
 
         {/* External Access */}
         <FormControlLabel
           control={
             <Checkbox
-              checked={props.externalAccess}
-              onChange={(e) => props.onExternalAccessChange(e.target.checked)}
-              disabled={props.isViewMode}
+              checked={mgmt.externalAccess}
+              onChange={(e) => setMgmt.setExternalAccess(e.target.checked)}
+              disabled={isViewMode}
               size="small"
             />
           }
@@ -249,13 +203,8 @@ export const MgmtTab: React.FC<MgmtTabProps> = (props) => {
         }}
       >
         <Typography variant="subtitle2">Bridge Driver Options</Typography>
-        {!props.isViewMode && (
-          <Button
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={props.onAddDriverOption}
-            sx={{ py: 0 }}
-          >
+        {!isViewMode && (
+          <Button size="small" startIcon={<AddIcon />} onClick={driverOpts.add} sx={{ py: 0 }}>
             ADD
           </Button>
         )}
@@ -267,7 +216,7 @@ export const MgmtTab: React.FC<MgmtTabProps> = (props) => {
           onChange={handleDriverChange}
           keyPlaceholder="Option key"
           valuePlaceholder="Option value"
-          disabled={props.isViewMode}
+          disabled={isViewMode}
           hideAddButton
         />
       </Box>

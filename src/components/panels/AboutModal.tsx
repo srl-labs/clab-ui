@@ -7,18 +7,17 @@ import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
 import Link from "@mui/material/Link";
 import Typography from "@mui/material/Typography";
-import CloseIcon from "@mui/icons-material/Close";
 import ExtensionIcon from "@mui/icons-material/Extension";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import GroupsIcon from "@mui/icons-material/Groups";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+
+import { DialogTitleWithClose } from "../ui/dialog/DialogChrome";
 
 interface AboutModalProps {
   isOpen: boolean;
@@ -261,17 +260,18 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
         }
       }}
     >
-      <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <AnimatedContainerlabLogo />
-          <Typography variant="h5" fontWeight={600}>
-            TopoViewer
-          </Typography>
-        </Box>
-        <IconButton size="small" onClick={onClose}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </DialogTitle>
+      <DialogTitleWithClose
+        sx={{ py: 2 }}
+        title={
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <AnimatedContainerlabLogo />
+            <Typography variant="h5" fontWeight={600}>
+              TopoViewer
+            </Typography>
+          </Box>
+        }
+        onClose={onClose}
+      />
       <DialogContent dividers sx={{ p: 0 }}>
         {/* Description */}
         <Box sx={{ p: 2 }}>

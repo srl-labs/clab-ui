@@ -23,13 +23,14 @@ import {
   TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE
 } from "../../annotations/annotationNodeConverters";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 /** Version string for clipboard format compatibility */
 const CLIPBOARD_VERSION = "1.0";
 const MEMORY_CLIPBOARD_INVALID_BROWSER_TTL_MS = 5 * 60 * 1000;
 
 /** Serialized node data for clipboard */
-export interface SerializedNode {
+interface SerializedNode {
   id: string;
   data: Record<string, unknown>;
   position: { x: number; y: number };
@@ -44,7 +45,7 @@ export interface SerializedNode {
 }
 
 /** Serialized edge data for clipboard */
-export interface SerializedEdge {
+interface SerializedEdge {
   id: string;
   source: string;
   target: string;
@@ -139,10 +140,6 @@ const ANNOTATION_TYPES = new Set<string>([
   FREE_SHAPE_NODE_TYPE,
   TRAFFIC_RATE_NODE_TYPE
 ]);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;

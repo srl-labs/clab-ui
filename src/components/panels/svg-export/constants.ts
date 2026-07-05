@@ -86,7 +86,7 @@ export const EDGE_LABEL = {
 // Network Node Type Colors (matches NetworkNode.tsx getNodeTypeColor)
 // ============================================================================
 
-export const NETWORK_TYPE_COLOR: Record<string, string> = {
+const NETWORK_TYPE_COLOR: Record<string, string> = {
   host: "#6B7280",
   "mgmt-net": "#3B82F6",
   macvlan: "#10B981",
@@ -106,7 +106,7 @@ export function getNetworkTypeColor(nodeType: string): string {
 // ============================================================================
 
 /** Map node role names to icon types */
-export const ROLE_SVG_MAP: Record<string, string> = {
+const ROLE_SVG_MAP: Record<string, string> = {
   router: "pe",
   "Provider Edge Router": "pe",
   "provider edge router": "pe",
@@ -138,7 +138,7 @@ export function getRoleSvgType(role: string): string {
 /**
  * SVG filter for text shadow effect (matches nodeStyles.ts textShadow)
  */
-export const TEXT_SHADOW_FILTER = `
+const TEXT_SHADOW_FILTER = `
 <filter id="text-shadow" x="-50%" y="-50%" width="200%" height="200%">
   <feGaussianBlur in="SourceAlpha" stdDeviation="1.5" result="blur"/>
   <feFlood flood-color="${NODE_LABEL.textShadowColor}" result="color"/>

@@ -37,7 +37,6 @@ import {
   TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE
 } from "../../annotations/annotationNodeConverters";
-import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 import { type ClabUiHost, useClabUiHost } from "../../host";
 import { useEdges } from "../../stores/graphStore";
 import { log } from "../../utils/logger";
@@ -69,6 +68,7 @@ import type {
   GraphSvgResult,
   GraphSvgRenderOptions
 } from "./svg-export";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 export interface SvgExportModalProps {
   isOpen: boolean;
@@ -140,10 +140,6 @@ interface PreparedSvgExport {
   baseName: string;
   finalSvg: string;
   graphSvg: GraphSvgResult;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function createRequestId(): string {
@@ -339,8 +335,7 @@ function hasStrictlyAscendingThresholds(thresholds: GrafanaTrafficThresholds): b
 
 function requestGrafanaBundleExport(
   host: ClabUiHost,
-  payload: GrafanaBundlePayload,
-  sendGrafanaBundleExport: (payload: GrafanaBundlePayload) => void
+  payload: GrafanaBundlePayload
 ): Promise<string[]> {
   return new Promise((resolve, reject) => {
     let unsubscribe = () => {
@@ -370,7 +365,7 @@ function requestGrafanaBundleExport(
       resolve(files);
     });
 
-    sendGrafanaBundleExport({
+    host.topoViewer.exportGrafanaBundle({
       requestId: payload.requestId,
       baseName: payload.baseName,
       svgContent: payload.svgContent,
@@ -391,7 +386,6 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   customIcons
 }) => {
   const host = useClabUiHost();
-  const { sendGrafanaBundleExport } = useExtensionMessaging();
   const [borderZoom, setBorderZoom] = useState(100);
   const [borderPadding, setBorderPadding] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
@@ -636,7 +630,7 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
         svgContent: grafanaSvg,
         dashboardJson,
         panelYaml
-      }, sendGrafanaBundleExport);
+      });
       const suffix =
         files.length > 0 ? ` (${files.map((file) => file.split("/").pop()).join(", ")})` : "";
       setExportStatus({
@@ -652,8 +646,7 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
       trafficRatesOnHoverOnly,
       includeHideRatesLegendToggle,
       trafficThresholdUnit,
-      host,
-      sendGrafanaBundleExport
+      host
     ]
   );
 

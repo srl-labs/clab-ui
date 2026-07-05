@@ -11,12 +11,6 @@
 
 // Main easter egg hook
 export { useEasterEgg } from "./useEasterEgg";
-export type {
-  EasterEggMode,
-  EasterEggState,
-  UseEasterEggOptions,
-  UseEasterEggReturn
-} from "./useEasterEgg";
 
 // Renderer component (lazy-loads the mode components on demand; importing the
 // modes statically from here would pull them into the eager bundle)

@@ -33,7 +33,7 @@ export interface NetworkEditorViewProps {
   onFooterRef?: (ref: NetworkEditorFooterRef | null) => void;
 }
 
-export interface NetworkEditorFooterRef {
+interface NetworkEditorFooterRef {
   handleApply: () => void;
   handleSave: () => void;
   handleDiscard: () => void;

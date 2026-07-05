@@ -11,7 +11,7 @@ import { useAnnotationHandlers } from "../../../stores/canvasStore";
 // Types
 // ============================================================================
 
-export interface GroupNodeData {
+interface GroupNodeData {
   name: string;
   label?: string;
   level?: string;

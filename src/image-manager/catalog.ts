@@ -14,10 +14,7 @@ import {
   getKindImageGuidance,
   isPlaceholderImageReference
 } from "./kindGuidance";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isRecord } from "../core/utilities/typeHelpers";
 
 function cleanString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -559,11 +556,9 @@ export function runtimeImageSummaryFromCliRecord(record: Record<string, string>)
   };
 }
 
-export {
-  getKindImageGuidance,
-  isPlaceholderImageReference
-};
-
+// This file backs the published dist/image-manager/catalog.d.ts (the runtime JS
+// for the subpath is bundled from catalog-entry.ts) — keep this type re-export
+// in sync with catalog-entry.ts so the public type surface matches the runtime.
 export type {
   ContainerImageSummary,
   ImageActionResult,

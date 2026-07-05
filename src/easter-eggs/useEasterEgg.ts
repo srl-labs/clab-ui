@@ -20,9 +20,9 @@ const CLICKS_REQUIRED = 10;
 const CLICK_TIMEOUT = 2000;
 
 /** Available easter egg modes */
-export type EasterEggMode = "nightcall" | "stickerbrush" | "aquatic" | "vaporwave" | "deusex";
+type EasterEggMode = "nightcall" | "stickerbrush" | "aquatic" | "vaporwave" | "deusex";
 
-export interface EasterEggState {
+interface EasterEggState {
   /** Whether easter egg mode is currently active */
   isPartyMode: boolean;
   /** Which easter egg mode is active */

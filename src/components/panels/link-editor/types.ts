@@ -7,13 +7,11 @@
 
 import type {
   LinkEditorTabId as _LinkEditorTabId,
-  LinkEndpoint as _LinkEndpoint,
   LinkEditorData as _LinkEditorData
 } from "../../../core/types/editors";
 
 // Re-export types (import then export pattern for non-index files)
 export type LinkEditorTabId = _LinkEditorTabId;
-export type LinkEndpoint = _LinkEndpoint;
 export type LinkEditorData = _LinkEditorData;
 
 /**

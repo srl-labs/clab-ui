@@ -2,8 +2,7 @@ import { useMemo, type RefObject } from "react";
 import type { Edge, Node } from "@xyflow/react";
 
 import type { useCanvasHandlers } from "../../hooks/canvas";
-import type { TopoViewerNodeAction } from "../../host";
-import { useExtensionMessaging } from "../../messaging/extensionMessaging";
+import { useClabUiHost, type TopoViewerNodeAction } from "../../host";
 import { useDeploymentState, type DeploymentState } from "../../stores/topoViewerStore";
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
 
@@ -185,7 +184,7 @@ function resolveContextMenuItems(params: ResolveContextMenuItemsParams): Context
  * Hook for building context menu items.
  */
 export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenuItem[] {
-  const { sendInterfaceCapture, sendNodeAction } = useExtensionMessaging();
+  const { topoViewer } = useClabUiHost();
   const deploymentState = useDeploymentState();
   const {
     handlers,
@@ -218,8 +217,9 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
   return useMemo(() => {
     return resolveContextMenuItems({
       ...params,
-      onInterfaceCapture: sendInterfaceCapture,
-      onNodeAction: sendNodeAction,
+      onInterfaceCapture: (nodeName, interfaceName) =>
+        topoViewer.captureInterface(nodeName, interfaceName),
+      onNodeAction: (action, nodeName) => topoViewer.runNodeAction(action, nodeName),
       type,
       targetId,
       menuPosition,
@@ -251,8 +251,7 @@ export function useContextMenuItems(params: ContextMenuItemsParams): ContextMenu
     linkSourceNode,
     startLinkCreation,
     cancelLinkCreation,
-    sendInterfaceCapture,
-    sendNodeAction,
+    topoViewer,
     annotationHandlers,
     onOpenNodePalette,
     onAddDefaultNode,

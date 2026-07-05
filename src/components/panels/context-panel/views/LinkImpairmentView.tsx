@@ -6,7 +6,7 @@ import type { TabConfig } from "../../../ui/editor/EditorPanel";
 import { useFooterControlsRef } from "../../../../hooks/ui";
 import { useLinkImpairmentForm } from "../../../../hooks/editor/useLinkImpairmentForm";
 import type { LinkImpairmentData, LinkImpairmentTabId } from "../../link-impairment/types";
-import { useExtensionMessaging } from "../../../../messaging/extensionMessaging";
+import { useClabUiHost } from "../../../../host";
 import { applyNetemSettingsWithMessaging } from "../../link-impairment/LinkImpairmentUtils";
 import {
   LinkImpairmentTab,
@@ -24,7 +24,7 @@ export interface LinkImpairmentViewProps {
   onFooterRef?: (ref: LinkImpairmentFooterRef | null) => void;
 }
 
-export interface LinkImpairmentFooterRef {
+interface LinkImpairmentFooterRef {
   handleApply: () => void;
   handleSave: () => void;
   handleDiscard: () => void;
@@ -44,7 +44,7 @@ export const LinkImpairmentView: React.FC<LinkImpairmentViewProps> = ({
   readOnly = false,
   onFooterRef
 }) => {
-  const messaging = useExtensionMessaging();
+  const host = useClabUiHost();
   const {
     activeTab,
     setActiveTab,
@@ -56,6 +56,12 @@ export const LinkImpairmentView: React.FC<LinkImpairmentViewProps> = ({
     validationErrors
   } = useLinkImpairmentForm(linkData, readOnly);
 
+  const sendLinkImpairment = useCallback(
+    (nodeName: string, interfaceName: string, data: unknown) =>
+      host.topoViewer.setLinkImpairment(nodeName, interfaceName, data),
+    [host]
+  );
+
   const handleSave = useCallback(() => {
     if (readOnly) return;
     if (!formData) return;
@@ -63,10 +69,10 @@ export const LinkImpairmentView: React.FC<LinkImpairmentViewProps> = ({
       validationErrors.forEach(onError);
       return;
     }
-    applyNetemSettingsWithMessaging(messaging, formData);
+    applyNetemSettingsWithMessaging(sendLinkImpairment, formData);
     onSave(formData);
     onClose();
-  }, [formData, messaging, onClose, onError, onSave, readOnly, validationErrors]);
+  }, [formData, sendLinkImpairment, onClose, onError, onSave, readOnly, validationErrors]);
 
   const handleApply = useCallback(() => {
     if (readOnly) return;
@@ -75,10 +81,10 @@ export const LinkImpairmentView: React.FC<LinkImpairmentViewProps> = ({
       validationErrors.forEach(onError);
       return;
     }
-    applyNetemSettingsWithMessaging(messaging, formData);
+    applyNetemSettingsWithMessaging(sendLinkImpairment, formData);
     onApply(formData);
     resetAfterApply();
-  }, [formData, messaging, onApply, onError, readOnly, resetAfterApply, validationErrors]);
+  }, [formData, sendLinkImpairment, onApply, onError, readOnly, resetAfterApply, validationErrors]);
 
   // Dynamic tabs based on endpoint names
   const tabs: Array<TabConfig<LinkImpairmentTabProps>> = useMemo(

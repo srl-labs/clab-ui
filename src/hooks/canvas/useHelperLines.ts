@@ -187,7 +187,7 @@ function collectAlignmentTargets(
  * @param threshold - Pixel threshold for snapping
  * @returns Alignment result with helper line positions and optional snap position
  */
-export function calculateAlignments(
+function calculateAlignments(
   draggingNode: Node,
   allNodes: Node[],
   threshold: number = SNAP_THRESHOLD

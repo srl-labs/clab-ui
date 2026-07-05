@@ -17,8 +17,8 @@ export interface CanvasRef {
 
 export type GridStyle = "dotted" | "quadratic";
 export type LayoutOption = LayoutName;
-export const DEFAULT_GRID_LINE_WIDTH = 0.5;
-export const DEFAULT_GRID_STYLE: GridStyle = "dotted";
+const DEFAULT_GRID_LINE_WIDTH = 0.5;
+const DEFAULT_GRID_STYLE: GridStyle = "dotted";
 
 /**
  * Node data interface for info panels
@@ -53,7 +53,6 @@ function normalizeLayoutName(option: LayoutOption): string {
   return option;
 }
 
-const GRID_SPACING = 14;
 const GRID_LINE_WIDTH_MIN = 0.00001;
 const GRID_LINE_WIDTH_MAX = 2;
 const GRID_LINE_WIDTH_STORAGE_KEY = "react-topoviewer-grid-line-width";
@@ -105,16 +104,6 @@ function storeGridStyle(style: GridStyle): void {
   } catch {
     /* ignore storage errors */
   }
-}
-
-/**
- * Snap a position to the nearest grid cell center.
- * Grid lines are at 0, 14, 28, ... so cell centers are at 7, 21, 35, ...
- * Exported for use by ReactFlow components.
- */
-export function snapToGrid(value: number): number {
-  const halfSpacing = GRID_SPACING / 2;
-  return Math.round((value - halfSpacing) / GRID_SPACING) * GRID_SPACING + halfSpacing;
 }
 
 export function useLayoutControls(canvasRef: React.RefObject<CanvasRef | null>): {

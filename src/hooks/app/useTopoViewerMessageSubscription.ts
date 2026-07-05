@@ -8,10 +8,7 @@ import type { CustomIconInfo } from "../../core/types/icons";
 import { type ClabUiTopoViewerEvent, useClabUiHost } from "../../host";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { useTopoViewerStore, type DeploymentState } from "../../stores/topoViewerStore";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;

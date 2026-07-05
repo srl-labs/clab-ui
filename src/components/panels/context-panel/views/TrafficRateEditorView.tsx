@@ -22,7 +22,7 @@ export interface TrafficRateEditorViewProps {
   onFooterRef?: (ref: TrafficRateEditorFooterRef | null) => void;
 }
 
-export interface TrafficRateEditorFooterRef {
+interface TrafficRateEditorFooterRef {
   handleApply: () => void;
   handleSave: () => void;
   handleDiscard: () => void;

@@ -127,45 +127,19 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
       {activeTab === "basic" && (
         <Box sx={{ p: 2 }}>
           <BasicTab
-            labName={state.basic.labName}
-            prefixType={state.basic.prefixType}
-            customPrefix={state.basic.customPrefix}
+            basic={state.basic}
+            setBasic={state.setBasic}
             isViewMode={areTopologySettingsReadOnly}
-            onLabNameChange={state.setBasic.setLabName}
-            onPrefixTypeChange={state.setBasic.setPrefixType}
-            onCustomPrefixChange={state.setBasic.setCustomPrefix}
           />
         </Box>
       )}
 
       {activeTab === "mgmt" && (
         <MgmtTab
-          networkName={state.mgmt.networkName}
-          ipv4Type={state.mgmt.ipv4Type}
-          ipv4Subnet={state.mgmt.ipv4Subnet}
-          ipv4Gateway={state.mgmt.ipv4Gateway}
-          ipv4Range={state.mgmt.ipv4Range}
-          ipv6Type={state.mgmt.ipv6Type}
-          ipv6Subnet={state.mgmt.ipv6Subnet}
-          ipv6Gateway={state.mgmt.ipv6Gateway}
-          mtu={state.mgmt.mtu}
-          bridge={state.mgmt.bridge}
-          externalAccess={state.mgmt.externalAccess}
-          driverOptions={state.mgmt.driverOptions}
+          mgmt={state.mgmt}
+          setMgmt={state.setMgmt}
+          driverOpts={state.driverOpts}
           isViewMode={areTopologySettingsReadOnly}
-          onNetworkNameChange={state.setMgmt.setNetworkName}
-          onIpv4TypeChange={state.setMgmt.setIpv4Type}
-          onIpv4SubnetChange={state.setMgmt.setIpv4Subnet}
-          onIpv4GatewayChange={state.setMgmt.setIpv4Gateway}
-          onIpv4RangeChange={state.setMgmt.setIpv4Range}
-          onIpv6TypeChange={state.setMgmt.setIpv6Type}
-          onIpv6SubnetChange={state.setMgmt.setIpv6Subnet}
-          onIpv6GatewayChange={state.setMgmt.setIpv6Gateway}
-          onMtuChange={state.setMgmt.setMtu}
-          onBridgeChange={state.setMgmt.setBridge}
-          onExternalAccessChange={state.setMgmt.setExternalAccess}
-          onAddDriverOption={state.driverOpts.add}
-          onSetDriverOptions={state.driverOpts.setAll}
         />
       )}
 

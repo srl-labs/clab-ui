@@ -17,7 +17,7 @@ export interface TabConfig<TProps extends object = Record<string, unknown>> {
   component: React.ComponentType<TProps>;
 }
 
-export interface EditorPanelFooterConfig {
+interface EditorPanelFooterConfig {
   onFooterRef?: (ref: FooterControlsRef | null) => void;
   hasChanges: boolean;
   onApply: () => void;

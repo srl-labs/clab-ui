@@ -217,6 +217,11 @@ export const BRIDGE_TYPES: NetworkType[] = ["bridge", "ovs-bridge"];
 /** Host-like network types (use host interface) */
 export const HOST_TYPES: NetworkType[] = ["host", "mgmt-net", "macvlan"];
 
+/** Network types that attach to a single endpoint (all except bridges) */
+export const SINGLE_ENDPOINT_NETWORK_TYPES: NetworkType[] = NETWORK_TYPES.filter(
+  (t) => !BRIDGE_TYPES.includes(t)
+);
+
 /** MACVLAN mode options */
 export const MACVLAN_MODES = ["bridge", "vepa", "private", "passthru"] as const;
 

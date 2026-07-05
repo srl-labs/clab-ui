@@ -259,52 +259,6 @@ export class TopologyParser {
   }
 }
 
-// ============================================================================
-// Convenience Functions
-// ============================================================================
-
-/**
- * Parses a topology YAML string to ReactFlow format.
- * Convenience function that wraps TopologyParser.parseToReactFlow().
- */
-export function parseTopologyToReactFlow(
-  yamlContent: string,
-  options?: ParseOptions
-): ParseResultRF {
-  return TopologyParser.parseToReactFlow(yamlContent, options);
-}
-
-/**
- * Parses a pre-parsed topology object to ReactFlow format.
- */
-export function parseTopologyToReactFlowFromParsed(
-  parsed: ClabTopology | null | undefined,
-  options?: ParseOptions
-): ParseResultRF {
-  return TopologyParser.parseToReactFlowFromParsed(parsed, options);
-}
-
-/**
- * Parses a topology for editor mode to ReactFlow format.
- * Convenience function that wraps TopologyParser.parseForEditorRF().
- */
-export function parseTopologyForEditorRF(
-  yamlContent: string,
-  annotations?: TopologyAnnotations
-): ParseResultRF {
-  return TopologyParser.parseForEditorRF(yamlContent, annotations);
-}
-
-/**
- * Parses a pre-parsed topology object for editor mode.
- */
-export function parseTopologyForEditorRFParsed(
-  parsed: ClabTopology | null | undefined,
-  annotations?: TopologyAnnotations
-): ParseResultRF {
-  return TopologyParser.parseForEditorRFParsed(parsed, annotations);
-}
-
 function normalizeParsedTopology(parsed: unknown): ClabTopology {
   if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
     return parsed as ClabTopology;

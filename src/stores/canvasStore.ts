@@ -9,30 +9,30 @@ import type { Edge } from "@xyflow/react";
 
 import type { AnnotationHandlers, EdgeLabelMode } from "../components/canvas/types";
 
-export interface EdgeRenderConfig {
+interface EdgeRenderConfig {
   labelMode: EdgeLabelMode;
   suppressLabels: boolean;
   suppressHitArea: boolean;
 }
 
-export interface NodeRenderConfig {
+interface NodeRenderConfig {
   suppressLabels: boolean;
 }
 
 /** RGB color for easter egg glow effects */
-export interface RGBColor {
+interface RGBColor {
   r: number;
   g: number;
   b: number;
 }
 
 /** Easter egg glow state for node visual effects */
-export interface EasterEggGlow {
+interface EasterEggGlow {
   color: RGBColor;
   intensity: number;
 }
 
-export interface ParallelEdgeInfo {
+interface ParallelEdgeInfo {
   /** Index of this edge within its parallel group */
   index: number;
   /** Total number of edges in this parallel group */
@@ -41,7 +41,7 @@ export interface ParallelEdgeInfo {
   isCanonicalDirection: boolean;
 }
 
-export interface LoopEdgeInfo {
+interface LoopEdgeInfo {
   /** Index of this loop edge on the node */
   loopIndex: number;
 }
@@ -51,7 +51,7 @@ export interface EdgeInfo {
   getLoopInfo: (edgeId: string) => LoopEdgeInfo | null;
 }
 
-export interface CanvasState {
+interface CanvasState {
   linkSourceNode: string | null;
   edgeRenderConfig: EdgeRenderConfig;
   nodeRenderConfig: NodeRenderConfig;
@@ -60,7 +60,7 @@ export interface CanvasState {
   fitViewRequestId: number;
 }
 
-export interface CanvasActions {
+interface CanvasActions {
   setLinkSourceNode: (nodeId: string | null) => void;
   setEdgeRenderConfig: (config: EdgeRenderConfig) => void;
   setNodeRenderConfig: (config: NodeRenderConfig) => void;
@@ -135,7 +135,7 @@ function processParallelEdges(
 }
 
 /** Build edge info from edges array */
-export function buildEdgeInfo(edges: Edge[]): EdgeInfo {
+function buildEdgeInfo(edges: Edge[]): EdgeInfo {
   const parallelInfoMap = new Map<string, ParallelEdgeInfo>();
   const loopInfoMap = new Map<string, LoopEdgeInfo>();
 
@@ -219,7 +219,7 @@ export const useCanvasStore = createWithEqualityFn<CanvasStore>((set) => ({
  * Get edge info with caching (module-level cache to avoid setState during render).
  * This function is safe to call during render because it doesn't trigger React updates.
  */
-export function getEdgeInfo(edges: Edge[]): EdgeInfo {
+function getEdgeInfo(edges: Edge[]): EdgeInfo {
   // If same reference, return cached
   if (edgeInfoCache.edgesRef === edges && edgeInfoCache.info) {
     return edgeInfoCache.info;
@@ -238,9 +238,6 @@ export function getEdgeInfo(edges: Edge[]): EdgeInfo {
 // Selector Hooks (for convenience)
 // ============================================================================
 
-/** Get link source node */
-export const useLinkSourceNode = () => useCanvasStore((state) => state.linkSourceNode);
-
 /** Get edge render config */
 export const useEdgeRenderConfig = () => useCanvasStore((state) => state.edgeRenderConfig);
 
@@ -252,9 +249,6 @@ export const useAnnotationHandlers = () => useCanvasStore((state) => state.annot
 
 /** Get easter egg glow state */
 export const useEasterEggGlow = () => useCanvasStore((state) => state.easterEggGlow);
-
-/** Get set easter egg glow action */
-export const useSetEasterEggGlow = () => useCanvasStore((state) => state.setEasterEggGlow);
 
 /** Get fitView request id */
 export const useFitViewRequestId = () => useCanvasStore((state) => state.fitViewRequestId);

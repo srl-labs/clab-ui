@@ -1,6 +1,6 @@
 import type {
   ClabUiHost,
-  TopologyUiContext,
+  TopologySessionContext,
   TopologyUiRequestOptions
 } from "../host/contracts";
 import type {
@@ -8,11 +8,8 @@ import type {
   TopologyHostResponseMessage,
   TopologySnapshot
 } from "../core/types/messages";
-import type { TopologyRef } from "../contract/topologyRef";
 
-export interface TopologySessionContext extends TopologyUiContext {
-  topologyRef?: TopologyRef;
-}
+export type { TopologySessionContext };
 
 export interface TopologySessionClient {
   dispatchCommand(command: TopologyHostCommand): Promise<TopologyHostResponseMessage>;

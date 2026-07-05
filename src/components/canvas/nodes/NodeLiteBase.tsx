@@ -6,7 +6,7 @@ import { Handle, Position } from "@xyflow/react";
 
 import { HIDDEN_HANDLE_STYLE } from "./nodeStyles";
 
-export const ICON_SIZE = 40;
+const ICON_SIZE = 40;
 
 const CONTAINER_STYLE_BASE: React.CSSProperties = {
   display: "flex",

@@ -13,7 +13,6 @@ import {
   NETWORK_TYPES as _NETWORK_TYPES,
   VXLAN_TYPES as _VXLAN_TYPES,
   BRIDGE_TYPES as _BRIDGE_TYPES,
-  HOST_TYPES as _HOST_TYPES,
   MACVLAN_MODES as _MACVLAN_MODES,
   getInterfaceLabel as _getInterfaceLabel,
   getInterfacePlaceholder as _getInterfacePlaceholder,
@@ -29,7 +28,6 @@ export type NetworkEditorData = _NetworkEditorData;
 export const NETWORK_TYPES = _NETWORK_TYPES;
 export const VXLAN_TYPES = _VXLAN_TYPES;
 export const BRIDGE_TYPES = _BRIDGE_TYPES;
-export const HOST_TYPES = _HOST_TYPES;
 export const MACVLAN_MODES = _MACVLAN_MODES;
 export const getInterfaceLabel = _getInterfaceLabel;
 export const getInterfacePlaceholder = _getInterfacePlaceholder;

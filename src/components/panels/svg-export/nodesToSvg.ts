@@ -164,7 +164,7 @@ function getNodeDirectionRotation(value: unknown): number {
  * Build SVG for node label with background and text shadow
  * Positioned around the icon.
  */
-export function buildNodeLabelSvg(
+function buildNodeLabelSvg(
   label: string,
   iconX: number,
   iconY: number,
@@ -255,7 +255,7 @@ export function buildNodeLabelSvg(
 /**
  * Render a topology node (router, switch, etc.) to SVG
  */
-export function topologyNodeToSvg(
+function topologyNodeToSvg(
   node: Node,
   customIconMap?: CustomIconMap,
   nodeIconSize: number = NODE_ICON_SIZE
@@ -326,7 +326,7 @@ export function topologyNodeToSvg(
  * Render a network node (host, mgmt-net, etc.) to SVG
  * Network nodes use the cloud icon with type-based colors
  */
-export function networkNodeToSvg(node: Node, nodeIconSize: number = NODE_ICON_SIZE): string {
+function networkNodeToSvg(node: Node, nodeIconSize: number = NODE_ICON_SIZE): string {
   const data = node.data as NetworkNodeData;
   const iconSize = resolveNodeIconSize(nodeIconSize);
   const x = node.position.x;

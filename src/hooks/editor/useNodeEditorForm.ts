@@ -10,7 +10,7 @@ import { convertEditorDataToNodeSaveData } from "../../core/utilities";
 import { applyFormUpdates } from "./formState";
 
 /** Maps YAML kebab-case keys to camelCase NodeEditorData keys */
-export const YAML_TO_EDITOR_MAP: Partial<Record<string, keyof NodeEditorData>> = {
+const YAML_TO_EDITOR_MAP: Partial<Record<string, keyof NodeEditorData>> = {
   "startup-config": "startupConfig",
   "enforce-startup-config": "enforceStartupConfig",
   "suppress-startup-config": "suppressStartupConfig",

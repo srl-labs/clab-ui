@@ -207,7 +207,8 @@ function renderHtmlToReactNodes(html: string): React.ReactNode {
  * with markdown support
  */
 const FreeTextNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) => {
-  const nodeData = toFreeTextNodeData(data);
+  // Memoized so downstream useMemo deps (e.g. textStyle) stay referentially stable.
+  const nodeData = useMemo(() => toFreeTextNodeData(data), [data]);
   const isLocked = useIsLocked();
   const annotationHandlers = useAnnotationHandlers();
   const canEditAnnotations = !isLocked;

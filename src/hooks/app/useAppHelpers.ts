@@ -186,6 +186,9 @@ export function useE2ETestingExposure(config: E2ETestingConfig): void {
           setMode(nextMode);
         };
       }
+      window.__DEV__.setDeploymentState = (nextState) => {
+        useTopoViewerStore.getState().setDeploymentState(nextState);
+      };
     }
   }, [isLocked, mode, toggleLock, setMode]);
 

@@ -86,6 +86,27 @@ const LINK_ENDPOINT_SNIPPETS = [
   }
 ];
 
+// Hoisted regexes for the per-line scans below (run once per line on every
+// completion/hover request).
+const BLANK_OR_COMMENT_LINE_REGEX = /^\s*(?:#.*)?$/;
+const YAML_KEY_LINE_REGEX = /^(\s*)(?:-\s*)?([^\s:#][^:]*):/;
+const LEADING_SPACES_REGEX = /^ */;
+const COMPLETION_WORD_CHAR_REGEX = /[A-Za-z0-9_.|-]/;
+const ENDPOINTS_KEY_LINE_REGEX = /^\s*(?:-\s*)?endpoints:\s*(?:$|\[)/;
+
+// Cache compiled schema pattern regexes — patterns come from a static schema,
+// so this stays bounded while avoiding re-compilation on every lookup.
+const schemaPatternRegexCache = new Map<string, RegExp>();
+
+function getSchemaPatternRegex(pattern: string): RegExp {
+  let regex = schemaPatternRegexCache.get(pattern);
+  if (!regex) {
+    regex = new RegExp(pattern);
+    schemaPatternRegexCache.set(pattern, regex);
+  }
+  return regex;
+}
+
 function isRecord(value: unknown): value is SchemaRecord {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -163,7 +184,7 @@ export function extractTopologyNodeNames(text: string): string[] {
 }
 
 function getLineIndent(line: string): number {
-  const match = /^ */.exec(line);
+  const match = LEADING_SPACES_REGEX.exec(line);
   return match ? match[0].length : 0;
 }
 
@@ -179,9 +200,9 @@ function getYamlKeyStackEntries(
 
   for (let index = 0; index <= lineIndex; index++) {
     const line = lines[index];
-    if (/^\s*(?:#.*)?$/.test(line)) continue;
+    if (BLANK_OR_COMMENT_LINE_REGEX.test(line)) continue;
 
-    const match = /^(\s*)(?:-\s*)?([^\s:#][^:]*):/.exec(line);
+    const match = YAML_KEY_LINE_REGEX.exec(line);
     if (!match) continue;
 
     const sequenceKeyOffset = line.slice(match[1].length).startsWith("- ") ? 2 : 0;
@@ -221,9 +242,9 @@ function isEndpointArrayItem(lines: string[], lineIndex: number, linePrefix: str
   const currentIndent = getLineIndent(lines[lineIndex]);
   for (let index = lineIndex - 1; index >= 0; index--) {
     const line = lines[index];
-    if (/^\s*(?:#.*)?$/.test(line)) continue;
+    if (BLANK_OR_COMMENT_LINE_REGEX.test(line)) continue;
     const indent = getLineIndent(line);
-    if (indent < currentIndent && /^\s*(?:-\s*)?endpoints:\s*(?:$|\[)/.test(line)) return true;
+    if (indent < currentIndent && ENDPOINTS_KEY_LINE_REGEX.test(line)) return true;
     if (indent < currentIndent) return false;
   }
   return false;
@@ -259,7 +280,7 @@ export function getYamlCompletionRange(
 ): monaco.IRange {
   const prefix = lineText.slice(0, Math.max(0, position.column - 1));
   let startIndex = prefix.length;
-  while (startIndex > 0 && /[A-Za-z0-9_.|-]/.test(prefix[startIndex - 1])) {
+  while (startIndex > 0 && COMPLETION_WORD_CHAR_REGEX.test(prefix[startIndex - 1])) {
     startIndex--;
   }
 
@@ -328,7 +349,7 @@ function searchPatternProps(
 
   for (const pattern of Object.keys(patternProps)) {
     try {
-      if (new RegExp(pattern).test(key) && isRecord(patternProps[pattern])) {
+      if (getSchemaPatternRegex(pattern).test(key) && isRecord(patternProps[pattern])) {
         return deref(patternProps[pattern], root);
       }
     } catch {
@@ -342,7 +363,7 @@ function checkConstraint(constraint: SchemaRecord, yamlValue: unknown): boolean 
   const pattern = constraint.pattern;
   if (typeof pattern === "string") {
     if (typeof yamlValue !== "string") return false;
-    if (!new RegExp(pattern).test(yamlValue)) return false;
+    if (!getSchemaPatternRegex(pattern).test(yamlValue)) return false;
   }
 
   const enumValues = constraint.enum;
@@ -564,7 +585,7 @@ export function getYamlPathAtLine(text: string, line: number): string[] | null {
   if (line < 1 || line > lines.length) return null;
 
   const currentLine = lines[line - 1];
-  const keyMatch = /^(\s*)(?:-\s*)?([^\s#:][^:]*):/.exec(currentLine);
+  const keyMatch = YAML_KEY_LINE_REGEX.exec(currentLine);
   if (!keyMatch) return null;
 
   const currentIndent = keyMatch[1].length + (currentLine.trimStart().startsWith("- ") ? 2 : 0);
@@ -574,7 +595,7 @@ export function getYamlPathAtLine(text: string, line: number): string[] | null {
   let targetIndent = currentIndent;
   for (let index = line - 2; index >= 0; index--) {
     const parentLine = lines[index];
-    const parentMatch = /^(\s*)(?:-\s*)?([^\s#:][^:]*):/.exec(parentLine);
+    const parentMatch = YAML_KEY_LINE_REGEX.exec(parentLine);
     if (!parentMatch) continue;
 
     const indent = parentMatch[1].length + (parentLine.trimStart().startsWith("- ") ? 2 : 0);

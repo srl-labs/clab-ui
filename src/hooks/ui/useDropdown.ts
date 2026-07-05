@@ -25,6 +25,8 @@ export function useDropdown(): UseDropdownReturn {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Only listen while open so closed dropdowns don't keep idle document listeners.
+    if (!isOpen) return;
     const handleClickOutside = (event: MouseEvent) => {
       if (ref.current && event.target instanceof Node && !ref.current.contains(event.target)) {
         setIsOpen(false);
@@ -39,7 +41,7 @@ export function useDropdown(): UseDropdownReturn {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("topoviewer:pane-click", handlePaneClick as EventListener);
     };
-  }, []);
+  }, [isOpen]);
 
   return {
     isOpen,

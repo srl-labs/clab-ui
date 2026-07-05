@@ -13,22 +13,24 @@ import type { GraphLabelMigration } from "./types";
 // Detection
 // ============================================================================
 
+/** graph-* label keys that trigger migration to annotations */
+const GRAPH_LABEL_KEYS = [
+  "graph-posX",
+  "graph-posY",
+  "graph-icon",
+  "graph-group",
+  "graph-level",
+  "graph-groupLabelPos",
+  "graph-geoCoordinateLat",
+  "graph-geoCoordinateLng"
+] as const;
+
 /**
  * Checks if a node has graph-* labels that need migration.
  */
 export function nodeHasGraphLabels(labels: Record<string, unknown> | undefined): boolean {
   if (labels === undefined) return false;
-  const relevantKeys = [
-    "graph-posX",
-    "graph-posY",
-    "graph-icon",
-    "graph-group",
-    "graph-level",
-    "graph-groupLabelPos",
-    "graph-geoCoordinateLat",
-    "graph-geoCoordinateLng"
-  ] as const;
-  return relevantKeys.some((key) => labels[key] !== undefined && labels[key] !== null);
+  return GRAPH_LABEL_KEYS.some((key) => labels[key] !== undefined && labels[key] !== null);
 }
 
 /**

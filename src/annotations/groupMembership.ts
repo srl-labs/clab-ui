@@ -78,13 +78,13 @@ export interface NodeGroupMembership {
 }
 
 export function collectNodeGroupMemberships(nodes: Node[]): NodeGroupMembership[] {
-  return nodes
-    .filter((node) => !isAnnotationNodeType(node.type))
-    .map((node) => {
-      const data = getRecordUnknown(node.data);
-      const groupId = getString(data?.groupId);
-      if (groupId === undefined || groupId.length === 0) return null;
-      return { id: node.id, groupId };
-    })
-    .filter((entry): entry is NodeGroupMembership => entry !== null);
+  const memberships: NodeGroupMembership[] = [];
+  for (const node of nodes) {
+    if (isAnnotationNodeType(node.type)) continue;
+    const data = getRecordUnknown(node.data);
+    const groupId = getString(data?.groupId);
+    if (groupId === undefined || groupId.length === 0) continue;
+    memberships.push({ id: node.id, groupId });
+  }
+  return memberships;
 }

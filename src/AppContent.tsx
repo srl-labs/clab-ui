@@ -3,6 +3,7 @@
 import React from "react";
 import type { Edge, Node, ReactFlowInstance } from "@xyflow/react";
 import Box from "@mui/material/Box";
+import { shallow } from "zustand/shallow";
 
 import type { NetemState } from "./core/parsing";
 import type { TopoEdge, TopoNode, TopologyHostCommand } from "./core/types";
@@ -61,8 +62,9 @@ import {
   useGraphState,
   useGraphStore,
   useTopoViewerActions,
-  useTopoViewerState
+  useTopoViewerStore
 } from "./stores";
+import type { TopoViewerState } from "./stores";
 import {
   useExtensionMessaging
 } from "./messaging/extensionMessaging";
@@ -771,6 +773,123 @@ function DeferredDevExplorerView() {
   );
 }
 
+type AppContentStateSlice = Pick<
+  TopoViewerState,
+  | "labName"
+  | "mode"
+  | "labSettings"
+  | "canUndo"
+  | "canRedo"
+  | "selectedNode"
+  | "selectedEdge"
+  | "editingImpairment"
+  | "editingNode"
+  | "editingEdge"
+  | "editingNetwork"
+  | "isLocked"
+  | "deploymentState"
+  | "linkLabelMode"
+  | "showDummyLinks"
+  | "endpointLabelOffsetEnabled"
+  | "endpointLabelOffset"
+  | "edgeAnnotations"
+  | "customNodes"
+  | "defaultNode"
+  | "customIcons"
+  | "isProcessing"
+  | "customNodeError"
+>;
+
+// Subscribe only to the fields AppContent reads during render so unrelated store
+// updates (lifecycle logs, telemetry sizing, source-editor content, ...) don't
+// re-run the whole composition root. Callback-only reads (e.g.
+// lastNonTelemetryLinkLabelMode) go through useTopoViewerStore.getState() instead.
+function selectAppContentState(state: TopoViewerState): AppContentStateSlice {
+  return {
+    labName: state.labName,
+    mode: state.mode,
+    labSettings: state.labSettings,
+    canUndo: state.canUndo,
+    canRedo: state.canRedo,
+    selectedNode: state.selectedNode,
+    selectedEdge: state.selectedEdge,
+    editingImpairment: state.editingImpairment,
+    editingNode: state.editingNode,
+    editingEdge: state.editingEdge,
+    editingNetwork: state.editingNetwork,
+    isLocked: state.isLocked,
+    deploymentState: state.deploymentState,
+    linkLabelMode: state.linkLabelMode,
+    showDummyLinks: state.showDummyLinks,
+    endpointLabelOffsetEnabled: state.endpointLabelOffsetEnabled,
+    endpointLabelOffset: state.endpointLabelOffset,
+    edgeAnnotations: state.edgeAnnotations,
+    customNodes: state.customNodes,
+    defaultNode: state.defaultNode,
+    customIcons: state.customIcons,
+    isProcessing: state.isProcessing,
+    customNodeError: state.customNodeError
+  };
+}
+
+type LifecycleModalStateSlice = Pick<
+  TopoViewerState,
+  | "lifecycleModalOpen"
+  | "isProcessing"
+  | "processingMode"
+  | "lifecycleStatus"
+  | "lifecycleStatusMessage"
+  | "labName"
+  | "lifecycleLogs"
+>;
+
+function selectLifecycleModalState(state: TopoViewerState): LifecycleModalStateSlice {
+  return {
+    lifecycleModalOpen: state.lifecycleModalOpen,
+    isProcessing: state.isProcessing,
+    processingMode: state.processingMode,
+    lifecycleStatus: state.lifecycleStatus,
+    lifecycleStatusMessage: state.lifecycleStatusMessage,
+    labName: state.labName,
+    lifecycleLogs: state.lifecycleLogs
+  };
+}
+
+interface LifecycleModalHostProps {
+  onClose: () => void;
+  onCancel: () => void;
+}
+
+// Hosts the lifecycle-modal store subscription so high-frequency lifecycle
+// updates (log appends, status messages) re-render only this component
+// instead of the whole AppContent tree.
+const LifecycleModalHost: React.FC<LifecycleModalHostProps> = React.memo(
+  ({ onClose, onCancel }) => {
+    const state = useTopoViewerStore(selectLifecycleModalState, shallow);
+
+    if (!state.lifecycleModalOpen && !state.isProcessing) {
+      return null;
+    }
+
+    return (
+      <React.Suspense fallback={null}>
+        <LazyLifecycleProgressModal
+          isOpen={state.lifecycleModalOpen}
+          isProcessing={state.isProcessing}
+          mode={state.processingMode}
+          status={state.lifecycleStatus}
+          statusMessage={state.lifecycleStatusMessage}
+          labName={state.labName}
+          logs={state.lifecycleLogs}
+          onClose={onClose}
+          onCancel={onCancel}
+        />
+      </React.Suspense>
+    );
+  }
+);
+LifecycleModalHost.displayName = "LifecycleModalHost";
+
 export const AppContent: React.FC<AppContentProps> = ({
   reactFlowRef,
   rfInstance,
@@ -781,7 +900,7 @@ export const AppContent: React.FC<AppContentProps> = ({
   const sessionClient = useTopologySessionClient();
   const { renderAboutModal, renderDeployMenuItems } = useClabUiRuntime();
   const { sendCancelLabLifecycle, sendDumpCssVars } = useExtensionMessaging();
-  const state = useTopoViewerState();
+  const state = useTopoViewerStore(selectAppContentState, shallow);
   const topoActions = useTopoViewerActions();
   const graphActions = useGraphActions();
   const annotationUiActions = useAnnotationUIActions();
@@ -790,7 +909,7 @@ export const AppContent: React.FC<AppContentProps> = ({
   const topologyViewportKey = resolveTopologyViewportKey(sessionClient, state.labName);
   const isInteractionLocked = getInteractionLockState(state.isLocked, isProcessing);
   const interactionMode = getInteractionMode(state.mode, isProcessing);
-  const isDevMock = React.useMemo(() => isDevMockWebview(host), [host]);
+  const isDevMock = isDevMockWebview(host);
   const showDevExplorer = React.useMemo(
     () => isDevMock && !isDevExplorerDisabledByUrl(),
     [isDevMock]
@@ -1071,8 +1190,13 @@ export const AppContent: React.FC<AppContentProps> = ({
     },
     edgeAnnotationLookup
   );
+  // Node selection resolves to the info view for deployed labs and in
+  // read-only view mode (mirrors resolveSelectionView); when unlocked, that
+  // same selection also drives the visual-only editor (Icon / Label & Direction).
+  const selectionShowsNodeInfo =
+    state.deploymentState === "deployed" || interactionMode === "view";
   const enableSelectedNodeVisualEditor =
-    interactionMode === "view" &&
+    selectionShowsNodeInfo &&
     isInteractionLocked === false &&
     selectionData.editingNodeData === null &&
     selectionData.selectedNodeEditorData !== null;
@@ -1587,9 +1711,12 @@ export const AppContent: React.FC<AppContentProps> = ({
 
   const handleLinkLabelModeChange = React.useCallback(
     (mode: Parameters<typeof topoActions.setLinkLabelMode>[0]) => {
+      // Callback-only read: fetch the latest value on demand instead of
+      // subscribing AppContent to lastNonTelemetryLinkLabelMode changes.
+      const { lastNonTelemetryLinkLabelMode } = useTopoViewerStore.getState();
       topoActions.setLinkLabelMode(mode);
       const nextLastNonTelemetryMode =
-        mode === "telemetry-style" ? state.lastNonTelemetryLinkLabelMode : mode;
+        mode === "telemetry-style" ? lastNonTelemetryLinkLabelMode : mode;
       const style = mode === "telemetry-style" ? "telemetry-style" : "default";
       void saveViewerSettings(sessionClient, {
         style,
@@ -1597,7 +1724,7 @@ export const AppContent: React.FC<AppContentProps> = ({
         lastNonTelemetryLinkLabelMode: nextLastNonTelemetryMode
       });
     },
-    [sessionClient, topoActions, state.lastNonTelemetryLinkLabelMode]
+    [sessionClient, topoActions]
   );
 
   let aboutModal: React.ReactNode = null;
@@ -1843,21 +1970,7 @@ export const AppContent: React.FC<AppContentProps> = ({
         </Box>
 
         {/* Modals */}
-        {state.lifecycleModalOpen || isProcessing ? (
-          <React.Suspense fallback={null}>
-            <LazyLifecycleProgressModal
-              isOpen={state.lifecycleModalOpen}
-              isProcessing={isProcessing}
-              mode={state.processingMode}
-              status={state.lifecycleStatus}
-              statusMessage={state.lifecycleStatusMessage}
-              labName={state.labName}
-              logs={state.lifecycleLogs}
-              onClose={handleCloseLifecycleModal}
-              onCancel={handleCancelLifecycle}
-            />
-          </React.Suspense>
-        ) : null}
+        <LifecycleModalHost onClose={handleCloseLifecycleModal} onCancel={handleCancelLifecycle} />
         {panelVisibility.showLabSettingsModal ? (
           <React.Suspense fallback={null}>
             <LazyLabSettingsModal

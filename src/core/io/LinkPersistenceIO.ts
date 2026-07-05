@@ -366,28 +366,30 @@ function createExtendedLink(doc: YAML.Document, linkData: LinkSaveData): YAML.YA
   return linkMap;
 }
 
+/** Extended-format property keys checked when deciding the link YAML format */
+const EXTENDED_PROPERTY_KEYS = [
+  "extMtu",
+  "extSourceMac",
+  "extTargetMac",
+  "extSourceIpv4",
+  "extSourceIpv6",
+  "extTargetIpv4",
+  "extTargetIpv6",
+  "extHostInterface",
+  "extMode",
+  "extRemote",
+  "extVni",
+  "extDstPort",
+  "extSrcPort"
+];
+
 /**
  * Checks if link data has extended properties requiring extended format
  */
 function hasExtendedProperties(linkData: LinkSaveData): boolean {
   const extra = linkData.extraData ?? {};
-  const extendedKeys = [
-    "extMtu",
-    "extSourceMac",
-    "extTargetMac",
-    "extSourceIpv4",
-    "extSourceIpv6",
-    "extTargetIpv4",
-    "extTargetIpv6",
-    "extHostInterface",
-    "extMode",
-    "extRemote",
-    "extVni",
-    "extDstPort",
-    "extSrcPort"
-  ];
 
-  if (extendedKeys.some((k) => extra[k] !== undefined && extra[k] !== "")) return true;
+  if (EXTENDED_PROPERTY_KEYS.some((k) => extra[k] !== undefined && extra[k] !== "")) return true;
   if (
     extra.extVars !== undefined &&
     typeof extra.extVars === "object" &&

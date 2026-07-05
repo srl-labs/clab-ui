@@ -216,15 +216,14 @@ interface PositionEntry {
   position: { x: number; y: number };
 }
 
-/** Apply position update to a single node */
-function applyPositionToNode(node: Node, positions: PositionEntry[]): Node {
-  const posEntry = positions.find((p) => p.id === node.id);
-  return posEntry ? { ...node, position: posEntry.position } : node;
-}
-
 /** Create node updater function for position changes */
 function createPositionUpdater(positions: PositionEntry[]) {
-  return (currentNodes: Node[]) => currentNodes.map((node) => applyPositionToNode(node, positions));
+  const positionsById = new Map(positions.map((p) => [p.id, p.position]));
+  return (currentNodes: Node[]) =>
+    currentNodes.map((node) => {
+      const position = positionsById.get(node.id);
+      return position ? { ...node, position } : node;
+    });
 }
 
 /**

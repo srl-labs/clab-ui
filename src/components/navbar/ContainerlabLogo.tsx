@@ -5,7 +5,7 @@
  * - Click progress: shake intensifies with each click (1-9)
  * - Explosion: after 10 clicks, logo explodes into particles
  */
-import React, { useMemo } from "react";
+import React from "react";
 
 interface ContainerlabLogoProps {
   className?: string;
@@ -29,20 +29,22 @@ const bubbleStyle: React.CSSProperties = {
   strokeWidth: "0.8px"
 };
 
+function getShakeClass(clickProgress: number, isExploded: boolean): string {
+  if (isExploded || clickProgress === 0) return "";
+  if (clickProgress >= 9) return "logo-shake-extreme";
+  if (clickProgress >= 7) return "logo-shake-intense";
+  if (clickProgress >= 5) return "logo-shake-medium";
+  if (clickProgress >= 3) return "logo-shake-light";
+  return "logo-shake-subtle";
+}
+
 export const ContainerlabLogo: React.FC<ContainerlabLogoProps> = ({
   className,
   clickProgress = 0,
   isExploded = false
 }) => {
   // Calculate shake intensity based on click progress (0-9)
-  const shakeClass = useMemo(() => {
-    if (isExploded || clickProgress === 0) return "";
-    if (clickProgress >= 9) return "logo-shake-extreme";
-    if (clickProgress >= 7) return "logo-shake-intense";
-    if (clickProgress >= 5) return "logo-shake-medium";
-    if (clickProgress >= 3) return "logo-shake-light";
-    return "logo-shake-subtle";
-  }, [clickProgress, isExploded]);
+  const shakeClass = getShakeClass(clickProgress, isExploded);
 
   if (isExploded) {
     return (

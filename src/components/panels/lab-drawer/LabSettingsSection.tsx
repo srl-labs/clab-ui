@@ -47,14 +47,6 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
 
   const state = useLabSettingsState(labSettings);
   const sessionClient = useTopologySessionClient();
-  const linkLabelMode = useTopoViewerStore((store) => store.linkLabelMode);
-  const lastNonTelemetryLinkLabelMode = useTopoViewerStore(
-    (store) => store.lastNonTelemetryLinkLabelMode
-  );
-  const telemetryNodeSizePx = useTopoViewerStore((store) => store.telemetryNodeSizePx);
-  const telemetryInterfaceSizePercent = useTopoViewerStore(
-    (store) => store.telemetryInterfaceSizePercent
-  );
   const showRateLabels = useTopoViewerStore((store) => store.showRateLabels);
   const setShowRateLabels = useTopoViewerStore((store) => store.setShowRateLabels);
   const [draftShowRateLabels, setDraftShowRateLabels] = useState(showRateLabels);
@@ -74,6 +66,12 @@ export const LabSettingsSection: React.FC<LabSettingsSectionProps> = ({
     if (!areTopologySettingsReadOnly) {
       await state.handleSave();
     }
+    const {
+      linkLabelMode,
+      lastNonTelemetryLinkLabelMode,
+      telemetryNodeSizePx,
+      telemetryInterfaceSizePercent
+    } = useTopoViewerStore.getState();
     const graphStore = useGraphStore.getState();
     const result = syncRateLabelAnnotationsForLinks(
       graphStore.nodes,

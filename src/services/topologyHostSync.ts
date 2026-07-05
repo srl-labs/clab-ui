@@ -66,10 +66,11 @@ const LEGACY_MIN_MEDIA_TEXT_HEIGHT = 48;
 type TelemetryStyle = NonNullable<NonNullable<TopologyAnnotations["viewerSettings"]>["style"]>;
 const GRID_LINE_WIDTH_MIN = 0.00001;
 const GRID_LINE_WIDTH_MAX = 2;
+const STANDALONE_MARKDOWN_IMAGE_REGEX = /^\s*!\[[^\]]*\]\([^)]+\)\s*$/u;
 
 function isStandaloneMarkdownImage(value: unknown): boolean {
   if (!isNonEmptyString(value)) return false;
-  return /^\s*!\[[^\]]*\]\([^)]+\)\s*$/u.test(value);
+  return STANDALONE_MARKDOWN_IMAGE_REGEX.test(value);
 }
 
 function inferLegacyMediaTextHeight(width: number): number {

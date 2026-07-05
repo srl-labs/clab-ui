@@ -221,15 +221,17 @@ export function createFakeClabUiHost(initialFixture: string | null): FakeClabUiH
       },
 
       async writeAnnotationsFile(filename: string, content: unknown) {
-        files.set(annotationsPathFor(normalizePath(filename)), JSON.stringify(content, null, 2));
-        if (normalizePath(filename) === currentYamlPath) {
+        const yamlPath = normalizePath(filename);
+        files.set(annotationsPathFor(yamlPath), JSON.stringify(content, null, 2));
+        if (yamlPath === currentYamlPath) {
           await loadTopologyFile(currentYamlPath);
         }
       },
 
       async writeYamlFile(filename: string, content: string) {
-        files.set(normalizePath(filename), content);
-        if (normalizePath(filename) === currentYamlPath) {
+        const yamlPath = normalizePath(filename);
+        files.set(yamlPath, content);
+        if (yamlPath === currentYamlPath) {
           await loadTopologyFile(currentYamlPath);
         }
       }
@@ -271,6 +273,7 @@ export function createFakeClabUiHost(initialFixture: string | null): FakeClabUiH
       saveCustomNode() {},
       deleteCustomNode() {},
       setDefaultCustomNode() {},
+      importCustomNodes() {},
       requestIconList() {},
       uploadIcon() {},
       deleteIcon() {},

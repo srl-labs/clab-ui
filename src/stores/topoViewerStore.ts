@@ -457,30 +457,28 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
 
   // Processing state
   setProcessing: (isProcessing, mode) => {
-    set((state) => {
-      const next: Partial<TopoViewerState> = {
-        isProcessing
-      };
+    const next: Partial<TopoViewerState> = {
+      isProcessing
+    };
 
-      if (isProcessing) {
-        next.processingMode = mode ?? null;
-        next.lifecycleModalOpen = true;
-        next.lifecycleStatus = "running";
-        next.lifecycleStatusMessage = null;
-        next.editingNode = null;
-        next.editingEdge = null;
-        next.editingImpairment = null;
-        next.editingNetwork = null;
-        next.editingCustomTemplate = null;
-        next.selectedNode = null;
-        next.selectedEdge = null;
-        next.lifecycleLogs = [];
-      } else if (mode) {
-        next.processingMode = mode;
-      }
+    if (isProcessing) {
+      next.processingMode = mode ?? null;
+      next.lifecycleModalOpen = true;
+      next.lifecycleStatus = "running";
+      next.lifecycleStatusMessage = null;
+      next.editingNode = null;
+      next.editingEdge = null;
+      next.editingImpairment = null;
+      next.editingNetwork = null;
+      next.editingCustomTemplate = null;
+      next.selectedNode = null;
+      next.selectedEdge = null;
+      next.lifecycleLogs = [];
+    } else if (mode) {
+      next.processingMode = mode;
+    }
 
-      return { ...state, ...next };
-    });
+    set(next);
   },
 
   setLifecycleStatus: (lifecycleStatus, lifecycleStatusMessage = null) => {

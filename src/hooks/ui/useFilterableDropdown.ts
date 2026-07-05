@@ -94,6 +94,8 @@ function useDropdownOpenState(value: string) {
   }, [value]);
 
   useEffect(() => {
+    // Only listen while open so closed dropdowns don't keep idle global listeners.
+    if (!isOpen) return;
     const closeDropdown = () => {
       setIsOpen(false);
       setIsFiltering(false);
@@ -104,7 +106,7 @@ function useDropdownOpenState(value: string) {
       window.removeEventListener("blur", closeDropdown);
       document.removeEventListener("visibilitychange", closeDropdown);
     };
-  }, []);
+  }, [isOpen]);
 
   return {
     isOpen,
@@ -279,9 +281,9 @@ export function useFilterableDropdown({
   );
 
   const handleToggle = useCallback(() => {
-    setIsOpen(!isOpen);
+    setIsOpen((prev) => !prev);
     inputRef.current?.focus();
-  }, [isOpen, setIsOpen]);
+  }, [setIsOpen]);
 
   const handleFocus = useCallback(() => setIsOpen(true), [setIsOpen]);
 

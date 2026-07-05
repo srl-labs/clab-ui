@@ -94,11 +94,25 @@ function generateInterfaceName(parsed: ParsedInterfacePattern, index: number): s
   return `${parsed.prefix}${num}${parsed.suffix}`;
 }
 
+const REGEXP_ESCAPE_REGEX = /[.*+?^${}()|[\]\\]/g;
+
+// Cache compiled interface regexes so repeated lookups over many edges reuse them
+const interfaceIndexRegexCache = new Map<string, RegExp>();
+
+function getInterfaceIndexRegex(parsed: ParsedInterfacePattern): RegExp {
+  const cacheKey = `${parsed.prefix}\u0000${parsed.suffix}`;
+  let regex = interfaceIndexRegexCache.get(cacheKey);
+  if (!regex) {
+    const escapedPrefix = parsed.prefix.replace(REGEXP_ESCAPE_REGEX, "\\$&");
+    const escapedSuffix = parsed.suffix.replace(REGEXP_ESCAPE_REGEX, "\\$&");
+    regex = new RegExp(`^${escapedPrefix}(\\d+)${escapedSuffix}$`);
+    interfaceIndexRegexCache.set(cacheKey, regex);
+  }
+  return regex;
+}
+
 function extractInterfaceIndex(endpoint: string, parsed: ParsedInterfacePattern): number {
-  const escapedPrefix = parsed.prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const escapedSuffix = parsed.suffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const regex = new RegExp(`^${escapedPrefix}(\\d+)${escapedSuffix}$`);
-  const match = regex.exec(endpoint);
+  const match = getInterfaceIndexRegex(parsed).exec(endpoint);
   if (match) {
     return parseInt(match[1], 10) - parsed.startIndex;
   }
@@ -184,8 +198,7 @@ export function getOrCreateAllocator(
   const parsedPatterns = parseInterfacePatternList(pattern);
   const patterns = parsedPatterns.map((parsed) => ({ parsed, usedIndices: new Set<number>() }));
 
-  const connectedEdges = edges.filter((edge) => edge.source === nodeId || edge.target === nodeId);
-  collectUsedIndices(connectedEdges, nodeId, patterns);
+  collectUsedIndices(edges, nodeId, patterns);
 
   const created = { patterns };
   allocators.set(nodeId, created);

@@ -14,10 +14,6 @@ const MIDPOINT_LINE_COLOR = "#4ecdc4";
 const MIDPOINT_LINE_WIDTH = 1;
 
 export const HelperLines: React.FC<HelperLinesProps> = React.memo(({ lines }) => {
-  const transform = useStore((state) => state.transform);
-  const width = useStore((state) => state.width);
-  const height = useStore((state) => state.height);
-
   const { horizontal, vertical, horizontalMidpoint, verticalMidpoint } = lines;
 
   if (
@@ -28,6 +24,20 @@ export const HelperLines: React.FC<HelperLinesProps> = React.memo(({ lines }) =>
   ) {
     return null;
   }
+
+  return <HelperLinesSvg lines={lines} />;
+});
+
+HelperLines.displayName = "HelperLines";
+
+// Separate component so the viewport store subscription only exists while
+// helper lines are visible (avoids re-rendering on every pan/zoom otherwise).
+const HelperLinesSvg: React.FC<HelperLinesProps> = ({ lines }) => {
+  const transform = useStore((state) => state.transform);
+  const width = useStore((state) => state.width);
+  const height = useStore((state) => state.height);
+
+  const { horizontal, vertical, horizontalMidpoint, verticalMidpoint } = lines;
 
   const [tx, ty, zoom] = transform;
 
@@ -99,9 +109,7 @@ export const HelperLines: React.FC<HelperLinesProps> = React.memo(({ lines }) =>
       )}
     </svg>
   );
-});
-
-HelperLines.displayName = "HelperLines";
+};
 
 const OverlayIndicator: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <Box

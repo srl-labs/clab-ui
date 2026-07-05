@@ -17,7 +17,12 @@
 import type { Node, Edge } from "@xyflow/react";
 import { isLayoutableNode, applyPositionMap } from "./types";
 import type { LayoutOptions } from "./types";
-import { classifyComponent, buildAdjacency, findComponent } from "./graphAnalysis";
+import {
+  classifyComponent,
+  buildAdjacency,
+  findComponent,
+  getMaxMappedValue
+} from "./graphAnalysis";
 import { forceLayoutComponent } from "./forceLayout";
 
 export function applyRadialLayout(
@@ -132,7 +137,7 @@ export function applyRadialLayout(
     angle.set(root, 0); // root sits at center, angle irrelevant
 
     // Estimate component bounding radius for cursor advance
-    const maxDepth = Math.max(...component.map(id => depth.get(id) ?? 0));
+    const maxDepth = getMaxMappedValue(component, depth);
     const compRadius = maxDepth * ringSpacing + nodeSpacing;
 
     const cx = cursorX + compRadius + padding;

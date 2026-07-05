@@ -9,46 +9,44 @@ import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
-import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  AppBar,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  FormControl,
-  IconButton,
-  InputAdornment,
-  InputLabel,
-  LinearProgress,
-  Link,
-  List,
-  ListItem,
-  ListItemText,
-  MenuItem,
-  Paper,
-  Select,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Toolbar,
-  Tooltip,
-  Typography
-} from "@mui/material";
+import Accordion from "@mui/material/Accordion";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AppBar from "@mui/material/AppBar";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
+import Divider from "@mui/material/Divider";
+import FormControl from "@mui/material/FormControl";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import InputLabel from "@mui/material/InputLabel";
+import LinearProgress from "@mui/material/LinearProgress";
+import Link from "@mui/material/Link";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemText from "@mui/material/ListItemText";
+import MenuItem from "@mui/material/MenuItem";
+import Paper from "@mui/material/Paper";
+import Select from "@mui/material/Select";
+import Stack from "@mui/material/Stack";
 import type { Theme } from "@mui/material/styles";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import TextField from "@mui/material/TextField";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import Toolbar from "@mui/material/Toolbar";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import React from "react";
 import { createRoot } from "react-dom/client";
 
@@ -737,15 +735,15 @@ export function ContainerlabImageManager({
     });
   }, [visibleEntries, filter, searchText]);
 
-  const filterCounts = React.useMemo(
-    () => ({
-      all: visibleEntries.length,
-      missing: visibleEntries.filter((entry) => entryMatchesFilter(entry, "missing")).length,
-      pullable: visibleEntries.filter((entry) => entryMatchesFilter(entry, "pullable")).length,
-      local: visibleEntries.filter((entry) => entryMatchesFilter(entry, "local")).length
-    }),
-    [visibleEntries]
-  );
+  const filterCounts = React.useMemo(() => {
+    const counts = { all: visibleEntries.length, missing: 0, pullable: 0, local: 0 };
+    for (const entry of visibleEntries) {
+      if (entryMatchesFilter(entry, "missing")) counts.missing += 1;
+      if (entryMatchesFilter(entry, "pullable")) counts.pullable += 1;
+      if (entryMatchesFilter(entry, "local")) counts.local += 1;
+    }
+    return counts;
+  }, [visibleEntries]);
 
   const otherLocalImages = React.useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();

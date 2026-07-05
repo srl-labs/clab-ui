@@ -11,6 +11,8 @@ import type {
   TopologyAnnotations
 } from "../types/topology";
 
+import { HOSTY_TYPES } from "../utilities/LinkTypes";
+
 import type { SpecialNodeType } from "./LinkNormalizer";
 import {
   TYPES,
@@ -160,7 +162,7 @@ export function assignHostMgmtProps(
   linkObj: Record<string, unknown>,
   baseProps: Record<string, unknown>
 ): void {
-  if (!["host", "mgmt-net", "macvlan"].includes(linkType)) return;
+  if (!HOSTY_TYPES.has(linkType)) return;
   if (linkObj["host-interface"] !== undefined)
     baseProps.extHostInterface = linkObj["host-interface"];
   if (linkType === "macvlan" && linkObj.mode !== undefined) baseProps.extMode = linkObj.mode;

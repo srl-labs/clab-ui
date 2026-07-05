@@ -1,6 +1,9 @@
+/* eslint-disable import-x/max-dependencies */
 // Basic tab for node editor.
 import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
 import RotateLeftIcon from "@mui/icons-material/RotateLeft";
 import RotateRightIcon from "@mui/icons-material/RotateRight";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";

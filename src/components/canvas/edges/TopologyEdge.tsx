@@ -123,7 +123,8 @@ function asObjectRecord(value: unknown): Record<string, unknown> | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return null;
   }
-  return Object.fromEntries(Object.entries(value));
+  // Read-only access below — avoid copying the object on every call.
+  return value as Record<string, unknown>;
 }
 
 function getStringField(record: Record<string, unknown>, key: string): string | undefined {
@@ -700,9 +701,9 @@ const EndpointLabel = memo(function EndpointLabel({
         : null,
     [text, variant, telemetryInterfaceScale]
   );
-  const telemetryBackgroundColor = useMemo(
-    () => getTelemetryInterfaceBackgroundColor(interfaceState, colorByInterfaceState),
-    [interfaceState, colorByInterfaceState]
+  const telemetryBackgroundColor = getTelemetryInterfaceBackgroundColor(
+    interfaceState,
+    colorByInterfaceState
   );
 
   const renderedText = telemetryMetrics?.text ?? text;

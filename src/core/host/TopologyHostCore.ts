@@ -629,14 +629,18 @@ export class TopologyHostCore implements TopologyHost {
   }
 
   private async buildSnapshot(): Promise<TopologySnapshot> {
-    const yamlContent = await this.baseFs.readFile(this.yamlFilePath);
+    const [yamlContent, initialAnnotationsContent, loadedAnnotations] = await Promise.all([
+      this.baseFs.readFile(this.yamlFilePath),
+      this.readAnnotationsContent(),
+      this.annotationsIO.loadAnnotations(this.yamlFilePath, true)
+    ]);
     const yamlDoc = YAML.parseDocument(yamlContent);
     const parsed = normalizeParsedTopologyValue(yamlDoc.toJS());
     this.currentClabTopology = parsed;
 
-    let annotationsContent = await this.readAnnotationsContent();
+    let annotationsContent = initialAnnotationsContent;
 
-    let annotations = await this.annotationsIO.loadAnnotations(this.yamlFilePath, true);
+    let annotations = loadedAnnotations;
     if (migrateGeneratedNetworkNodeAnnotations(annotations)) {
       await this.annotationsIO.saveAnnotations(this.yamlFilePath, annotations);
       annotationsContent = await this.readAnnotationsContent();
@@ -798,7 +802,8 @@ export class TopologyHostCore implements TopologyHost {
     try {
       const annotations = await this.annotationsIO.loadAnnotations(this.yamlFilePath, true);
       const nodeAnnotations = annotations.nodeAnnotations ?? [];
-      const missingIds = [...yamlNodeIds].filter((id) => !nodeAnnotations.some((n) => n.id === id));
+      const annotationIds = new Set(nodeAnnotations.map((n) => n.id));
+      const missingIds = [...yamlNodeIds].filter((id) => !annotationIds.has(id));
       const orphanAnnotations = nodeAnnotations.filter((n) => !yamlNodeIds.has(n.id));
 
       if (missingIds.length === 1 && orphanAnnotations.length > 0) {
@@ -831,8 +836,10 @@ export class TopologyHostCore implements TopologyHost {
   }
 
   private async captureHistoryEntry(): Promise<HistoryEntry> {
-    const yamlContent = await this.baseFs.readFile(this.yamlFilePath);
-    const annotationsContent = await this.readAnnotationsContent();
+    const [yamlContent, annotationsContent] = await Promise.all([
+      this.baseFs.readFile(this.yamlFilePath),
+      this.readAnnotationsContent()
+    ]);
     return { yamlContent, annotationsContent };
   }
 
@@ -959,8 +966,10 @@ function shouldSkipHistory(command: TopologyHostCommand): boolean {
   return false;
 }
 
+const ID_PREFIX_REGEX = /^([a-zA-Z]+)/;
+
 function getIdPrefix(id: string): string {
-  const match = /^([a-zA-Z]+)/.exec(id);
+  const match = ID_PREFIX_REGEX.exec(id);
   return match ? match[1] : id;
 }
 
@@ -1367,7 +1376,8 @@ function applyNodeGroupMembershipsToAnnotations(
   for (const [nodeId, annotation] of existingMap) {
     if (!membershipMap.has(nodeId)) {
       const { group: _group, groupId: _groupId, ...rest } = annotation;
-      if (Object.keys(rest).length > 1 || (Object.keys(rest).length === 1 && rest.id)) {
+      const restKeyCount = Object.keys(rest).length;
+      if (restKeyCount > 1 || (restKeyCount === 1 && rest.id)) {
         result.push(rest);
       }
     }

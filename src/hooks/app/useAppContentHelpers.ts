@@ -234,8 +234,9 @@ export function useAnnotationCanvasHandlers(annotations: AnnotationContextValue)
   );
 
   // Keep a stable handlers object for ReactFlow/canvas store subscribers.
-  const latestAnnotationsRef = React.useRef(getAnnotationHandlerSnapshot(annotations));
-  latestAnnotationsRef.current = getAnnotationHandlerSnapshot(annotations);
+  const annotationSnapshot = getAnnotationHandlerSnapshot(annotations);
+  const latestAnnotationsRef = React.useRef(annotationSnapshot);
+  latestAnnotationsRef.current = annotationSnapshot;
 
   const onAddTextClick = React.useCallback((position: { x: number; y: number }) => {
     latestAnnotationsRef.current.handleTextCanvasClick(position);

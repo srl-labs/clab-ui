@@ -1,19 +1,18 @@
+/* eslint-disable import-x/max-dependencies */
 import React from "react";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import {
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  LinearProgress,
-  Typography
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
+import LinearProgress from "@mui/material/LinearProgress";
+import Typography from "@mui/material/Typography";
 
 import type {
   LifecycleLogEntry,
@@ -162,6 +161,27 @@ export const LifecycleProgressModal: React.FC<LifecycleProgressModalProps> = ({
   const timerLabel = isProcessing ? "Elapsed" : "Duration";
   const formattedDuration = formatElapsedSeconds(elapsedSeconds);
 
+  // Memoized so the 1s elapsed-timer tick does not rebuild every log line.
+  const logItems = React.useMemo(
+    () =>
+      logs.map((entry, index) => (
+        <Typography
+          key={`${entry.stream}-${index}`}
+          component="div"
+          variant="body2"
+          sx={{
+            fontFamily: "SFMono-Regular, Consolas, 'Liberation Mono', Menlo, Courier, monospace",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            lineHeight: 1.4
+          }}
+        >
+          {entry.line}
+        </Typography>
+      )),
+    [logs]
+  );
+
   return (
     <Dialog
       open={isOpen}
@@ -240,22 +260,7 @@ export const LifecycleProgressModal: React.FC<LifecycleProgressModalProps> = ({
               Waiting for command output...
             </Typography>
           )}
-          {logs.map((entry, index) => (
-            <Typography
-              key={`${entry.stream}-${index}`}
-              component="div"
-              variant="body2"
-              sx={{
-                fontFamily:
-                  "SFMono-Regular, Consolas, 'Liberation Mono', Menlo, Courier, monospace",
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                lineHeight: 1.4
-              }}
-            >
-              {entry.line}
-            </Typography>
-          ))}
+          {logItems}
         </Box>
       </DialogContent>
       <DialogActions>

@@ -215,6 +215,9 @@ export function validateVethLink(linkObj: Record<string, unknown>): string[] {
   return ok ? [] : ["invalid-veth-endpoints"];
 }
 
+/** Link types that require a host-interface property */
+const HOST_INTERFACE_LINK_TYPES = ["mgmt-net", "host", "macvlan"];
+
 /**
  * Validates a special link type.
  */
@@ -227,7 +230,7 @@ export function validateSpecialLink(linkType: string, linkObj: Record<string, un
     errors.push("invalid-endpoint");
   }
   if (
-    ["mgmt-net", "host", "macvlan"].includes(linkType) &&
+    HOST_INTERFACE_LINK_TYPES.includes(linkType) &&
     (typeof hostInterface !== "string" || hostInterface === "")
   ) {
     errors.push("missing-host-interface");
@@ -330,6 +333,19 @@ export function resolveContainerAndInterface(params: {
 // Interface Stats Extraction
 // ============================================================================
 
+/** Numeric stats keys extracted for edges */
+const EDGE_STATS_KEYS = [
+  "rxBps",
+  "rxPps",
+  "rxBytes",
+  "rxPackets",
+  "txBps",
+  "txPps",
+  "txBytes",
+  "txPackets",
+  "statsIntervalSeconds"
+];
+
 /**
  * Extracts interface stats for an edge.
  */
@@ -340,20 +356,8 @@ export function extractEdgeInterfaceStats(ifaceData: unknown): Record<string, nu
 
   const sourceStats = isRecord(ifaceData.stats) ? ifaceData.stats : ifaceData;
 
-  const keys = [
-    "rxBps",
-    "rxPps",
-    "rxBytes",
-    "rxPackets",
-    "txBps",
-    "txPps",
-    "txBytes",
-    "txPackets",
-    "statsIntervalSeconds"
-  ];
-
   const stats: Record<string, number> = {};
-  for (const key of keys) {
+  for (const key of EDGE_STATS_KEYS) {
     const value = sourceStats[key];
     if (typeof value === "number" && Number.isFinite(value)) {
       stats[key] = value;

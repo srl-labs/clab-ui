@@ -9,7 +9,7 @@ import type { ContainerDataProvider, ContainerInfo, InterfaceInfo } from "./type
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(Object.entries(value));
+  return value as Record<string, unknown>;
 }
 
 /**
@@ -77,8 +77,8 @@ export function matchInterfaceInContainer(
   ifaceName: string
 ): InterfaceInfo | undefined {
   const candidates = getCandidateInterfaceNames(ifaceName);
+  const labelStr = container.label ?? "";
   for (const iface of container.interfaces) {
-    const labelStr = container.label ?? "";
     if (
       candidates.includes(iface.name) ||
       candidates.includes(iface.alias) ||

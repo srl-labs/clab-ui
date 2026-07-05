@@ -206,10 +206,13 @@ function collectLineDragNodes(
 
   if (draggedNode.type === GROUP_NODE_TYPE && groupMemberHandlers?.getGroupMembers) {
     const memberIds = groupMemberHandlers.getGroupMembers(draggedNode.id, { includeNested: true });
-    return memberIds
-      .map((id) => nodes.find((node) => node.id === id))
-      .filter((node): node is Node => Boolean(node))
-      .filter(isLineShapeNode);
+    const nodesById = new Map(nodes.map((node) => [node.id, node]));
+    const lineNodes: Node[] = [];
+    for (const id of memberIds) {
+      const node = nodesById.get(id);
+      if (node && isLineShapeNode(node)) lineNodes.push(node);
+    }
+    return lineNodes;
   }
 
   const selectedLines = nodes.filter((node) => node.selected === true && isLineShapeNode(node));
@@ -221,9 +224,10 @@ function applyLineDragSnapshots(snapshots: Map<string, LineDragSnapshot>): void 
   if (snapshots.size === 0) return;
   const currentNodes = useGraphStore.getState().nodes;
   const updateNode = useGraphStore.getState().updateNode;
+  const nodesById = new Map(currentNodes.map((node) => [node.id, node]));
 
   for (const [id, snapshot] of snapshots) {
-    const currentNode = currentNodes.find((node) => node.id === id);
+    const currentNode = nodesById.get(id);
     if (!currentNode) continue;
     const dx = currentNode.position.x - snapshot.nodePosition.x;
     const dy = currentNode.position.y - snapshot.nodePosition.y;
@@ -255,9 +259,11 @@ function buildGroupMemberChanges(
   members: string[],
   nodes: Node[] | undefined
 ): NodeChange[] {
+  if (!nodes || members.length === 0) return [];
+  const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const changes: NodeChange[] = [];
   for (const memberId of members) {
-    const memberNode = nodes?.find((n) => n.id === memberId);
+    const memberNode = nodesById.get(memberId);
     if (memberNode) {
       changes.push({
         type: "position",
@@ -583,7 +589,7 @@ function useNodeDragHandlers(
         groupLastPositionRef.current.set(node.id, { ...node.position });
       }
     },
-    [isLockedRef, flushPendingGroupMove, scheduleGroupMoveFlush]
+    [isLockedRef, setNodes, flushPendingGroupMove, scheduleGroupMoveFlush]
   );
 
   const onNodeDragStop: NodeMouseHandler = useCallback(
@@ -842,10 +848,6 @@ function usePaneClickHandler(
   selectEdge: (id: string | null) => void,
   editNode: (id: string | null) => void,
   closeContextMenu: () => void,
-  reactFlowInstance: React.RefObject<ReactFlowInstance | null>,
-  modeRef: React.RefObject<"view" | "edit">,
-  isLockedRef: React.RefObject<boolean>,
-  onLockedAction?: () => void,
   onPaneClickExtra?: () => void
 ) {
   return useCallback(
@@ -859,17 +861,7 @@ function usePaneClickHandler(
       editNode(null);
       onPaneClickExtra?.();
     },
-    [
-      selectNode,
-      selectEdge,
-      editNode,
-      closeContextMenu,
-      onLockedAction,
-      onPaneClickExtra,
-      reactFlowInstance,
-      modeRef,
-      isLockedRef
-    ]
+    [selectNode, selectEdge, editNode, closeContextMenu, onPaneClickExtra]
   );
 }
 
@@ -1005,7 +997,8 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     geoLayout
   } = config;
 
-  const reactFlowInstance = reactFlowInstanceRef ?? useRef<ReactFlowInstance | null>(null);
+  const localReactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const reactFlowInstance = reactFlowInstanceRef ?? localReactFlowInstanceRef;
   const deploymentState = useDeploymentState();
   const modeRef = useRef(mode);
   const isLockedRef = useRef(isLocked);
@@ -1054,10 +1047,6 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     selectEdge,
     editNode,
     closeContextMenu,
-    reactFlowInstance,
-    modeRef,
-    isLockedRef,
-    onLockedAction,
     onPaneClickExtra
   );
   const onConnect = useConnectionHandler(modeRef, isLockedRef, onLockedAction, onEdgeCreated);

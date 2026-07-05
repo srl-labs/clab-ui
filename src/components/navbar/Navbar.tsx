@@ -1,18 +1,16 @@
 // Navbar for React TopoViewer.
 import React from "react";
-import {
-  AppBar,
-  Badge,
-  Divider,
-  IconButton,
-  ListItemIcon,
-  ListItemText,
-  Menu,
-  MenuItem,
-  Toolbar,
-  Tooltip,
-  Typography
-} from "@mui/material";
+import AppBar from "@mui/material/AppBar";
+import Badge from "@mui/material/Badge";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import Toolbar from "@mui/material/Toolbar";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import CheckIcon from "@mui/icons-material/Check";
 import CleaningServicesIcon from "@mui/icons-material/CleaningServices";
@@ -56,6 +54,12 @@ const SUCCESS_MAIN = "success.main";
 
 function isGeneratedLayoutOption(layout: LayoutOption): boolean {
   return layout === "force" || layout === "auto" || layout === "radial";
+}
+
+function getApplyTooltip(isInSync: boolean, isDeployed: boolean): string {
+  if (isInSync) return "Topology in sync — nothing to apply";
+  if (!isDeployed) return "Apply Topology (deploys the lab)";
+  return "Apply Topology Changes";
 }
 
 function getToolbarAnchorPosition(
@@ -157,11 +161,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   // the lab is confirmed undeployed.
   const isRunningActionDisabled =
     isProcessing || !isTopologyActive || deploymentState === "undeployed";
-  const applyTooltip = React.useMemo(() => {
-    if (isInSync) return "Topology in sync — nothing to apply";
-    if (!isDeployed) return "Apply Topology (deploys the lab)";
-    return "Apply Topology Changes";
-  }, [isInSync, isDeployed]);
+  const applyTooltip = getApplyTooltip(isInSync, isDeployed);
 
   const appBarRef = React.useRef<HTMLDivElement>(null);
   const [linkLabelMenuPosition, setLinkLabelMenuPosition] = React.useState<{

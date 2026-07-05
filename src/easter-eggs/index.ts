@@ -18,14 +18,6 @@ export type {
   UseEasterEggReturn
 } from "./useEasterEgg";
 
-// Renderer component
+// Renderer component (lazy-loads the mode components on demand; importing the
+// modes statically from here would pull them into the eager bundle)
 export { EasterEggRenderer } from "./EasterEggRenderer";
-
-// Mode components (for direct use if needed)
-export {
-  NightcallMode,
-  StickerbushMode,
-  AquaticAmbienceMode,
-  VaporwaveMode,
-  DeusExMode
-} from "./modes";

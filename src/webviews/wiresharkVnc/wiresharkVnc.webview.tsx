@@ -1,4 +1,9 @@
-import { Alert, Box, CircularProgress, Paper, Stack, Typography } from "@mui/material";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 import React from "react";
 import { createRoot } from "react-dom/client";
 

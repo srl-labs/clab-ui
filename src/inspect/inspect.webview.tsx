@@ -1,23 +1,22 @@
+/* eslint-disable import-x/max-dependencies */
 import RefreshIcon from "@mui/icons-material/Refresh";
 import SearchIcon from "@mui/icons-material/Search";
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  InputAdornment,
-  Paper,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TableSortLabel,
-  TextField,
-  Typography
-} from "@mui/material";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import InputAdornment from "@mui/material/InputAdornment";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import TableSortLabel from "@mui/material/TableSortLabel";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 import React from "react";
 import { createRoot } from "react-dom/client";
 
@@ -397,42 +396,45 @@ function InspectGroupPanel({
             </TableRow>
           </TableHead>
           <TableBody>
-            {group.rows.map((row) => (
-              <TableRow key={`${group.labName}-${row.containerId || row.containerName}-${row.network}`} hover>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.containerName || "-"}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.kind || "-"}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.type || "-"}</TableCell>
-                <TableCell sx={{ minWidth: 180, maxWidth: 240 }} title={row.image || ""}>
-                  <Typography
-                    variant="body2"
-                    sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                  >
-                    {row.image || "-"}
-                  </Typography>
-                </TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>
-                  <Chip
-                    size="small"
-                    variant="outlined"
-                    label={row.state || "-"}
-                    sx={{
-                      color: stateToColorToken(row.state),
-                      borderColor: stateToColorToken(row.state),
-                      fontWeight: 600
-                    }}
-                  />
-                </TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.status || "-"}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.pid || "-"}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.ipv4 || "-"}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.ipv6 || "-"}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.network || "-"}</TableCell>
-                <TableCell sx={{ whiteSpace: "nowrap" }}>{row.owner || "-"}</TableCell>
-                <TableCell>
-                  <PortsCell row={row} onOpenPort={onOpenPort} />
-                </TableCell>
-              </TableRow>
-            ))}
+            {group.rows.map((row) => {
+              const stateColor = stateToColorToken(row.state);
+              return (
+                <TableRow key={`${group.labName}-${row.containerId || row.containerName}-${row.network}`} hover>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.containerName || "-"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.kind || "-"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.type || "-"}</TableCell>
+                  <TableCell sx={{ minWidth: 180, maxWidth: 240 }} title={row.image || ""}>
+                    <Typography
+                      variant="body2"
+                      sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    >
+                      {row.image || "-"}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      label={row.state || "-"}
+                      sx={{
+                        color: stateColor,
+                        borderColor: stateColor,
+                        fontWeight: 600
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.status || "-"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.pid || "-"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.ipv4 || "-"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.ipv6 || "-"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.network || "-"}</TableCell>
+                  <TableCell sx={{ whiteSpace: "nowrap" }}>{row.owner || "-"}</TableCell>
+                  <TableCell>
+                    <PortsCell row={row} onOpenPort={onOpenPort} />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>

@@ -166,12 +166,10 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const easterEggGlow = useEasterEggGlow();
   const customIcons = useCustomIcons();
   const deploymentState = useDeploymentState();
-  const telemetryNodeSizePx = useTopoViewerStore((state) => state.telemetryNodeSizePx);
-  const directionRotation = useMemo(() => getNodeDirectionRotation(direction), [direction]);
-  const iconSize = useMemo(
-    () => clampTelemetryNodeSizePx(telemetryNodeSizePx),
-    [telemetryNodeSizePx]
+  const iconSize = useTopoViewerStore((state) =>
+    clampTelemetryNodeSizePx(state.telemetryNodeSizePx)
   );
+  const directionRotation = getNodeDirectionRotation(direction);
 
   // Check if this node is a valid link target (in link creation mode)
   const isLinkTarget = linkSourceNode !== null;
@@ -192,14 +190,8 @@ const TopologyNodeComponent: React.FC<NodeProps> = ({ data, selected }) => {
     return generateEncodedSVG(svgType, color);
   }, [role, iconColor, customIconMap]);
 
-  const runtimeBadgeState = useMemo(
-    () => getNodeRuntimeBadgeState(deploymentState, state),
-    [deploymentState, state]
-  );
-  const runtimeIconOpacity = useMemo(
-    () => getNodeRuntimeIconOpacity(runtimeBadgeState),
-    [runtimeBadgeState]
-  );
+  const runtimeBadgeState = getNodeRuntimeBadgeState(deploymentState, state);
+  const runtimeIconOpacity = getNodeRuntimeIconOpacity(runtimeBadgeState);
 
   // Build icon style with dynamic properties
   const iconStyle = useMemo((): React.CSSProperties => {

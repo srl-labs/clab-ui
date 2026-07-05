@@ -1507,6 +1507,26 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
     );
     useImperativeHandle(ref, () => refHandle, [refHandle]);
 
+    const clearContextForAnnotationEdit = useCallback(() => {
+      // Switch the context panel from node/link editors to annotation editors.
+      // This is intentionally destructive to any in-progress node/link edits.
+      editNode(null);
+      editNetwork(null);
+      editEdge(null);
+      editImpairment(null);
+      editCustomTemplate(null);
+      selectNode(null);
+      selectEdge(null);
+    }, [
+      editNode,
+      editNetwork,
+      editEdge,
+      editImpairment,
+      editCustomTemplate,
+      selectNode,
+      selectEdge
+    ]);
+
     const wrappedOnNodeClick = useWrappedNodeClick({
       linkSourceNode,
       startLinkCreation,
@@ -1516,17 +1536,7 @@ const ReactFlowCanvasInner = forwardRef<ReactFlowCanvasRef, ReactFlowCanvasProps
       mode,
       isLocked,
       handleDeleteNode,
-      clearContextForAnnotationEdit: () => {
-        // Switch the context panel from node/link editors to annotation editors.
-        // This is intentionally destructive to any in-progress node/link edits.
-        editNode(null);
-        editNetwork(null);
-        editEdge(null);
-        editImpairment(null);
-        editCustomTemplate(null);
-        selectNode(null);
-        selectEdge(null);
-      },
+      clearContextForAnnotationEdit,
       onLockedAction,
       annotationHandlers
     });

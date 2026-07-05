@@ -95,12 +95,11 @@ export function isImageReferenceLocal(reference: string, images: ContainerImageS
   });
 }
 
-function imageMatchesReference(image: ContainerImageSummary, reference: string): boolean {
+function identitiesMatchReference(identities: Set<string>, reference: string): boolean {
   const normalizedReference = normalizeImageRef(reference);
   if (!normalizedReference) {
     return false;
   }
-  const identities = imageIdentityValues(image);
   return identities.has(normalizedReference) || identities.has(implicitLatestReference(normalizedReference));
 }
 
@@ -147,11 +146,10 @@ function imageMatchesRepositoryHint(reference: string, hint: string): boolean {
   return false;
 }
 
-function imageMatchesKindGuidance(
-  image: ContainerImageSummary,
+function identitiesMatchKindGuidance(
+  identities: Set<string>,
   guidance: KindImageGuidance
 ): boolean {
-  const identities = imageIdentityValues(image);
   for (const identity of identities) {
     for (const hint of guidance.repositoryHints) {
       if (imageMatchesRepositoryHint(identity, hint)) {
@@ -367,6 +365,57 @@ function imagePrimaryName(image: ContainerImageSummary): string {
   return image.repoTags[0] ?? image.repoDigests[0] ?? image.shortId ?? image.id;
 }
 
+interface ImageWithIdentities {
+  image: ContainerImageSummary;
+  identities: Set<string>;
+}
+
+function referenceLocalIn(imagesWithIdentities: ImageWithIdentities[], reference: string): boolean {
+  const normalizedReference = normalizeImageRef(reference);
+  if (!normalizedReference) {
+    return false;
+  }
+  const latestReference = implicitLatestReference(normalizedReference);
+  return imagesWithIdentities.some(
+    ({ identities }) => identities.has(normalizedReference) || identities.has(latestReference)
+  );
+}
+
+function localImagesForKind(
+  imagesWithIdentities: ImageWithIdentities[],
+  referenceImages: string[],
+  guidance: KindImageGuidance
+): ContainerImageSummary[] {
+  const localImages: ContainerImageSummary[] = [];
+  for (const { image, identities } of imagesWithIdentities) {
+    if (
+      referenceImages.some((reference) => identitiesMatchReference(identities, reference)) ||
+      identitiesMatchKindGuidance(identities, guidance)
+    ) {
+      localImages.push(image);
+    }
+  }
+  return localImages;
+}
+
+function isUnreferencedLocalImage(
+  identities: Set<string>,
+  referencedImages: Set<string>,
+  guidanceByKind: Map<string, KindImageGuidance>
+): boolean {
+  for (const reference of referencedImages) {
+    if (identities.has(reference) || identities.has(implicitLatestReference(reference))) {
+      return false;
+    }
+  }
+  for (const guidance of guidanceByKind.values()) {
+    if (identitiesMatchKindGuidance(identities, guidance)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export function buildKindImageCatalog(
   schemaData: SchemaData,
   images: ContainerImageSummary[],
@@ -386,6 +435,10 @@ export function buildKindImageCatalog(
   const guidanceByKind = new Map(
     sortedKinds.map((kind) => [kind, getKindImageGuidance(kind)] as const)
   );
+  // Identity sets are expensive to build; compute them once per image instead of per kind.
+  const imagesWithIdentities: ImageWithIdentities[] = images.map(
+    (image) => ({ image, identities: imageIdentityValues(image) })
+  );
 
   for (const kind of sortedKinds) {
     const guidance = guidanceByKind.get(kind) ?? getKindImageGuidance(kind);
@@ -394,16 +447,14 @@ export function buildKindImageCatalog(
     const concreteRecommendedImages = guidance.recommendedImages.filter(
       (image) => !isPlaceholderImageReference(image)
     );
-    const localImages = images.filter(
-      (image) =>
-        referenceImages.some((reference) => imageMatchesReference(image, reference)) ||
-        imageMatchesKindGuidance(image, guidance)
-    );
+    const localImages = localImagesForKind(imagesWithIdentities, referenceImages, guidance);
     for (const image of localImages) {
       matchedLocalImageIds.add(image.id);
     }
     const missingReferenceImages = referenceImages.filter(
-      (reference) => !isPlaceholderImageReference(reference) && !isImageReferenceLocal(reference, images)
+      (reference) =>
+        !isPlaceholderImageReference(reference) &&
+        !referenceLocalIn(imagesWithIdentities, reference)
     );
     const missingImages = [...new Set(missingReferenceImages)].filter((image) => image.trim());
     const desiredImages = [...new Set([...referenceImages, ...concreteRecommendedImages])].filter(
@@ -445,23 +496,13 @@ export function buildKindImageCatalog(
     });
   }
 
-  const unreferencedLocalImages = images.filter((image) => {
-    if (matchedLocalImageIds.has(image.id)) {
-      return false;
-    }
-    const identities = imageIdentityValues(image);
-    for (const reference of referencedImages) {
-      if (identities.has(reference) || identities.has(implicitLatestReference(reference))) {
-        return false;
-      }
-    }
-    for (const guidance of guidanceByKind.values()) {
-      if (imageMatchesKindGuidance(image, guidance)) {
-        return false;
-      }
-    }
-    return true;
-  });
+  const unreferencedLocalImages = imagesWithIdentities
+    .filter(
+      ({ image, identities }) =>
+        !matchedLocalImageIds.has(image.id) &&
+        isUnreferencedLocalImage(identities, referencedImages, guidanceByKind)
+    )
+    .map(({ image }) => image);
 
   return {
     entries,

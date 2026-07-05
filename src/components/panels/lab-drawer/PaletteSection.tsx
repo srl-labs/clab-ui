@@ -23,17 +23,15 @@ import SpeedIcon from "@mui/icons-material/Speed";
 import StarIcon from "@mui/icons-material/Star";
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import TextFieldsIcon from "@mui/icons-material/TextFields";
-import {
-  Box,
-  Button,
-  Card,
-  Divider,
-  IconButton,
-  InputAdornment,
-  TextField,
-  Tooltip,
-  Typography
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 
 import type { CustomNodeTemplate } from "../../../core/types/editors";
 import {
@@ -70,6 +68,7 @@ interface PaletteSectionProps {
   showEditTab?: boolean;
   editTabTitle?: string;
   onEditDelete?: () => void;
+  onEditTabOpen?: () => void;
   onEditTabLeave?: () => void;
   infoTabContent?: React.ReactNode;
   showInfoTab?: boolean;
@@ -461,6 +460,7 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
   showEditTab = false,
   editTabTitle,
   onEditDelete,
+  onEditTabOpen,
   onEditTabLeave,
   infoTabContent,
   showInfoTab = false,
@@ -507,14 +507,17 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     }
   }, [requestedTab, visibleTabs]);
 
-  // Auto-switch when edit/info tab appears (one-time, not forced)
+  // Auto-switch when edit/info tab appears (one-time, not forced). Info wins
+  // while a selection resolves to an info view (deployed labs, read-only view
+  // mode); active editors clear showInfoTab because editing states take
+  // priority in useContextPanelContent, so they land on the edit tab.
   useEffect(() => {
-    if (showEditTab && !(isViewMode && showInfoTab)) setUserTab("edit");
-  }, [showEditTab, isViewMode, showInfoTab]);
+    if (showEditTab && !showInfoTab) setUserTab("edit");
+  }, [showEditTab, showInfoTab]);
 
   useEffect(() => {
-    if (showInfoTab && (isViewMode || !showEditTab)) setUserTab("info");
-  }, [showInfoTab, showEditTab, isViewMode]);
+    if (showInfoTab) setUserTab("info");
+  }, [showInfoTab]);
 
   // Fall back to the first visible tab when current tab is no longer visible.
   useEffect(() => {
@@ -736,6 +739,9 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
             }
             if (activeTab === "edit" && id !== "edit") {
               onEditTabLeave?.();
+            }
+            if (id === "edit" && activeTab !== "edit") {
+              onEditTabOpen?.();
             }
             setUserTab(id);
           }}

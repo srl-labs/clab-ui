@@ -256,7 +256,7 @@ export function useGraphHandlersWithContext(
         useGraphStore.getState().updateNodeData(detection.networkNodeId, nextExtra);
       }
     },
-    [addEdge, getNodes]
+    [addEdge, getNodes, sessionClient]
   );
 
   const handleNodeCreatedCallback = React.useCallback(
@@ -333,17 +333,7 @@ export function useGraphHandlersWithContext(
         sessionClient
       );
     },
-    [
-      buildNetworkNodeAnnotations,
-      executeTopologyCommand,
-      isAnnotationNodeType,
-      isBridgeNetworkNode,
-      isSpecialNetworkNode,
-      nodesToAnnotations,
-      toLinkSaveData,
-      toNodeSaveData,
-      sessionClient
-    ]
+    [sessionClient]
   );
 
   const handleDeleteNode = React.useCallback(

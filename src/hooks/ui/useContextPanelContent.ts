@@ -4,7 +4,9 @@
  *
  * Priority: editing states > selection states > palette (default)
  */
-import { useTopoViewerState } from "../../stores";
+import { shallow } from "zustand/shallow";
+
+import { useTopoViewerStore } from "../../stores/topoViewerStore";
 import type { TopoViewerState } from "../../stores/topoViewerStore";
 import { useAnnotationUIStore } from "../../stores/annotationUIStore";
 import type { AnnotationUIState } from "../../stores/annotationUIStore";
@@ -52,7 +54,15 @@ function resolveEditingView(
   return null;
 }
 
-function resolveAnnotationView(annotationUI: AnnotationUIState): PanelView | null {
+type AnnotationEditingSlice = Pick<
+  AnnotationUIState,
+  | "editingTextAnnotation"
+  | "editingShapeAnnotation"
+  | "editingTrafficRateAnnotation"
+  | "editingGroup"
+>;
+
+function resolveAnnotationView(annotationUI: AnnotationEditingSlice): PanelView | null {
   if (annotationUI.editingTextAnnotation) {
     const isNew = annotationUI.editingTextAnnotation.text === "";
     return { kind: "freeTextEditor", title: isNew ? "Add Text" : "Edit Text", hasFooter: true };
@@ -71,29 +81,57 @@ function resolveAnnotationView(annotationUI: AnnotationUIState): PanelView | nul
 }
 
 function resolveSelectionView(
-  state: Pick<
-    TopoViewerState,
-    "selectedNode" | "selectedEdge" | "mode" | "isLocked" | "deploymentState"
-  >
+  state: Pick<TopoViewerState, "selectedNode" | "selectedEdge" | "mode" | "deploymentState">
 ): PanelView | null {
   // Info panels show runtime properties, so they follow the deployment state
   // (read-only view mode keeps them too, even when the state is unknown).
   const showInfoOnSelect = state.deploymentState === "deployed" || state.mode === "view";
   if (hasId(state.selectedNode) && showInfoOnSelect)
-    return {
-      kind: "nodeInfo",
-      title: "Node Properties",
-      // When unlocked, node selection can also drive visual edits (Icon/Label/Direction).
-      hasFooter: !state.isLocked
-    };
+    return { kind: "nodeInfo", title: "Node Properties", hasFooter: false };
   if (hasId(state.selectedEdge) && showInfoOnSelect)
     return { kind: "linkInfo", title: "Link Properties", hasFooter: false };
   return null;
 }
 
+type ContextPanelStateSlice = Pick<
+  TopoViewerState,
+  | "editingNode"
+  | "editingEdge"
+  | "editingNetwork"
+  | "editingImpairment"
+  | "selectedNode"
+  | "selectedEdge"
+  | "mode"
+  | "deploymentState"
+>;
+
+// Subscribe only to the fields the panel view depends on so unrelated store
+// updates (selection sets, telemetry, lifecycle logs, ...) don't re-render consumers.
+function selectContextPanelState(state: TopoViewerState): ContextPanelStateSlice {
+  return {
+    editingNode: state.editingNode,
+    editingEdge: state.editingEdge,
+    editingNetwork: state.editingNetwork,
+    editingImpairment: state.editingImpairment,
+    selectedNode: state.selectedNode,
+    selectedEdge: state.selectedEdge,
+    mode: state.mode,
+    deploymentState: state.deploymentState
+  };
+}
+
+function selectAnnotationEditingState(state: AnnotationUIState): AnnotationEditingSlice {
+  return {
+    editingTextAnnotation: state.editingTextAnnotation,
+    editingShapeAnnotation: state.editingShapeAnnotation,
+    editingTrafficRateAnnotation: state.editingTrafficRateAnnotation,
+    editingGroup: state.editingGroup
+  };
+}
+
 export function useContextPanelContent(): PanelView {
-  const state = useTopoViewerState();
-  const annotationUI = useAnnotationUIStore();
+  const state = useTopoViewerStore(selectContextPanelState, shallow);
+  const annotationUI = useAnnotationUIStore(selectAnnotationEditingState, shallow);
 
   return (
     resolveEditingView(state) ??

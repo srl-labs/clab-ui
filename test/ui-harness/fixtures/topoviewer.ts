@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { writeFileSync } from "fs";
 import * as path from "path";
-import { fileURLToPath } from "url";
 
 import type { Locator, TestInfo } from "@playwright/test";
 import { test as base } from "@playwright/test";
@@ -12,8 +11,6 @@ const CANVAS_SELECTOR = ".react-flow";
 // Node type constants (used in browser-side code)
 const TOPOLOGY_NODE_TYPE = "topology-node";
 const NETWORK_NODE_TYPE = "network-node";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
  * Generate a unique session ID for test isolation

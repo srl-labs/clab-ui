@@ -1,31 +1,30 @@
+/* eslint-disable import-x/max-dependencies */
 // SVG export dialog.
 import React, { useState, useCallback, useMemo } from "react";
-import type { ReactFlowInstance } from "@xyflow/react";
+import type { Edge, ReactFlowInstance } from "@xyflow/react";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import DownloadIcon from "@mui/icons-material/Download";
 import LightbulbIcon from "@mui/icons-material/Lightbulb";
 import SettingsIcon from "@mui/icons-material/Settings";
-import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  Divider,
-  FormControlLabel,
-  InputAdornment,
-  MenuItem,
-  Paper,
-  Radio,
-  RadioGroup,
-  Tab,
-  Tabs,
-  TextField,
-  Typography
-} from "@mui/material";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
+import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import InputAdornment from "@mui/material/InputAdornment";
+import MenuItem from "@mui/material/MenuItem";
+import Paper from "@mui/material/Paper";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 
 import type {
   FreeTextAnnotation,
@@ -40,6 +39,7 @@ import {
 } from "../../annotations/annotationNodeConverters";
 import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 import { type ClabUiHost, useClabUiHost } from "../../host";
+import { useEdges } from "../../stores/graphStore";
 import { log } from "../../utils/logger";
 import { ColorField, PREVIEW_GRID_BG_SX } from "../ui/form";
 import { DialogTitleWithClose } from "../ui/dialog/DialogChrome";
@@ -112,6 +112,8 @@ interface EdgeInterfaceRow {
   sourceEndpoint: string;
   targetEndpoint: string;
 }
+
+const NO_INTERFACE_ROWS: EdgeInterfaceRow[] = [];
 
 const INTERFACE_SELECT_AUTO = "__auto__";
 const INTERFACE_SELECT_FULL = "__full__";
@@ -204,10 +206,12 @@ function resolveDefaultExportBaseName(labName?: string): string {
   return trimmed !== undefined && trimmed.length > 0 ? trimmed : "topology";
 }
 
-function extractEdgeInterfaceRows(rfInstance: ReactFlowInstance | null): EdgeInterfaceRow[] {
-  if (!rfInstance) return [];
+/** DOM read gated on dialog visibility so closed modals skip layout queries. */
+function computeIsExportAvailable(rfInstance: ReactFlowInstance | null, isOpen: boolean): boolean {
+  return isOpen && rfInstance !== null && Boolean(getViewportSize());
+}
 
-  const edges = rfInstance.getEdges();
+function extractEdgeInterfaceRows(edges: Edge[]): EdgeInterfaceRow[] {
   const rows: EdgeInterfaceRow[] = [];
 
   for (const edge of edges) {
@@ -228,9 +232,12 @@ function extractEdgeInterfaceRows(rfInstance: ReactFlowInstance | null): EdgeInt
   return rows;
 }
 
+const INTERFACE_PART_SEPARATOR_RE = /[^A-Za-z0-9]+/g;
+const INTERFACE_NUMERIC_SEGMENT_RE = /\d+/g;
+
 function splitInterfaceParts(endpoint: string): string[] {
   const baseParts = endpoint
-    .split(/[^A-Za-z0-9]+/g)
+    .split(INTERFACE_PART_SEPARATOR_RE)
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
 
@@ -245,7 +252,7 @@ function splitInterfaceParts(endpoint: string): string[] {
   for (const part of baseParts) {
     addUnique(part);
 
-    const numericSegments = part.match(/\d+/g);
+    const numericSegments = part.match(INTERFACE_NUMERIC_SEGMENT_RE);
     if (!numericSegments) continue;
     for (const numeric of numericSegments) {
       addUnique(numeric);
@@ -422,9 +429,16 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   const defaultBaseName = useMemo(() => resolveDefaultExportBaseName(labName), [labName]);
   const [filename, setFilename] = useState(defaultBaseName);
 
-  const isExportAvailable = rfInstance ? Boolean(getViewportSize()) : false;
+  const isExportAvailable = computeIsExportAvailable(rfInstance, isOpen);
   const totalAnnotations = groups.length + textAnnotations.length + shapeAnnotations.length;
-  const interfaceRows = extractEdgeInterfaceRows(rfInstance);
+  const edges = useEdges();
+  // Rows derived from the edges store subscription so they stay fresh on external
+  // edge changes; memoized on the edges array so keystrokes in the dialog don't
+  // recompute them. Still gated on dialog visibility so closed modals skip the scan.
+  const interfaceRows = useMemo(() => {
+    if (!isOpen && !isGrafanaSettingsOpen) return NO_INTERFACE_ROWS;
+    return extractEdgeInterfaceRows(edges);
+  }, [edges, isOpen, isGrafanaSettingsOpen]);
   const filteredInterfaceRows = useMemo(() => {
     const filterValue = interfaceLinkFilter.trim().toLowerCase();
     if (!filterValue) return interfaceRows;
@@ -637,7 +651,9 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
       includeGrafanaLegend,
       trafficRatesOnHoverOnly,
       includeHideRatesLegendToggle,
-      trafficThresholdUnit
+      trafficThresholdUnit,
+      host,
+      sendGrafanaBundleExport
     ]
   );
 

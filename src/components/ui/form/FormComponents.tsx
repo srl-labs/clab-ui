@@ -12,6 +12,13 @@ import FormControl from "@mui/material/FormControl";
 import Slider from "@mui/material/Slider";
 import DeleteIcon from "@mui/icons-material/Delete";
 
+const TOGGLE_BASE_SX = {
+  fontWeight: (theme: Theme) => theme.typography.fontWeightMedium,
+  minWidth: 0,
+  px: 1.5,
+  py: 0.5
+};
+
 /**
  * Toggle pill button
  */
@@ -21,16 +28,10 @@ export const Toggle: React.FC<{
   children: React.ReactNode;
   sx?: SxProps<Theme>;
 }> = ({ active, onClick, children, sx }) => {
-  const baseSx = {
-    fontWeight: (theme: Theme) => theme.typography.fontWeightMedium,
-    minWidth: 0,
-    px: 1.5,
-    py: 0.5
-  };
   const mergedSx =
     sx !== undefined && !Array.isArray(sx) && typeof sx !== "function"
-      ? Object.assign({}, baseSx, sx)
-      : baseSx;
+      ? Object.assign({}, TOGGLE_BASE_SX, sx)
+      : TOGGLE_BASE_SX;
   return (
     <Button
       variant={active ? "contained" : "outlined"}

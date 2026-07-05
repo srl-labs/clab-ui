@@ -106,15 +106,26 @@ function isSameEdgePair(edge: Edge, sourceId: string, targetId: string): boolean
   );
 }
 
+function countLoopEdges(edges: Edge[], nodeId: string): number {
+  let count = 0;
+  for (const edge of edges) {
+    if (edge.source === nodeId && edge.target === nodeId) count++;
+  }
+  return count;
+}
+
 function getPreviewParallelInfo(
   edges: Edge[],
   sourceId: string,
   targetId: string,
   previewId?: string | null
 ): { index: number; total: number; isCanonicalDirection: boolean } {
-  const existingIds = edges
-    .filter((edge) => edge.source !== edge.target && isSameEdgePair(edge, sourceId, targetId))
-    .map((edge) => edge.id);
+  const existingIds: string[] = [];
+  for (const edge of edges) {
+    if (edge.source !== edge.target && isSameEdgePair(edge, sourceId, targetId)) {
+      existingIds.push(edge.id);
+    }
+  }
 
   if (previewId !== undefined && previewId !== null && previewId.length > 0) {
     const ids = [...existingIds, previewId].sort((a, b) => a.localeCompare(b));
@@ -197,9 +208,7 @@ export const CustomConnectionLine: React.FC<ConnectionLineComponentProps> = ({
       const nodePos = getNodePosition(fromNode);
       const nodeX = nodePos.x + (nodeWidth - iconSize) / 2;
       const nodeY = nodePos.y;
-      const loopIndex = edges.filter(
-        (edge) => edge.source === sourceId && edge.target === sourceId
-      ).length;
+      const loopIndex = countLoopEdges(edges, sourceId);
       path = calculateLoopEdgeGeometry(nodeX, nodeY, iconSize, loopIndex, 1).path;
     } else {
       const sourceWidth = fromNode.measured.width ?? iconSize;
@@ -286,9 +295,7 @@ function buildPreviewLinkInfo(
       : null;
 
   const parallelInfo = getPreviewParallelInfo(edges, linkSourceNodeId, targetNode.id, previewId);
-  const loopIndex = edges.filter(
-    (edge) => edge.source === targetNode.id && edge.target === targetNode.id
-  ).length;
+  const loopIndex = countLoopEdges(edges, targetNode.id);
 
   return { previewId, parallelInfo, loopIndex, sourceEndpoint, targetEndpoint };
 }

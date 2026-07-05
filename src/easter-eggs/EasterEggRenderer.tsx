@@ -1,18 +1,39 @@
 /**
  * Easter Egg Renderer - Renders the active easter egg mode component.
  * Extracts duplicated conditional rendering logic from App.tsx.
+ *
+ * Mode components (and the audio-synthesis hooks they pull in) are lazy-loaded
+ * so they stay out of the main bundle until the hidden trigger activates them.
  */
 
 import React from "react";
 
-import {
-  NightcallMode,
-  StickerbushMode,
-  AquaticAmbienceMode,
-  VaporwaveMode,
-  DeusExMode
-} from "./modes";
 import type { UseEasterEggReturn } from "./useEasterEgg";
+
+const LazyNightcallMode = React.lazy(async () => {
+  const module = await import("./modes/NightcallMode");
+  return { default: module.NightcallMode };
+});
+
+const LazyStickerbushMode = React.lazy(async () => {
+  const module = await import("./modes/StickerbushMode");
+  return { default: module.StickerbushMode };
+});
+
+const LazyAquaticAmbienceMode = React.lazy(async () => {
+  const module = await import("./modes/AquaticAmbienceMode");
+  return { default: module.AquaticAmbienceMode };
+});
+
+const LazyVaporwaveMode = React.lazy(async () => {
+  const module = await import("./modes/VaporwaveMode");
+  return { default: module.VaporwaveMode };
+});
+
+const LazyDeusExMode = React.lazy(async () => {
+  const module = await import("./modes/DeusExMode");
+  return { default: module.DeusExMode };
+});
 
 interface EasterEggRendererProps {
   easterEgg: UseEasterEggReturn;
@@ -34,18 +55,26 @@ export const EasterEggRenderer: React.FC<EasterEggRendererProps> = ({ easterEgg 
     modeName: getModeName()
   };
 
+  let mode: React.ReactNode;
   switch (easterEggMode) {
     case "nightcall":
-      return <NightcallMode {...commonProps} />;
+      mode = <LazyNightcallMode {...commonProps} />;
+      break;
     case "stickerbrush":
-      return <StickerbushMode {...commonProps} />;
+      mode = <LazyStickerbushMode {...commonProps} />;
+      break;
     case "aquatic":
-      return <AquaticAmbienceMode {...commonProps} />;
+      mode = <LazyAquaticAmbienceMode {...commonProps} />;
+      break;
     case "vaporwave":
-      return <VaporwaveMode {...commonProps} />;
+      mode = <LazyVaporwaveMode {...commonProps} />;
+      break;
     case "deusex":
-      return <DeusExMode {...commonProps} />;
+      mode = <LazyDeusExMode {...commonProps} />;
+      break;
     default:
       return null;
   }
+
+  return <React.Suspense fallback={null}>{mode}</React.Suspense>;
 };

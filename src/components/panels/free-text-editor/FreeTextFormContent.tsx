@@ -1,3 +1,4 @@
+/* eslint-disable import-x/max-dependencies */
 // Text annotation editor form.
 import React from "react";
 import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
@@ -6,15 +7,13 @@ import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
 import FormatBoldIcon from "@mui/icons-material/FormatBold";
 import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
-import {
-  Box,
-  Checkbox,
-  Divider,
-  FormControlLabel,
-  IconButton as MuiIconButton,
-  MenuItem,
-  TextField
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import MuiIconButton from "@mui/material/IconButton";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
 
 import type { FreeTextAnnotation } from "../../../core/types/topology";
 import { ColorField, InputField, PanelSection } from "../../ui/form";
@@ -33,6 +32,13 @@ const FONTS = [
   "Times New Roman",
   "Verdana"
 ];
+
+// Static menu items, hoisted so they are not rebuilt on every render
+const FONT_MENU_ITEMS = FONTS.map((f) => (
+  <MenuItem key={f} value={f}>
+    {f}
+  </MenuItem>
+));
 
 interface Props {
   formData: FreeTextAnnotation;
@@ -142,11 +148,7 @@ const FontControls: React.FC<{
       onChange={(e) => updateField("fontFamily", e.target.value)}
       sx={{ flex: 7 }}
     >
-      {FONTS.map((f) => (
-        <MenuItem key={f} value={f}>
-          {f}
-        </MenuItem>
-      ))}
+      {FONT_MENU_ITEMS}
     </TextField>
     <Box sx={{ flex: 3 }}>
       <InputField

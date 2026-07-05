@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import { shallow } from "zustand/shallow";
 import Box from "@mui/material/Box";
 
 import type { TrafficRateAnnotation } from "../../../../core/types/topology";
 import { useGenericFormState, useEditorHandlersWithFooterRef } from "../../../../hooks/editor";
 import { useGraphStore } from "../../../../stores/graphStore";
+import type { GraphStore } from "../../../../stores/graphStore";
 import { resolveComputedColor } from "../../../../utils/color";
 import { getTrafficMonitorOptions } from "../../../../utils/trafficRateAnnotation";
+import type { TrafficMonitorOptions } from "../../../../utils/trafficRateAnnotation";
 import { CheckboxField, ColorField, InputField, PanelSection, SelectField } from "../../../ui/form";
 import { FIELDSET_RESET_STYLE } from "../ContextPanelScrollArea";
 
@@ -64,6 +67,40 @@ interface TrafficRateEditorResolvedFields {
   borderWidthValue: string;
   borderRadiusValue: string;
   showLegendChecked: boolean;
+}
+
+// Store selectors derive only what the editor needs from the graph (node ids
+// and edge endpoint options); combined with the equality functions below they
+// keep the editor from re-rendering on drag-frame position changes and
+// telemetry-only edge updates.
+function selectTopologyNodeIds(state: GraphStore): string[] {
+  const ids: string[] = [];
+  for (const node of state.nodes) {
+    if (node.type === "topology-node") ids.push(node.id);
+  }
+  return ids.sort((a, b) => a.localeCompare(b));
+}
+
+function selectTrafficMonitorOptions(state: GraphStore): TrafficMonitorOptions {
+  return getTrafficMonitorOptions(state.edges);
+}
+
+function areStringArraysEqual(a: string[], b: string[]): boolean {
+  return a === b || (a.length === b.length && a.every((value, index) => value === b[index]));
+}
+
+function areTrafficMonitorOptionsEqual(
+  a: TrafficMonitorOptions,
+  b: TrafficMonitorOptions
+): boolean {
+  if (a === b) return true;
+  if (!areStringArraysEqual(a.nodeIds, b.nodeIds)) return false;
+  if (a.interfacesByNode.size !== b.interfacesByNode.size) return false;
+  for (const [nodeId, interfaces] of a.interfacesByNode) {
+    const other = b.interfacesByNode.get(nodeId);
+    if (other === undefined || !areStringArraysEqual(interfaces, other)) return false;
+  }
+  return true;
 }
 
 function getThemeTrafficRateDefaults(): {
@@ -400,8 +437,8 @@ export const TrafficRateEditorView: React.FC<TrafficRateEditorViewProps> = ({
   readOnly = false,
   onFooterRef
 }) => {
-  const graphNodes = useGraphStore((state) => state.nodes);
-  const edges = useGraphStore((state) => state.edges);
+  const topologyNodeIds = useGraphStore(selectTopologyNodeIds, shallow);
+  const trafficOptions = useGraphStore(selectTrafficMonitorOptions, areTrafficMonitorOptionsEqual);
 
   const { formData, updateField, hasChanges, resetInitialData, discardChanges } =
     useGenericFormState(annotation);
@@ -412,15 +449,6 @@ export const TrafficRateEditorView: React.FC<TrafficRateEditorViewProps> = ({
       readOnly,
       onPreview
     });
-
-  const topologyNodeIds = useMemo(() => {
-    return graphNodes
-      .filter((node) => node.type === "topology-node")
-      .map((node) => node.id)
-      .sort((a, b) => a.localeCompare(b));
-  }, [graphNodes]);
-
-  const trafficOptions = useMemo(() => getTrafficMonitorOptions(edges), [edges]);
 
   const nodeOptions = useMemo(() => {
     const ids = new Set<string>([...topologyNodeIds, ...trafficOptions.nodeIds]);

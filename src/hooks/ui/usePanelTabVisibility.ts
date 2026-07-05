@@ -5,10 +5,10 @@
  * - Info tab: visible when node/link selection resolves to an info view
  *   (deployed labs and read-only view mode).
  * - Edit tab: visible when an editor is active in any mode.
- * - Extra behavior: for unlocked selected nodes, also show Edit tab so
- *   icon/label/direction can be adjusted while running.
+ * - Extra behavior: for selected nodes in unlocked edit mode, also show an
+ *   Edit tab that opens the full node editor (same as double-click/context menu).
  */
-import { useTopoViewerState } from "../../stores";
+import { useTopoViewerStore } from "../../stores/topoViewerStore";
 import { useAnnotationUIStore } from "../../stores/annotationUIStore";
 
 import { useContextPanelContent } from "./useContextPanelContent";
@@ -16,14 +16,33 @@ import { useContextPanelContent } from "./useContextPanelContent";
 export interface PanelTabVisibility {
   showInfoTab: boolean;
   showEditTab: boolean;
+  /** Edit tab represents a selected node; activating it must open the node editor. */
+  editTabOpensSelectedNode: boolean;
   infoTabTitle?: string;
   editTabTitle?: string;
 }
 
 export function usePanelTabVisibility(): PanelTabVisibility {
-  const state = useTopoViewerState();
   const panelView = useContextPanelContent();
-  const annotationUI = useAnnotationUIStore();
+
+  // Subscribe to derived booleans so unrelated store updates don't re-render consumers.
+  const hasTopoEditor = useTopoViewerStore(
+    (state) =>
+      state.editingNode !== null ||
+      state.editingEdge !== null ||
+      state.editingNetwork !== null ||
+      state.editingImpairment !== null
+  );
+  const hasAnnotationEditor = useAnnotationUIStore(
+    (state) =>
+      state.editingTextAnnotation !== null ||
+      state.editingShapeAnnotation !== null ||
+      state.editingTrafficRateAnnotation !== null ||
+      state.editingGroup !== null
+  );
+  const isLocked = useTopoViewerStore((state) => state.isLocked);
+  const mode = useTopoViewerStore((state) => state.mode);
+  const hasSelectedNode = useTopoViewerStore((state) => state.selectedNode !== null);
 
   // Info tab: when node or link selection resolves to an info view
   // (useContextPanelContent gates that on deployment/read-only state).
@@ -37,20 +56,13 @@ export function usePanelTabVisibility(): PanelTabVisibility {
 
   // Edit tab: visible whenever an editor is active (any mode).
   // Some editors are view-mode features (Link Impairments, annotation editing).
-  const hasEditor = [
-    state.editingNode,
-    state.editingEdge,
-    state.editingNetwork,
-    state.editingImpairment,
-    annotationUI.editingTextAnnotation,
-    annotationUI.editingShapeAnnotation,
-    annotationUI.editingTrafficRateAnnotation,
-    annotationUI.editingGroup
-  ].some((value) => value !== null);
+  const hasEditor = hasTopoEditor || hasAnnotationEditor;
 
-  // When unlocked, selected topology nodes can open a visual-only editor tab.
+  // In unlocked edit mode, a selected topology node offers an Edit tab that
+  // opens the full node editor (deployed labs select on click; the editor is
+  // one tab click away instead of requiring double-click/context menu).
   const canEditSelectedNode =
-    state.isLocked === false && panelView.kind === "nodeInfo" && state.selectedNode !== null;
+    mode === "edit" && isLocked === false && panelView.kind === "nodeInfo" && hasSelectedNode;
   const showEditTab = hasEditor || canEditSelectedNode;
 
   let editTabTitle: string | undefined;
@@ -60,5 +72,11 @@ export function usePanelTabVisibility(): PanelTabVisibility {
     editTabTitle = "Node Editor";
   }
 
-  return { showInfoTab, showEditTab, infoTabTitle, editTabTitle };
+  return {
+    showInfoTab,
+    showEditTab,
+    editTabOpensSelectedNode: !hasEditor && canEditSelectedNode,
+    infoTabTitle,
+    editTabTitle
+  };
 }

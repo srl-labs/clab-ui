@@ -1,19 +1,18 @@
+/* eslint-disable import-x/max-dependencies */
 // Icon selector modal.
 import React, { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import ResetIcon from "@mui/icons-material/Replay";
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogContent,
-  Divider,
-  IconButton as MuiIconButton,
-  Tab,
-  Tabs,
-  Tooltip,
-  Typography
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import Divider from "@mui/material/Divider";
+import MuiIconButton from "@mui/material/IconButton";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 
 import type { NodeType } from "../../icons/SvgGenerator";
 import { generateEncodedSVG } from "../../icons/SvgGenerator";
@@ -326,8 +325,9 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
     return sources;
   }, [debouncedGridColor]);
 
-  // Memoize click handlers to prevent IconButton re-renders
+  // Memoize click/delete handlers to prevent IconButton re-renders
   const iconClickHandlers = useRef<Record<string, () => void>>({});
+  const iconDeleteHandlers = useRef<Record<string, () => void>>({});
   useMemo(() => {
     for (const i of AVAILABLE_ICONS) {
       iconClickHandlers.current[i] = () => setIcon(i);
@@ -335,8 +335,9 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
     // Add handlers for custom icons
     for (const ci of customIcons) {
       iconClickHandlers.current[ci.name] = () => setIcon(ci.name);
+      iconDeleteHandlers.current[ci.name] = () => sendDeleteIcon(ci.name);
     }
-  }, [setIcon, customIcons]);
+  }, [setIcon, sendDeleteIcon, customIcons]);
 
   const handleSave = useCallback(() => {
     onSave(icon, resultColor, radius);
@@ -346,10 +347,6 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
   const handleUploadIcon = useCallback(() => {
     sendUploadIcon();
   }, [sendUploadIcon]);
-
-  const handleDeleteIcon = useCallback((iconName: string) => {
-    sendDeleteIcon(iconName);
-  }, [sendDeleteIcon]);
 
   // Get preview icon source
   const previewIconSrc = useMemo(() => {
@@ -413,7 +410,7 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
                         iconSrc={ci.dataUri}
                         cornerRadius={radius}
                         onClick={iconClickHandlers.current[ci.name]}
-                        onDelete={() => handleDeleteIcon(ci.name)}
+                        onDelete={iconDeleteHandlers.current[ci.name]}
                         isCustom={true}
                         source={ci.source}
                       />

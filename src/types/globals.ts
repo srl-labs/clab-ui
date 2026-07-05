@@ -13,6 +13,7 @@ export interface DevModeInterface {
   mode?: () => "edit" | "view";
   setLocked?: (locked: boolean) => void;
   setModeState?: (mode: "edit" | "view") => void;
+  setDeploymentState?: (state: "deployed" | "undeployed" | "unknown") => void;
   undoRedo?: {
     canUndo: boolean;
     canRedo: boolean;

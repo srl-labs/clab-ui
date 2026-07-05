@@ -1,16 +1,18 @@
-import React, { memo, useCallback, useMemo } from "react";
+import React, { memo, useCallback } from "react";
 import { NodeResizer, type NodeProps, type ResizeParams } from "@xyflow/react";
 
 import type { TrafficRateNodeData } from "../types";
 import { SELECTION_COLOR } from "../types";
 import { useAnnotationHandlers } from "../../../stores/canvasStore";
 import { useGraphStore } from "../../../stores/graphStore";
+import type { GraphStore } from "../../../stores/graphStore";
 import { useIsLocked } from "../../../stores/topoViewerStore";
 import { resolveComputedColor } from "../../../utils/color";
 import {
   formatMegabitsPerSecond,
   resolveTrafficRateStats
 } from "../../../utils/trafficRateAnnotation";
+import type { TrafficRateResolution } from "../../../utils/trafficRateAnnotation";
 
 const CHART_MIN_WIDTH = 180;
 const CHART_MIN_HEIGHT = 120;
@@ -29,11 +31,43 @@ const DEFAULT_BORDER_RADIUS = 8;
 const DEFAULT_BACKGROUND_OPACITY = 20;
 const FALLBACK_TEXT_COLOR = "#9aa0a6";
 const TEXT_BORDER_RADIUS = 4;
+const RGBA_COLOR_REGEX = /rgba?\((\d+),\s*(\d+),\s*(\d+)/;
 
 const LazyTrafficChart = React.lazy(async () => {
   const module = await import("../../panels/TrafficChart");
   return { default: module.TrafficChart };
 });
+
+const TRAFFIC_STATS_EQUALITY_KEYS = [
+  "rxBps",
+  "txBps",
+  "rxPps",
+  "txPps",
+  "rxBytes",
+  "txBytes",
+  "rxPackets",
+  "txPackets",
+  "statsIntervalSeconds"
+] as const;
+
+function areTrafficStatsEqual(
+  a: TrafficRateResolution["stats"],
+  b: TrafficRateResolution["stats"]
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return TRAFFIC_STATS_EQUALITY_KEYS.every((key) => a[key] === b[key]);
+}
+
+// Equality for the store subscription below: re-render only when the stats
+// resolved for THIS annotation change, not on every edge/telemetry update.
+function isTrafficRateResolutionEqual(a: TrafficRateResolution, b: TrafficRateResolution): boolean {
+  return (
+    a.endpointKey === b.endpointKey &&
+    a.endpointCount === b.endpointCount &&
+    areTrafficStatsEqual(a.stats, b.stats)
+  );
+}
 
 type TrafficRateMode = "text" | "chart";
 type TrafficRateTextMetric = "combined" | "rx" | "tx";
@@ -84,7 +118,7 @@ function getBackgroundWithOpacity(color: string, opacity?: number): string {
   if (opacity === undefined || !Number.isFinite(opacity)) return color;
   const clamped = Math.min(100, Math.max(0, opacity));
   if (color.startsWith("rgba")) {
-    const match = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(color);
+    const match = RGBA_COLOR_REGEX.exec(color);
     if (match) {
       return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${clamped / 100})`;
     }
@@ -213,17 +247,23 @@ function renderTrafficRateBody(params: {
 
 const TrafficRateNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) => {
   const nodeData = data as TrafficRateNodeData;
-  const edges = useGraphStore((state) => state.edges);
+  const monitoredNodeId = nodeData.nodeId;
+  const monitoredInterfaceName = nodeData.interfaceName;
   const isLocked = useIsLocked();
   const annotationHandlers = useAnnotationHandlers();
   const canEditAnnotations = !isLocked;
   const isSelected = selected;
   const showResizer = isSelected && canEditAnnotations;
 
-  const resolution = useMemo(
-    () => resolveTrafficRateStats(edges, nodeData.nodeId, nodeData.interfaceName),
-    [edges, nodeData.nodeId, nodeData.interfaceName]
+  // Subscribe to the resolved stats for this annotation only (with a custom
+  // comparator) instead of the whole edges array, so unrelated edge/telemetry
+  // updates don't re-render every traffic-rate node.
+  const selectResolution = useCallback(
+    (state: GraphStore) =>
+      resolveTrafficRateStats(state.edges, monitoredNodeId, monitoredInterfaceName),
+    [monitoredNodeId, monitoredInterfaceName]
   );
+  const resolution = useGraphStore(selectResolution, isTrafficRateResolutionEqual);
 
   const handleResizeEnd = useCallback(
     (_event: unknown, params: ResizeParams) => {

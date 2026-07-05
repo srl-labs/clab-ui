@@ -158,8 +158,7 @@ function interfaceCandidates(ifaceName: string): Set<string> {
   return candidates;
 }
 
-function interfacesMatch(iface: HostRuntimeInterface, ifaceName: string): boolean {
-  const candidates = interfaceCandidates(ifaceName);
+function interfacesMatch(iface: HostRuntimeInterface, candidates: Set<string>): boolean {
   if (candidates.size === 0) {
     return false;
   }
@@ -170,8 +169,56 @@ function interfacesMatch(iface: HostRuntimeInterface, ifaceName: string): boolea
   );
 }
 
-function containerMatchesNodeIdentifier(
-  container: HostRuntimeContainer,
+/** Per-container name data normalized once so per-node matching avoids re-normalizing. */
+interface IndexedRuntimeContainer {
+  container: HostRuntimeContainer;
+  nameCandidates: string[];
+  isDistributedSros: boolean;
+  normalizedDistributedBase: string;
+  normalizedShortName: string;
+  normalizedNodeName: string;
+}
+
+/** Containers of a single lab, filtered and normalized once per lookup batch. */
+interface LabContainerIndex {
+  labName: string;
+  entries: IndexedRuntimeContainer[];
+}
+
+function indexRuntimeContainer(container: HostRuntimeContainer): IndexedRuntimeContainer {
+  const shortName = shortContainerName(container);
+  const normalizedShortName = normalizeName(shortName);
+  return {
+    container,
+    nameCandidates: [
+      normalizeName(container.name),
+      normalizedShortName,
+      normalizeName(container.nodeName)
+    ],
+    isDistributedSros: container.kind === "nokia_srsim",
+    normalizedDistributedBase: normalizeName(extractDistributedBaseFromName(shortName)),
+    normalizedShortName,
+    normalizedNodeName: normalizeName(container.nodeName)
+  };
+}
+
+function createLabContainerIndex(
+  containers: HostRuntimeContainer[],
+  labName: string
+): LabContainerIndex {
+  const targetLab = normalizeLabName(labName);
+  const entries: IndexedRuntimeContainer[] = [];
+  for (const container of containers) {
+    if (normalizeLabName(container.labName) !== targetLab) {
+      continue;
+    }
+    entries.push(indexRuntimeContainer(container));
+  }
+  return { labName, entries };
+}
+
+function indexedContainerMatchesNode(
+  entry: IndexedRuntimeContainer,
   nodeName: string
 ): boolean {
   const normalizedNode = normalizeName(nodeName);
@@ -179,55 +226,39 @@ function containerMatchesNodeIdentifier(
     return false;
   }
 
-  const shortName = shortContainerName(container);
-  const candidates = [
-    normalizeName(container.name),
-    normalizeName(shortName),
-    normalizeName(container.nodeName)
-  ];
-  if (candidates.some((candidate) => candidate === normalizedNode)) {
+  if (entry.nameCandidates.includes(normalizedNode)) {
     return true;
   }
 
-  if (container.kind !== "nokia_srsim") {
+  if (!entry.isDistributedSros) {
     return false;
   }
 
-  const normalizedBase = normalizeName(extractDistributedBaseFromName(shortName));
-  if (normalizedBase && normalizedBase === normalizedNode) {
+  if (entry.normalizedDistributedBase && entry.normalizedDistributedBase === normalizedNode) {
     return true;
   }
 
-  return normalizeName(shortName).startsWith(`${normalizedNode}-`);
+  return entry.normalizedShortName.startsWith(`${normalizedNode}-`);
 }
 
 function matchingContainers(
-  containers: HostRuntimeContainer[],
+  index: LabContainerIndex,
   nodeName: string,
-  labName: string,
   includeDistributedSiblings: boolean = false
 ): HostRuntimeContainer[] {
-  const targetLab = normalizeLabName(labName);
-  const targetNames = nodeNameCandidates(labName, nodeName);
-  const labContainers = containers.filter(
-    (container) => normalizeLabName(container.labName) === targetLab
+  const targetNames = nodeNameCandidates(index.labName, nodeName);
+  const matchedEntries = index.entries.filter((entry) =>
+    targetNames.some((targetName) => indexedContainerMatchesNode(entry, targetName))
   );
-  const matched = labContainers.filter((container) => {
-    for (const targetName of targetNames) {
-      if (containerMatchesNodeIdentifier(container, targetName)) {
-        return true;
-      }
-    }
-    return false;
-  });
+  const matched = matchedEntries.map((entry) => entry.container);
   if (!includeDistributedSiblings || matched.length === 0) {
     return sortContainersByInterfacePriority(matched);
   }
 
   const siblingRoots = new Set(
-    matched
-      .filter((container) => container.kind === "nokia_srsim")
-      .map((container) => normalizeName(container.nodeName))
+    matchedEntries
+      .filter((entry) => entry.isDistributedSros)
+      .map((entry) => entry.normalizedNodeName)
       .filter((root) => root.length > 0)
   );
   if (siblingRoots.size === 0) {
@@ -242,16 +273,16 @@ function matchingContainers(
       seen.add(container.name);
     }
   }
-  for (const container of labContainers) {
-    if (container.kind !== "nokia_srsim") {
+  for (const entry of index.entries) {
+    if (!entry.isDistributedSros) {
       continue;
     }
-    const root = normalizeName(container.nodeName);
-    if (!root || !siblingRoots.has(root) || seen.has(container.name)) {
+    const root = entry.normalizedNodeName;
+    if (!root || !siblingRoots.has(root) || seen.has(entry.container.name)) {
       continue;
     }
-    candidates.push(container);
-    seen.add(container.name);
+    candidates.push(entry.container);
+    seen.add(entry.container.name);
   }
 
   return sortContainersByInterfacePriority(candidates);
@@ -300,23 +331,24 @@ function toContainerInfo(container: HostRuntimeContainer): ContainerInfo {
 }
 
 function findInterfaceInfo(
-  containers: HostRuntimeContainer[],
+  index: LabContainerIndex,
   nodeName: string,
-  ifaceName: string,
-  labName: string
+  ifaceName: string
 ): InterfaceInfo | undefined {
-  return findRuntimeInterface(containers, nodeName, ifaceName, labName).iface;
+  return findRuntimeInterface(index, nodeName, ifaceName).iface;
 }
 
 function findRuntimeInterface(
-  containers: HostRuntimeContainer[],
+  index: LabContainerIndex,
   nodeName: string,
-  ifaceName: string,
-  labName: string
+  ifaceName: string
 ): RuntimeInterfaceLookupResult {
-  const candidates = matchingContainers(containers, nodeName, labName, true);
+  const candidates = matchingContainers(index, nodeName, true);
+  const ifaceNameCandidates = interfaceCandidates(ifaceName);
   for (const container of candidates) {
-    const match = (container.interfaces ?? []).find((iface) => interfacesMatch(iface, ifaceName));
+    const match = (container.interfaces ?? []).find((iface) =>
+      interfacesMatch(iface, ifaceNameCandidates)
+    );
     if (match) {
       return {
         iface: toInterfaceInfo(match),
@@ -428,11 +460,10 @@ function computeEdgeClassForUpdate(
 }
 
 function lookupEdgeInterfaces(
-  containers: HostRuntimeContainer[],
+  index: LabContainerIndex,
   edge: TopoEdge,
   edgeData: TopologyEdgeData | undefined,
-  extraData: Record<string, unknown>,
-  currentLabName: string
+  extraData: Record<string, unknown>
 ): {
   sourceRuntime: RuntimeInterfaceLookupResult;
   targetRuntime: RuntimeInterfaceLookupResult;
@@ -458,27 +489,29 @@ function lookupEdgeInterfaces(
   );
 
   return {
-    sourceRuntime: findRuntimeInterface(
-      containers,
-      sourceNodeIdentifier,
-      sourceIfaceName,
-      currentLabName
-    ),
-    targetRuntime: findRuntimeInterface(
-      containers,
-      targetNodeIdentifier,
-      targetIfaceName,
-      currentLabName
-    )
+    sourceRuntime: findRuntimeInterface(index, sourceNodeIdentifier, sourceIfaceName),
+    targetRuntime: findRuntimeInterface(index, targetNodeIdentifier, targetIfaceName)
   };
 }
 
 export function createRuntimeContainerDataProvider(
   containers: HostRuntimeContainer[]
 ): ContainerDataProvider {
+  // The containers array is fixed for the provider's lifetime, so each lab's
+  // filtered + normalized index can be built once and reused across lookups.
+  const indexCache = new Map<string, LabContainerIndex>();
+  const indexForLab = (labName: string): LabContainerIndex => {
+    let index = indexCache.get(labName);
+    if (!index) {
+      index = createLabContainerIndex(containers, labName);
+      indexCache.set(labName, index);
+    }
+    return index;
+  };
+
   return {
     findContainer(containerName: string, labName: string): ContainerInfo | undefined {
-      const container = matchingContainers(containers, containerName, labName, false)[0];
+      const container = matchingContainers(indexForLab(labName), containerName, false)[0];
       return container ? toContainerInfo(container) : undefined;
     },
     findInterface(
@@ -486,16 +519,17 @@ export function createRuntimeContainerDataProvider(
       ifaceName: string,
       labName: string
     ): InterfaceInfo | undefined {
-      return findInterfaceInfo(containers, containerName, ifaceName, labName);
+      return findInterfaceInfo(indexForLab(labName), containerName, ifaceName);
     },
     findDistributedSrosInterface(params) {
-      const candidates = matchingContainers(containers, params.baseNodeName, params.labName, true);
+      const candidates = matchingContainers(indexForLab(params.labName), params.baseNodeName, true);
+      const ifaceNameCandidates = interfaceCandidates(params.ifaceName);
       for (const container of candidates) {
         if (container.kind !== "nokia_srsim") {
           continue;
         }
         const iface = (container.interfaces ?? []).find((entry) =>
-          interfacesMatch(entry, params.ifaceName)
+          interfacesMatch(entry, ifaceNameCandidates)
         );
         if (iface) {
           return {
@@ -507,7 +541,7 @@ export function createRuntimeContainerDataProvider(
       return undefined;
     },
     findDistributedSrosContainer(params) {
-      const container = matchingContainers(containers, params.baseNodeName, params.labName, true).find(
+      const container = matchingContainers(indexForLab(params.labName), params.baseNodeName, true).find(
         (candidate) => candidate.kind === "nokia_srsim"
       );
       return container ? toContainerInfo(container) : undefined;
@@ -524,16 +558,19 @@ export function buildRuntimeEdgeStatsUpdates(
     return [];
   }
 
+  // One lab-scoped index per invocation instead of re-filtering and
+  // re-normalizing every container for each edge endpoint.
+  const labIndex = createLabContainerIndex(containers, context.currentLabName);
+
   const updates: TopologyRuntimeEdgeUpdate[] = [];
   for (const edge of edges) {
     const edgeData = edge.data;
     const extraData = edgeData?.extraData ?? {};
     const { sourceRuntime, targetRuntime } = lookupEdgeInterfaces(
-      containers,
+      labIndex,
       edge,
       edgeData,
-      extraData,
-      context.currentLabName
+      extraData
     );
     const updatedExtraData = buildInterfaceExtraData(sourceRuntime, targetRuntime);
     const edgeClass = computeEdgeClassForUpdate(

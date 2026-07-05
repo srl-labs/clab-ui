@@ -184,6 +184,7 @@ const DESTRUCTIVE_COMMANDS = new Set<string>([
 ]);
 const SECTION_BUILD_TIMEOUT_MS = 4000;
 const TREE_ITEM_COLLAPSIBLE_NONE = 0;
+const LAB_LABEL_LINK_PREFIX_REGEX = /^🔗\s*/u;
 const BUILTIN_CONTAINER_ACTION_COMMANDS: readonly string[] = [
   "containerlab.node.showLogs",
   "containerlab.node.attachShell",
@@ -974,7 +975,7 @@ function shouldResolveNodeChildren(
   if (sectionId !== "fileExplorer") {
     return true;
   }
-  return new Set(options.expandedBySection?.fileExplorer ?? []).has(nodeId);
+  return (options.expandedBySection?.fileExplorer ?? []).includes(nodeId);
 }
 
 function resolveNodeStatusIndicator(
@@ -1002,7 +1003,7 @@ async function buildNode(
   const contextValue = item.contextValue;
   const nodeId = item.id || pathId;
   const rawLabel = labelToText(item.label);
-  const label = isLabContext(contextValue) ? rawLabel.replace(/^🔗\s*/u, "") : rawLabel;
+  const label = isLabContext(contextValue) ? rawLabel.replace(LAB_LABEL_LINK_PREFIX_REGEX, "") : rawLabel;
   const description = shouldHideNodeDescription(contextValue)
     ? undefined
     : descriptionToText(item.description);

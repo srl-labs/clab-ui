@@ -28,6 +28,8 @@ export interface DevModeInterface {
   setLocked?: (locked: boolean) => void;
   /** Set mode state directly */
   setModeState?: (mode: "edit" | "view") => void;
+  /** Set deployment state directly (for E2E testing) */
+  setDeploymentState?: (state: "deployed" | "undeployed" | "unknown") => void;
   /** Undo/redo state */
   undoRedo?: {
     canUndo: boolean;

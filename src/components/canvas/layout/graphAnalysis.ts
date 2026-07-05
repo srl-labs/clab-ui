@@ -30,9 +30,7 @@ export function classifyComponent(
   const n = component.length;
   if (n <= 2) return "hierarchical";
 
-  const degrees = component.map(id => (adj.get(id) ?? []).length);
-  const minDeg = Math.min(...degrees);
-  const maxDeg = Math.max(...degrees);
+  const { minDeg, maxDeg } = getDegreeRange(component, adj);
   const allSameDegree = minDeg === maxDeg;
 
   // Ring: every node has degree 2, exactly n edges
@@ -51,6 +49,34 @@ export function classifyComponent(
   if (minDeg === 1 && maxDeg === n - 1 && componentEdgeCount === n - 1) return "star";
 
   return "hierarchical";
+}
+
+/** Min/max node degree across a component in a single pass. */
+function getDegreeRange(
+  component: string[],
+  adj: Map<string, string[]>
+): { minDeg: number; maxDeg: number } {
+  let minDeg = Infinity;
+  let maxDeg = -Infinity;
+  for (const id of component) {
+    const degree = (adj.get(id) ?? []).length;
+    if (degree < minDeg) minDeg = degree;
+    if (degree > maxDeg) maxDeg = degree;
+  }
+  return { minDeg, maxDeg };
+}
+
+/**
+ * Largest value mapped to any of the given ids (missing ids count as 0).
+ * Single pass — avoids `Math.max(...array)` spread limits on large components.
+ */
+export function getMaxMappedValue(ids: string[], values: Map<string, number>): number {
+  let max = 0;
+  for (const id of ids) {
+    const value = values.get(id) ?? 0;
+    if (value > max) max = value;
+  }
+  return max;
 }
 
 /**
@@ -94,9 +120,10 @@ export function buildAdjacency(
 export function findComponent(startId: string, adj: Map<string, string[]>): string[] {
   const component: string[] = [];
   const queue = [startId];
+  let head = 0;
   const seen = new Set([startId]);
-  while (queue.length > 0) {
-    const cur = queue.shift()!;
+  while (head < queue.length) {
+    const cur = queue[head++];
     component.push(cur);
     for (const nb of adj.get(cur) ?? []) {
       if (!seen.has(nb)) { seen.add(nb); queue.push(nb); }

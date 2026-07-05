@@ -1,23 +1,22 @@
+/* eslint-disable import-x/max-dependencies */
 import LaunchIcon from "@mui/icons-material/Launch";
 import StarIcon from "@mui/icons-material/Star";
-import {
-  Alert,
-  Box,
-  Button,
-  Chip,
-  CircularProgress,
-  Container,
-  Divider,
-  FormControlLabel,
-  Link,
-  List,
-  ListItem,
-  ListItemButton,
-  Paper,
-  Stack,
-  Typography,
-  Checkbox
-} from "@mui/material";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
+import Container from "@mui/material/Container";
+import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Link from "@mui/material/Link";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemButton from "@mui/material/ListItemButton";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import Checkbox from "@mui/material/Checkbox";
 import React from "react";
 import { createRoot } from "react-dom/client";
 

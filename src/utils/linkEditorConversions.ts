@@ -4,12 +4,9 @@
 import type { LinkEditorData } from "../core/types/editors";
 import type { LinkSaveData } from "../core/io/LinkPersistenceIO";
 import { isSpecialEndpointId } from "../core/utilities/LinkTypes";
+import { isRecord } from "../core/utilities/typeHelpers";
 
 type LinkExtraData = NonNullable<LinkSaveData["extraData"]>;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 /** Parse MTU from raw value (can be string or number) */
 function parseMtu(raw: unknown): number | undefined {

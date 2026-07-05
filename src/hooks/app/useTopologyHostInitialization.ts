@@ -5,7 +5,6 @@
 import { useEffect } from "react";
 
 import { useTopologySessionClient } from "../../host";
-import { requestSnapshot } from "../../services/topologyHostClient";
 import { applySnapshotToStores } from "../../services/topologyHostSync";
 import { log } from "../../utils/logger";
 
@@ -17,7 +16,7 @@ export function useTopologyHostInitialization(): void {
     const isDisposed = () => disposed;
     void (async () => {
       try {
-        const snapshot = await requestSnapshot({}, sessionClient);
+        const snapshot = await sessionClient.requestSnapshot({});
         if (isDisposed()) {
           return;
         }

@@ -1,18 +1,10 @@
 /**
- * TopologyHost client - dispatches semantic snapshot and command requests to the active host.
+ * TopologyHost client - public helpers around the session client's context and
+ * revision state. Re-exported via the session package for external consumers;
+ * internal code calls the {@link TopologySessionClient} methods directly.
  */
 
-import type {
-  TopologyHostCommand,
-  TopologyHostResponseMessage,
-  TopologySnapshot
-} from "../core/types/messages";
-import type {
-  HostRuntimeContainer,
-  HostRuntimeInterface,
-  HostRuntimeInterfaceStats,
-  TopologyUiContext
-} from "../host";
+import type { TopologyUiContext } from "../host";
 import type { TopologySessionClient } from "../session/client";
 
 export function setHostContext(
@@ -32,29 +24,4 @@ export function getHostRevision(client: TopologySessionClient): number {
 
 export function setHostRevision(nextRevision: number, client: TopologySessionClient): void {
   client.setRevision(nextRevision);
-}
-
-export async function requestSnapshot(
-  options: { externalChange?: boolean } = {},
-  client: TopologySessionClient
-): Promise<TopologySnapshot> {
-  return client.requestSnapshot(options);
-}
-
-export async function dispatchTopologyCommand(
-  command: TopologyHostCommand,
-  client: TopologySessionClient
-): Promise<TopologyHostResponseMessage> {
-  return client.dispatchCommand(command);
-}
-
-export type {
-  HostRuntimeContainer,
-  HostRuntimeInterface,
-  HostRuntimeInterfaceStats,
-  TopologyUiContext as HostContext
-};
-
-export function getHostCommandQueueScope(client: TopologySessionClient): object {
-  return client as object;
 }

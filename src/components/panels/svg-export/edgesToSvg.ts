@@ -8,6 +8,10 @@ import {
   getNodeIntersection,
   isVisuallyCanonicalDirection
 } from "../../canvas/edgeGeometry";
+import type { EdgeInfo } from "../../../stores/canvasStore";
+// Despite the hook-style name, useEdgeInfo is a plain cached function
+// (no React state) and is safe to call outside of components.
+import { useEdgeInfo as buildEdgeInfo } from "../../../stores/canvasStore";
 
 import {
   NODE_ICON_SIZE,
@@ -28,11 +32,6 @@ interface TopologyEdgeData {
   targetEndpoint?: string;
   linkStatus?: "up" | "down";
   [key: string]: unknown;
-}
-
-interface EdgeInfo {
-  parallelInfo: Map<string, { index: number; total: number; isCanonicalDirection: boolean }>;
-  loopInfo: Map<string, { loopIndex: number }>;
 }
 
 interface NodeRect {
@@ -91,14 +90,6 @@ function getEdgeColor(linkStatus: string | undefined): string {
     default:
       return EDGE_COLOR.default;
   }
-}
-
-/**
- * Create canonical edge key for grouping parallel edges
- * Ensures same key regardless of direction
- */
-function getCanonicalEdgeKey(source: string, target: string): string {
-  return source < target ? `${source}:${target}` : `${target}:${source}`;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -409,62 +400,6 @@ function resolveEdgePointsWithInterfaceAnchors(
   }
 
   return getEdgePoints(sourceRect, targetRect);
-}
-
-// ============================================================================
-// Edge Info Builder
-// ============================================================================
-
-/**
- * Build edge info for export (parallel edge grouping and loop detection)
- * Similar to useEdgeInfo hook but for static export
- */
-export function buildEdgeInfoForExport(edges: Edge[]): EdgeInfo {
-  const parallelInfo = new Map<
-    string,
-    { index: number; total: number; isCanonicalDirection: boolean }
-  >();
-  const loopInfo = new Map<string, { loopIndex: number }>();
-
-  // Group edges by canonical key
-  const edgeGroups = new Map<string, Edge[]>();
-  const loopEdges = new Map<string, Edge[]>();
-
-  for (const edge of edges) {
-    if (edge.source === edge.target) {
-      // Loop edge
-      const existing = loopEdges.get(edge.source) ?? [];
-      existing.push(edge);
-      loopEdges.set(edge.source, existing);
-    } else {
-      // Regular or parallel edge
-      const key = getCanonicalEdgeKey(edge.source, edge.target);
-      const existing = edgeGroups.get(key) ?? [];
-      existing.push(edge);
-      edgeGroups.set(key, existing);
-    }
-  }
-
-  // Process loop edges
-  for (const [, nodeLoopEdges] of loopEdges) {
-    for (let i = 0; i < nodeLoopEdges.length; i++) {
-      loopInfo.set(nodeLoopEdges[i].id, { loopIndex: i });
-    }
-  }
-
-  // Process parallel edges
-  for (const [key, groupEdges] of edgeGroups) {
-    const total = groupEdges.length;
-    const [canonicalSource] = key.split(":");
-
-    for (let i = 0; i < groupEdges.length; i++) {
-      const edge = groupEdges[i];
-      const isCanonicalDirection = edge.source === canonicalSource;
-      parallelInfo.set(edge.id, { index: i, total, isCanonicalDirection });
-    }
-  }
-
-  return { parallelInfo, loopInfo };
 }
 
 // ============================================================================
@@ -806,7 +741,7 @@ function renderRegularEdge(
 /**
  * Render a single edge to SVG
  */
-export function edgeToSvg(
+function edgeToSvg(
   edge: Edge,
   nodeMap: Map<string, Node>,
   edgeInfo: EdgeInfo,
@@ -834,7 +769,7 @@ export function edgeToSvg(
 
   // Handle loop edges (self-referencing)
   if (edge.source === edge.target) {
-    const loopData = edgeInfo.loopInfo.get(edge.id);
+    const loopData = edgeInfo.getLoopInfo(edge.id);
     return renderLoopEdge(ctx, sourceNode, loopData?.loopIndex ?? 0);
   }
 
@@ -842,7 +777,8 @@ export function edgeToSvg(
   const targetNode = nodeMap.get(edge.target);
   if (!targetNode) return "";
 
-  return renderRegularEdge(ctx, sourceNode, targetNode, edgeInfo.parallelInfo.get(edge.id));
+  const parallelInfo = edgeInfo.getParallelInfo(edge.id) ?? undefined;
+  return renderRegularEdge(ctx, sourceNode, targetNode, parallelInfo);
 }
 
 // ============================================================================
@@ -882,8 +818,8 @@ export function renderEdgesToSvg(
     return true;
   });
 
-  // Build edge info for parallel/loop detection
-  const edgeInfo = buildEdgeInfoForExport(validEdges);
+  // Build edge info for parallel/loop detection (same grouping/ordering as the canvas)
+  const edgeInfo = buildEdgeInfo(validEdges);
   const interfaceAnchors = nodeProximateLabels
     ? buildInterfaceAnchorMap(validEdges, nodeMap, resolvedRenderOptions)
     : undefined;

@@ -4,11 +4,10 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
-import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogActions from "@mui/material/DialogActions";
-import IconButton from "@mui/material/IconButton";
-import CloseIcon from "@mui/icons-material/Close";
+
+import { DialogTitleWithClose } from "../../ui/dialog/DialogChrome";
 
 interface ConfirmBulkLinksModalProps {
   isOpen: boolean;
@@ -28,14 +27,7 @@ export const ConfirmBulkLinksModal: React.FC<ConfirmBulkLinksModalProps> = ({
   onConfirm
 }) => (
   <Dialog open={isOpen} onClose={onCancel} maxWidth="xs" fullWidth>
-    <DialogTitle
-      sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1.5 }}
-    >
-      Bulk Link Creation
-      <IconButton size="small" onClick={onCancel}>
-        <CloseIcon fontSize="small" />
-      </IconButton>
-    </DialogTitle>
+    <DialogTitleWithClose title="Bulk Link Creation" onClose={onCancel} />
     <DialogContent dividers>
       <Box
         sx={{

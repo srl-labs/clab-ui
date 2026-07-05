@@ -8,7 +8,7 @@ import { isSpecialEndpointId } from "./LinkTypes";
 /**
  * Generate unique ID for dummy nodes (dummy1, dummy2, etc.)
  */
-export function generateDummyId(baseName: string, usedIds: Set<string>): string {
+function generateDummyId(baseName: string, usedIds: Set<string>): string {
   const re = /^(dummy)(\d*)$/;
   const match = re.exec(baseName);
   const base = match?.[1] ?? "dummy";
@@ -20,7 +20,7 @@ export function generateDummyId(baseName: string, usedIds: Set<string>): string 
 /**
  * Generate unique ID for adapter nodes (host:eth1, macvlan:eth1, etc.)
  */
-export function generateAdapterNodeId(baseName: string, usedIds: Set<string>): string {
+function generateAdapterNodeId(baseName: string, usedIds: Set<string>): string {
   const [nodeType, adapter] = baseName.split(":");
   const adapterRe = /^([a-zA-Z]+)(\d+)$/;
   const adapterMatch = adapterRe.exec(adapter);
@@ -46,7 +46,7 @@ export function generateAdapterNodeId(baseName: string, usedIds: Set<string>): s
 /**
  * Generate unique ID for special nodes by incrementing trailing number
  */
-export function generateSpecialNodeId(baseName: string, usedIds: Set<string>): string {
+function generateSpecialNodeId(baseName: string, usedIds: Set<string>): string {
   let name = baseName;
   while (usedIds.has(name)) {
     let i = name.length - 1;
@@ -66,7 +66,7 @@ export function generateSpecialNodeId(baseName: string, usedIds: Set<string>): s
  * Otherwise, append just "N" directly.
  * E.g., "srl" → srl1, srl2; "iol-l2" → iol-l2-1, iol-l2-2
  */
-export function generateRegularNodeId(baseName: string, usedIds: Set<string>): string {
+function generateRegularNodeId(baseName: string, usedIds: Set<string>): string {
   // Check if baseName ends with a digit
   const endsWithDigit = /\d$/.test(baseName);
 

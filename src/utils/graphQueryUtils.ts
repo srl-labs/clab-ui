@@ -5,13 +5,6 @@
 import type { TopoNode, TopoEdge } from "../core/types/graph";
 
 /**
- * Get a node by its ID
- */
-export function getNodeById(nodes: TopoNode[], id: string): TopoNode | null {
-  return nodes.find((node) => node.id === id) ?? null;
-}
-
-/**
  * Runtime guard for TopoNode-like objects.
  */
 export function isTopoNodeLike(value: unknown): value is TopoNode {
@@ -33,24 +26,6 @@ export function isTopoEdgeLike(value: unknown): value is TopoEdge {
   const source: unknown = Reflect.get(value, "source");
   const target: unknown = Reflect.get(value, "target");
   return typeof id === "string" && typeof source === "string" && typeof target === "string";
-}
-
-/**
- * Check if an edge exists between two nodes (in either direction)
- */
-export function hasEdgeBetween(edges: TopoEdge[], sourceId: string, targetId: string): boolean {
-  return edges.some(
-    (edge) =>
-      (edge.source === sourceId && edge.target === targetId) ||
-      (edge.source === targetId && edge.target === sourceId)
-  );
-}
-
-/**
- * Get all edges connected to a node (as source or target)
- */
-export function getConnectedEdges(edges: TopoEdge[], nodeId: string): TopoEdge[] {
-  return edges.filter((edge) => edge.source === nodeId || edge.target === nodeId);
 }
 
 /**

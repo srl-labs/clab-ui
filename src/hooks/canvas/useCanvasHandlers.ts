@@ -43,7 +43,7 @@ import { buildEdgeId } from "../../utils/edgeId";
 import { snapToGrid } from "../../utils/grid";
 
 /** Handlers for group member movement during drag */
-export interface GroupMemberHandlers {
+interface GroupMemberHandlers {
   /** Get member node IDs for a group */
   getGroupMembers?: (groupId: string, options?: { includeNested?: boolean }) => string[];
   /** Handle node dropped (for group membership updates) */
@@ -116,7 +116,7 @@ interface CanvasHandlers {
   onEdgeDoubleClick: EdgeMouseHandler;
   onPaneClick: (event: React.MouseEvent) => void;
   onConnect: OnConnect;
-  handleNodesChange: OnNodesChange;
+  onNodesChange: OnNodesChange;
   onSelectionChange: OnSelectionChangeFunc;
   onNodeContextMenu: (event: React.MouseEvent, node: Node) => void;
   onEdgeContextMenu: (event: React.MouseEvent, edge: Edge) => void;
@@ -1051,15 +1051,6 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
   );
   const onConnect = useConnectionHandler(modeRef, isLockedRef, onLockedAction, onEdgeCreated);
 
-  // Node changes handler - all nodes (topology + annotation) live in the graph store
-  // The graph store is the single source of truth, so we pass changes through directly
-  const handleNodesChange: OnNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      onNodesChangeBase(changes);
-    },
-    [onNodesChangeBase]
-  );
-
   // Drag handlers (extracted hook)
   const { onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDragHandlers(
     sessionClient,
@@ -1100,7 +1091,9 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     onEdgeDoubleClick,
     onPaneClick,
     onConnect,
-    handleNodesChange,
+    // All nodes (topology + annotation) live in the graph store - the single
+    // source of truth - so node changes pass through to it directly.
+    onNodesChange: onNodesChangeBase,
     onSelectionChange,
     onNodeContextMenu,
     onEdgeContextMenu,

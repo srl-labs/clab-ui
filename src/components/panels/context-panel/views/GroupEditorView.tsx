@@ -20,7 +20,7 @@ export interface GroupEditorViewProps {
   onFooterRef?: (ref: GroupEditorFooterRef | null) => void;
 }
 
-export interface GroupEditorFooterRef {
+interface GroupEditorFooterRef {
   handleApply: () => void;
   handleSave: () => void;
   handleDiscard: () => void;

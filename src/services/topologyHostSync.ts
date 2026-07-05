@@ -42,11 +42,6 @@ import {
   clampTelemetryNodeSizePx
 } from "../utils/telemetryInterfaceLabels";
 
-import {
-  dispatchTopologyCommand,
-  getHostCommandQueueScope,
-  setHostRevision
-} from "./topologyHostClient";
 import { enqueueHostCommand } from "./topologyHostQueue";
 
 export interface ApplySnapshotOptions {
@@ -365,24 +360,24 @@ async function persistLayoutPositions(
   if (positions.length === 0) return;
   try {
     const response = await enqueueHostCommand(() =>
-      dispatchTopologyCommand({
+      client.dispatchCommand({
         command: "savePositions",
         payload: positions,
         skipHistory: true
-      }, client),
-      getHostCommandQueueScope(client)
+      }),
+      client
     );
     if (response.type === "topology-host:ack") {
       if (response.snapshot) {
-        setHostRevision(response.snapshot.revision, client);
+        client.setRevision(response.snapshot.revision);
         syncUndoRedo(response.snapshot);
       } else if (typeof response.revision === "number") {
-        setHostRevision(response.revision, client);
+        client.setRevision(response.revision);
       }
       return;
     }
     if (response.type === "topology-host:reject") {
-      setHostRevision(response.snapshot.revision, client);
+      client.setRevision(response.snapshot.revision);
       syncUndoRedo(response.snapshot);
       return;
     }
@@ -705,7 +700,7 @@ export function applySnapshotToStores(
   options: ApplySnapshotOptions = {},
   client: TopologySessionClient
 ): void {
-  setHostRevision(snapshot.revision, client);
+  client.setRevision(snapshot.revision);
 
   const annotations = normalizeAnnotations(snapshot.annotations);
   const edges = snapshot.edges;

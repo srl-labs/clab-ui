@@ -59,12 +59,3 @@ export interface MelodyNote {
   duration: number;
   isRest?: boolean;
 }
-
-/**
- * Buffer cache for pre-rendered audio
- */
-export interface BufferCache {
-  buffer: AudioBuffer | null;
-  isRendering: boolean;
-  renderPromise: Promise<AudioBuffer> | null;
-}

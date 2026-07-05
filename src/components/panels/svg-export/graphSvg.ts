@@ -27,7 +27,7 @@ export function getViewportSize(): ViewportSize | null {
   return { width: rect.width, height: rect.height };
 }
 
-export function buildViewportTransform(
+function buildViewportTransform(
   viewport: { x: number; y: number; zoom: number },
   size: ViewportSize,
   zoomPercent: number

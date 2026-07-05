@@ -7,7 +7,7 @@ import type {
 
 import type { GroupEditorData } from "./groupTypes";
 
-export interface AnnotationState {
+interface AnnotationState {
   groups: GroupStyleAnnotation[];
   selectedGroupIds: Set<string>;
   editingGroup: GroupEditorData | null;
@@ -25,7 +25,7 @@ export interface AnnotationState {
   editingTrafficRateAnnotation: TrafficRateAnnotation | null;
 }
 
-export interface AnnotationActions {
+interface AnnotationActions {
   // Groups
   selectGroup: (id: string) => void;
   toggleGroupSelection: (id: string) => void;

@@ -8,7 +8,6 @@
 import { useEffect } from "react";
 import type { Edge, Node } from "@xyflow/react";
 
-import type { NetemState } from "../../core/parsing";
 import type { TopologySnapshot } from "../../core/types/messages";
 import { useClabUiHost, useTopologySessionClient } from "../../host";
 import {
@@ -19,10 +18,10 @@ import { useGraphStore } from "../../stores/graphStore";
 import { applySnapshotToStores } from "../../services/topologyHostSync";
 import {
   PENDING_NETEM_KEY,
-  type PendingNetemOverride,
-  areNetemEquivalent,
-  isPendingNetemFresh
+  mergeExtraDataWithPending,
+  toPendingNetemOverride
 } from "../../utils/netemOverrides";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 // ============================================================================
 // Message Types
@@ -67,38 +66,12 @@ type ExtensionMessage =
 // Helper Functions
 // ============================================================================
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function toRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? value : {};
 }
 
 function toStringValue(value: unknown): string {
   return typeof value === "string" ? value : "";
-}
-
-function toNetemState(value: unknown): NetemState | undefined {
-  if (!isRecord(value)) return undefined;
-  const state: NetemState = {};
-  if (typeof value.delay === "string") state.delay = value.delay;
-  if (typeof value.jitter === "string") state.jitter = value.jitter;
-  if (typeof value.loss === "string") state.loss = value.loss;
-  if (typeof value.rate === "string") state.rate = value.rate;
-  if (typeof value.corruption === "string") state.corruption = value.corruption;
-  return Object.keys(state).length > 0 ? state : undefined;
-}
-
-function toPendingNetemOverride(value: unknown): PendingNetemOverride | undefined {
-  if (!isRecord(value)) return undefined;
-  const appliedAt = value.appliedAt;
-  if (typeof appliedAt !== "number" || !Number.isFinite(appliedAt)) return undefined;
-  return {
-    source: toNetemState(value.source),
-    target: toNetemState(value.target),
-    appliedAt
-  };
 }
 
 function isTopologySnapshotMessage(
@@ -152,65 +125,6 @@ function resolveLinkStatusFromClasses(
   return undefined;
 }
 
-function mergeExtraData(
-  oldExtraData: Record<string, unknown>,
-  updateExtraData: Record<string, unknown>
-): Record<string, unknown> {
-  return { ...oldExtraData, ...updateExtraData };
-}
-
-function stripPendingNetemKey(extraData: Record<string, unknown>): void {
-  delete extraData[PENDING_NETEM_KEY];
-}
-
-function hasNetemUpdate(updateExtraData: Record<string, unknown>): boolean {
-  return (
-    Object.prototype.hasOwnProperty.call(updateExtraData, "clabSourceNetem") ||
-    Object.prototype.hasOwnProperty.call(updateExtraData, "clabTargetNetem")
-  );
-}
-
-function matchesPendingNetem(
-  updateExtraData: Record<string, unknown>,
-  pending: PendingNetemOverride
-): boolean {
-  const incomingSource = toNetemState(updateExtraData.clabSourceNetem);
-  const incomingTarget = toNetemState(updateExtraData.clabTargetNetem);
-  return (
-    areNetemEquivalent(incomingSource, pending.source) &&
-    areNetemEquivalent(incomingTarget, pending.target)
-  );
-}
-
-function mergeExtraDataWithPending(
-  oldExtraData: Record<string, unknown>,
-  updateExtraData: Record<string, unknown>,
-  pending: PendingNetemOverride
-): Record<string, unknown> {
-  if (!isPendingNetemFresh(pending)) {
-    const merged = mergeExtraData(oldExtraData, updateExtraData);
-    stripPendingNetemKey(merged);
-    return merged;
-  }
-
-  if (!hasNetemUpdate(updateExtraData)) {
-    return mergeExtraData(oldExtraData, updateExtraData);
-  }
-
-  if (!matchesPendingNetem(updateExtraData, pending)) {
-    const {
-      clabSourceNetem: _clabSourceNetem,
-      clabTargetNetem: _clabTargetNetem,
-      ...rest
-    } = updateExtraData;
-    return mergeExtraData(oldExtraData, rest);
-  }
-
-  const merged = mergeExtraData(oldExtraData, updateExtraData);
-  stripPendingNetemKey(merged);
-  return merged;
-}
-
 /** Apply edge stats update to a single edge */
 function applyEdgeStatsToEdge(
   edge: Edge,
@@ -224,7 +138,7 @@ function applyEdgeStatsToEdge(
   const pending = toPendingNetemOverride(oldExtraData[PENDING_NETEM_KEY]);
   const mergedExtraData = pending
     ? mergeExtraDataWithPending(oldExtraData, updateExtraData, pending)
-    : mergeExtraData(oldExtraData, updateExtraData);
+    : { ...oldExtraData, ...updateExtraData };
 
   return buildEdgeWithExtraData(edge, mergedExtraData, update.classes);
 }

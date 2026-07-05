@@ -3,12 +3,10 @@ import type { ReactFlowInstance } from "@xyflow/react";
 import type { GroupStyleAnnotation } from "../core/types/topology";
 import type { NetworkType } from "../core/types/editors";
 import type { TopoNode } from "../core/types/graph";
-import type { CustomIconInfo } from "../core/types/icons";
-import type { CustomNodeTemplate, SchemaData } from "../core/schema";
 
 type LayoutOption = "preset" | "force" | "geo";
 
-export interface DevModeInterface {
+interface DevModeInterface {
   isLocked?: () => boolean;
   mode?: () => "edit" | "view";
   setLocked?: (locked: boolean) => void;
@@ -54,15 +52,6 @@ export interface DevModeInterface {
   selectNodesForClipboard?: (nodeIds: string[]) => void;
   clearNodeSelection?: () => void;
   toggleDummyLinks?: () => void;
-}
-
-export interface WebviewInitialData {
-  schemaData?: SchemaData;
-  dockerImages?: string[];
-  customNodes?: CustomNodeTemplate[];
-  defaultNode?: string;
-  customIcons?: CustomIconInfo[];
-  [key: string]: unknown;
 }
 
 declare global {

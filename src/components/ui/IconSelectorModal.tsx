@@ -18,7 +18,7 @@ import type { NodeType } from "../../icons/SvgGenerator";
 import { generateEncodedSVG } from "../../icons/SvgGenerator";
 import { useEscapeKey } from "../../hooks/ui/useDomInteractions";
 import { useCustomIcons } from "../../stores/topoViewerStore";
-import { useExtensionMessaging } from "../../messaging/extensionMessaging";
+import { useClabUiHost } from "../../host";
 import { isBuiltInIcon } from "../../core/types/icons";
 import { DEFAULT_ICON_COLOR } from "../../core/types/graph";
 
@@ -297,7 +297,7 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
   initialCornerRadius = 0
 }) => {
   const customIcons = useCustomIcons();
-  const { sendDeleteIcon, sendUploadIcon } = useExtensionMessaging();
+  const { topoViewer } = useClabUiHost();
 
   const { icon, setIcon, color, setColor, radius, setRadius, resultColor } = useIconSelectorState(
     isOpen,
@@ -335,9 +335,9 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
     // Add handlers for custom icons
     for (const ci of customIcons) {
       iconClickHandlers.current[ci.name] = () => setIcon(ci.name);
-      iconDeleteHandlers.current[ci.name] = () => sendDeleteIcon(ci.name);
+      iconDeleteHandlers.current[ci.name] = () => topoViewer.deleteIcon(ci.name);
     }
-  }, [setIcon, sendDeleteIcon, customIcons]);
+  }, [setIcon, topoViewer, customIcons]);
 
   const handleSave = useCallback(() => {
     onSave(icon, resultColor, radius);
@@ -345,8 +345,8 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
   }, [icon, resultColor, radius, onSave, onClose]);
 
   const handleUploadIcon = useCallback(() => {
-    sendUploadIcon();
-  }, [sendUploadIcon]);
+    topoViewer.uploadIcon();
+  }, [topoViewer]);
 
   // Get preview icon source
   const previewIconSrc = useMemo(() => {

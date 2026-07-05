@@ -29,7 +29,7 @@ interface EdgeData {
 type EdgeCreatedCallback = (sourceId: string, targetId: string, edgeData: EdgeData) => void;
 
 /** Callback type for node creation */
-export type NodeCreatedCallback = (
+type NodeCreatedCallback = (
   nodeId: string,
   nodeElement: TopoNode,
   position: Position

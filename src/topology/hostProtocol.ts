@@ -6,13 +6,10 @@ import type {
 } from "../core/types/messages";
 import { TOPOLOGY_HOST_PROTOCOL_VERSION } from "../core/types/messages";
 import type { TopologyHost } from "../core/types/topologyHost";
+import { isRecord } from "../core/utilities/typeHelpers";
 
 const TOPOLOGY_HOST_GET_SNAPSHOT = "topology-host:get-snapshot";
 const TOPOLOGY_HOST_COMMAND = "topology-host:command";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isTopologyHostCommand(value: unknown): value is TopologyHostCommand {
   if (!isRecord(value)) return false;

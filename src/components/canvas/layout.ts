@@ -2,15 +2,8 @@
  * Layout algorithms for React Flow topology viewer
  */
 export type { LayoutName, LayoutOptions } from "./layout/types";
-export {
-  hasPresetPositions,
-  isLayoutableNode,
-  applyPositionMap,
-  normalizeLayoutableNodePositions
-} from "./layout/types";
+export { hasPresetPositions, normalizeLayoutableNodePositions } from "./layout/types";
 export { applyForceLayout } from "./layout/forceLayout";
-export { applyAutoLayout } from "./layout/autoLayout";
-export { applyRadialLayout } from "./layout/radialLayout";
 
 import type { Node, Edge } from "@xyflow/react";
 import type { LayoutName, LayoutOptions } from "./layout/types";
@@ -41,12 +34,4 @@ export async function applyLayout(
       // These layouts return nodes immediately or are unknown (treated as preset)
       return { nodes, edges };
   }
-}
-
-/**
- * Get layout options for a given layout name
- * (For compatibility with existing code)
- */
-export function getLayoutOptions(layoutName: string): { name: string } {
-  return { name: layoutName };
 }

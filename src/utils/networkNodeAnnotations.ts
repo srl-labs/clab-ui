@@ -1,6 +1,7 @@
 import type { Node } from "@xyflow/react";
 
 import type { NetworkNodeAnnotation } from "../core/types/topology";
+import { NETWORK_TYPES } from "../core/types/editors";
 import { getRecordUnknown, getString } from "../core/utilities/typeHelpers";
 
 import { SPECIAL_NETWORK_TYPES, getNetworkType } from "./networkNodeTypes";
@@ -22,16 +23,7 @@ function toGeoCoordinates(value: unknown): { lat: number; lng: number } | undefi
 }
 
 function isNetworkAnnotationType(value: string): value is NetworkNodeAnnotation["type"] {
-  return (
-    value === "host" ||
-    value === "mgmt-net" ||
-    value === "macvlan" ||
-    value === "vxlan" ||
-    value === "vxlan-stitch" ||
-    value === "dummy" ||
-    value === "bridge" ||
-    value === "ovs-bridge"
-  );
+  return NETWORK_TYPES.some((t) => t === value);
 }
 
 export function buildNetworkNodeAnnotations(nodes: Node[]): NetworkNodeAnnotation[] {

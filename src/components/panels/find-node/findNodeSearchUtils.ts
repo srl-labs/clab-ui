@@ -34,7 +34,7 @@ function createContainsFilter(lower: string): (value: string) => boolean {
   return (value: string) => value.toLowerCase().includes(lower);
 }
 
-export function createFilter(pattern: string): (value: string) => boolean {
+function createFilter(pattern: string): (value: string) => boolean {
   const trimmed = pattern.trim();
   if (!trimmed) return () => true;
   if (trimmed.includes("*") || trimmed.includes("?")) return createWildcardFilter(trimmed);
@@ -42,7 +42,7 @@ export function createFilter(pattern: string): (value: string) => boolean {
   return createContainsFilter(trimmed.toLowerCase());
 }
 
-export function filterNodes(nodes: TopoNode[], searchTerm: string): TopoNode[] {
+function filterNodes(nodes: TopoNode[], searchTerm: string): TopoNode[] {
   const filter = createFilter(searchTerm);
   return nodes.filter((node) => {
     if (filter(node.id)) return true;

@@ -1,3 +1,5 @@
+import { isRecord } from "../utilities/typeHelpers";
+
 /**
  * SchemaParser - Utilities for parsing containerlab JSON schema
  *
@@ -24,10 +26,6 @@ export interface SchemaData {
   kinds: string[];
   typesByKind: Record<string, string[]>;
   srosComponentTypes: SrosComponentTypes;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function toRecord(value: unknown): Record<string, unknown> | undefined {

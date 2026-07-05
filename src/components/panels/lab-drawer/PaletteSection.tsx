@@ -47,8 +47,7 @@ import {
   useCustomNodes,
   useTopoViewerStore
 } from "../../../stores/topoViewerStore";
-import { useTopologySessionClient, useClabUiRuntime } from "../../../host";
-import { useExtensionMessaging } from "../../../messaging/extensionMessaging";
+import { useClabUiHost, useTopologySessionClient, useClabUiRuntime } from "../../../host";
 import { buildCustomIconMap } from "../../../utils/iconUtils";
 import type { TabDefinition } from "../../ui/editor";
 import { TabNavigation } from "../../ui/editor/TabNavigation";
@@ -439,7 +438,7 @@ const DraggableAnnotation: React.FC<DraggableAnnotationProps> = ({
   />
 );
 
-export const PALETTE_TABS: TabDefinition[] = [
+const PALETTE_TABS: TabDefinition[] = [
   { id: "info", label: "Info" },
   { id: "edit", label: "Edit" },
   { id: "nodes", label: "Nodes" },
@@ -624,11 +623,11 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     onEditCustomNode?.("__new__");
   }, [onEditCustomNode]);
 
-  const { sendImportCustomNodes } = useExtensionMessaging();
+  const { topoViewer } = useClabUiHost();
 
   const handleImportTemplates = useCallback(() => {
-    sendImportCustomNodes();
-  }, [sendImportCustomNodes]);
+    topoViewer.importCustomNodes();
+  }, [topoViewer]);
 
   const handleExportTemplates = useCallback(() => {
     downloadNodeTemplates(customNodes, customIcons);

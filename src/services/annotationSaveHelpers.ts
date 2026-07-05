@@ -4,33 +4,13 @@
 
 import type { Node } from "@xyflow/react";
 
-import type {
-  FreeTextAnnotation,
-  FreeShapeAnnotation,
-  GroupStyleAnnotation,
-  EdgeAnnotation,
-  TopologyAnnotations
-} from "../core/types/topology";
+import type { EdgeAnnotation, TopologyAnnotations } from "../core/types/topology";
 import type { TopologySessionClient } from "../session";
 
 import { buildAnnotationNodesPayload } from "./annotationPayloads";
 import { executeTopologyCommand, executeTopologyCommands } from "./topologyHostCommands";
 
 const WARN_COMMAND_FAILED = "[Host] Annotation command failed";
-
-export async function saveFreeTextAnnotations(
-  client: TopologySessionClient,
-  annotations: FreeTextAnnotation[]
-): Promise<void> {
-  try {
-    await executeTopologyCommand({
-      command: "setAnnotations",
-      payload: { freeTextAnnotations: annotations }
-    }, {}, client);
-  } catch (err) {
-    console.error(`${WARN_COMMAND_FAILED}: setAnnotations(freeTextAnnotations)`, err);
-  }
-}
 
 export interface SaveAnnotationNodesOptions {
   /** Skip re-applying snapshot to avoid position snapback during continuous updates */
@@ -71,34 +51,6 @@ export async function saveAnnotationNodesWithMemberships(
     }, {}, client);
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: setAnnotationsWithMemberships`, err);
-  }
-}
-
-export async function saveFreeShapeAnnotations(
-  client: TopologySessionClient,
-  annotations: FreeShapeAnnotation[]
-): Promise<void> {
-  try {
-    await executeTopologyCommand({
-      command: "setAnnotations",
-      payload: { freeShapeAnnotations: annotations }
-    }, {}, client);
-  } catch (err) {
-    console.error(`${WARN_COMMAND_FAILED}: setAnnotations(freeShapeAnnotations)`, err);
-  }
-}
-
-export async function saveGroupStyleAnnotations(
-  client: TopologySessionClient,
-  annotations: GroupStyleAnnotation[]
-): Promise<void> {
-  try {
-    await executeTopologyCommand({
-      command: "setAnnotations",
-      payload: { groupStyleAnnotations: annotations }
-    }, {}, client);
-  } catch (err) {
-    console.error(`${WARN_COMMAND_FAILED}: setAnnotations(groupStyleAnnotations)`, err);
   }
 }
 
@@ -149,30 +101,13 @@ export async function saveAnnotationNodesAndViewerSettings(
   }
 }
 
-export async function saveNodeGroupMembership(
-  client: TopologySessionClient,
-  nodeId: string,
-  groupId: string | null
-): Promise<void> {
-  try {
-    // Avoid snapshot re-apply here to prevent position snapback when membership changes
-    // are sent separately from position saves during drag/drop.
-    await executeTopologyCommand(
-      { command: "setNodeGroupMembership", payload: { nodeId, groupId } },
-      { applySnapshot: false },
-      client
-    );
-  } catch (err) {
-    console.error(`${WARN_COMMAND_FAILED}: setNodeGroupMembership`, err);
-  }
-}
-
 export async function saveAllNodeGroupMemberships(
   client: TopologySessionClient,
   memberships: Array<{ id: string; groupId?: string }>
 ): Promise<void> {
   try {
-    // Avoid snapshot re-apply here for the same reason as saveNodeGroupMembership.
+    // Avoid snapshot re-apply here to prevent position snapback when membership changes
+    // are sent separately from position saves during drag/drop.
     await executeTopologyCommand(
       {
         command: "setNodeGroupMemberships",

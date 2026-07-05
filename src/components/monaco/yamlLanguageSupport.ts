@@ -2,9 +2,10 @@ import type * as monaco from "monaco-editor";
 import type { JSONSchema, MonacoYamlOptions } from "monaco-yaml";
 import * as YAML from "yaml";
 import { extractTypesByKindFromSchema } from "../../core/schema/SchemaParser";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 export const CONTAINERLAB_SCHEMA_URI = "https://containerlab.dev/clab.schema.json";
-export const CONTAINERLAB_SCHEMA_FILE_MATCH = [
+const CONTAINERLAB_SCHEMA_FILE_MATCH = [
   "*.clab.yml",
   "*.clab.yaml",
   "**/*.clab.yml",
@@ -26,7 +27,7 @@ export interface SchemaHoverInfo {
   enumValues?: string[];
 }
 
-export interface ContainerlabCompletionKinds {
+interface ContainerlabCompletionKinds {
   property: monaco.languages.CompletionItemKind;
   enumMember: monaco.languages.CompletionItemKind;
   snippet: monaco.languages.CompletionItemKind;
@@ -107,10 +108,6 @@ function getSchemaPatternRegex(pattern: string): RegExp {
   return regex;
 }
 
-function isRecord(value: unknown): value is SchemaRecord {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value !== "";
 }
@@ -134,7 +131,7 @@ function appendDefaultSnippets(target: SchemaRecord | null, snippets: unknown[])
   target.defaultSnippets = Array.isArray(existing) ? [...existing, ...snippets] : snippets;
 }
 
-export function buildContainerlabYamlSchema(schema: object): JSONSchema {
+function buildContainerlabYamlSchema(schema: object): JSONSchema {
   const cloned = cloneJsonSchema(schema);
   const root = cloned as SchemaRecord;
 

@@ -11,7 +11,7 @@ import type { TopoViewerState } from "../../stores/topoViewerStore";
 import { useAnnotationUIStore } from "../../stores/annotationUIStore";
 import type { AnnotationUIState } from "../../stores/annotationUIStore";
 
-export type PanelViewKind =
+type PanelViewKind =
   | "palette"
   | "nodeInfo"
   | "linkInfo"

@@ -28,22 +28,9 @@ const GRAPH_LABEL_KEYS = [
 /**
  * Checks if a node has graph-* labels that need migration.
  */
-export function nodeHasGraphLabels(labels: Record<string, unknown> | undefined): boolean {
+function nodeHasGraphLabels(labels: Record<string, unknown> | undefined): boolean {
   if (labels === undefined) return false;
   return GRAPH_LABEL_KEYS.some((key) => labels[key] !== undefined && labels[key] !== null);
-}
-
-/**
- * Checks if a topology has any nodes with graph-* labels.
- */
-export function topologyHasGraphLabels(parsed: ClabTopology): boolean {
-  const nodes = parsed.topology?.nodes;
-  if (nodes === undefined) return false;
-  return Object.values(nodes).some((node) => {
-    const nodeRecord = getRecordUnknown(node);
-    if (nodeRecord === undefined) return false;
-    return nodeHasGraphLabels(getRecordUnknown(nodeRecord.labels));
-  });
 }
 
 function getNonEmptyLabel(labels: Record<string, unknown>, key: string): string | undefined {
@@ -70,7 +57,7 @@ function parseNumericPair(
 /**
  * Builds an annotation object from graph-* labels.
  */
-export function buildAnnotationFromLabels(
+function buildAnnotationFromLabels(
   nodeName: string,
   labels: Record<string, unknown>
 ): GraphLabelMigration | null {
@@ -104,7 +91,7 @@ export function buildAnnotationFromLabels(
 /**
  * Converts a GraphLabelMigration to a NodeAnnotation.
  */
-export function migrationToNodeAnnotation(migration: GraphLabelMigration): NodeAnnotation {
+function migrationToNodeAnnotation(migration: GraphLabelMigration): NodeAnnotation {
   const annotation: NodeAnnotation = { id: migration.nodeId };
   if (migration.position) {
     annotation.position = migration.position;
@@ -196,38 +183,4 @@ export function applyGraphLabelMigrations(
   result.nodeAnnotations = nodeAnnotations;
 
   return result;
-}
-
-/**
- * Checks if migrations were applied and returns the result.
- * This is a convenience function that combines detection and application.
- */
-export function processGraphLabelMigrations(
-  parsed: ClabTopology,
-  annotations?: TopologyAnnotations
-): { annotations: TopologyAnnotations; migrations: GraphLabelMigration[]; needsSave: boolean } {
-  const migrations = detectGraphLabelMigrations(parsed, annotations);
-  if (migrations.length === 0) {
-    return {
-      annotations: annotations ?? {
-        freeTextAnnotations: [],
-        freeShapeAnnotations: [],
-        groupStyleAnnotations: [],
-        networkNodeAnnotations: [],
-        nodeAnnotations: [],
-        edgeAnnotations: [],
-        aliasEndpointAnnotations: [],
-        viewerSettings: {}
-      },
-      migrations: [],
-      needsSave: false
-    };
-  }
-
-  const updatedAnnotations = applyGraphLabelMigrations(annotations, migrations);
-  return {
-    annotations: updatedAnnotations,
-    migrations,
-    needsSave: true
-  };
 }

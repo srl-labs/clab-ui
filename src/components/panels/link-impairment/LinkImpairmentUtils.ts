@@ -1,4 +1,3 @@
-import type { ClabUiExtensionMessaging } from "../../../messaging/extensionMessaging";
 import type { NetemState } from "../../../core/parsing";
 import { normalizeNetemPercentage } from "../../../utils/netemNormalization";
 
@@ -90,11 +89,11 @@ export function formatNetemData(data: LinkImpairmentData): LinkImpairmentData {
 }
 
 export function applyNetemSettingsWithMessaging(
-  messaging: Pick<ClabUiExtensionMessaging, "sendLinkImpairment">,
+  sendLinkImpairment: (nodeName: string, interfaceName: string, data: unknown) => void,
   data: LinkImpairmentData
 ): void {
   if (JSON.stringify(data.sourceNetem) !== JSON.stringify(data.extraData?.clabSourceNetem)) {
-    messaging.sendLinkImpairment(
+    sendLinkImpairment(
       data.extraData?.clabSourceLongName ?? data.source,
       data.sourceEndpoint ?? "",
       data.sourceNetem ?? {}
@@ -102,7 +101,7 @@ export function applyNetemSettingsWithMessaging(
   }
 
   if (JSON.stringify(data.targetNetem) !== JSON.stringify(data.extraData?.clabTargetNetem)) {
-    messaging.sendLinkImpairment(
+    sendLinkImpairment(
       data.extraData?.clabTargetLongName ?? data.target,
       data.targetEndpoint ?? "",
       data.targetNetem ?? {}

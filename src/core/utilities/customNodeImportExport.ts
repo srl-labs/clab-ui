@@ -5,6 +5,7 @@
  */
 import type { CustomNodeTemplate } from "../types/editors";
 import type { CustomIconInfo } from "../types/icons";
+import { isRecord } from "./typeHelpers";
 
 export const NODE_TEMPLATES_EXPORT_FILE_TYPE = "clab-node-templates";
 export const NODE_TEMPLATES_EXPORT_VERSION = 2;
@@ -32,10 +33,6 @@ export interface MergeCustomNodeTemplatesResult {
   customNodes: CustomNodeTemplate[];
   added: number;
   replaced: number;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 export function isCustomNodeTemplate(value: unknown): value is CustomNodeTemplate {

@@ -72,7 +72,7 @@ function getSideConfig(side: "left" | "right"): SideConfig {
   };
 }
 
-export interface ContextPanelPaletteProps {
+interface ContextPanelPaletteProps {
   mode?: "edit" | "view";
   requestedTab?: { tabId: string };
   onEditCustomNode: (name: string) => void;
@@ -80,12 +80,12 @@ export interface ContextPanelPaletteProps {
   onSetDefaultCustomNode: (name: string) => void;
 }
 
-export interface ContextPanelViewProps {
+interface ContextPanelViewProps {
   selectedNodeData: NodeData | null;
   selectedLinkData: (LinkData & { extraData?: Record<string, unknown> }) | null;
 }
 
-export interface ContextPanelEditorProps extends ContextPanelEditorState {}
+interface ContextPanelEditorProps extends ContextPanelEditorState {}
 
 function renderContextPanelContent(
   palette: ContextPanelPaletteProps,

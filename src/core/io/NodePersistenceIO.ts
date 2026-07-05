@@ -175,7 +175,7 @@ const NODE_YAML_PROPERTIES = [
 /**
  * Resolves inherited configuration from defaults, kinds, and groups
  */
-export function resolveInheritedConfig(
+function resolveInheritedConfig(
   topo: ClabTopology,
   group?: string,
   kind?: string
@@ -607,22 +607,4 @@ export function applyAnnotationData(
   if (data.iconCornerRadius !== undefined) {
     annotation.iconCornerRadius = data.iconCornerRadius;
   }
-}
-
-/** Build annotation properties for spread */
-export function buildAnnotationProps(data?: NodeAnnotationData): Record<string, unknown> {
-  if (!data) return {};
-  const props: Record<string, unknown> = {};
-  if (data.icon !== undefined && data.icon.length > 0) props.icon = data.icon;
-  if (data.iconColor !== undefined && data.iconColor.length > 0) props.iconColor = data.iconColor;
-  if (data.iconCornerRadius !== undefined) props.iconCornerRadius = data.iconCornerRadius;
-  if (data.labelPosition !== undefined) props.labelPosition = data.labelPosition;
-  if (data.direction !== undefined) props.direction = data.direction;
-  if (data.labelBackgroundColor !== undefined)
-    props.labelBackgroundColor = data.labelBackgroundColor;
-  if (data.interfacePattern !== undefined && data.interfacePattern.length > 0) {
-    props.interfacePattern = data.interfacePattern;
-  }
-  if (data.groupId !== undefined && data.groupId.length > 0) props.groupId = data.groupId;
-  return props;
 }

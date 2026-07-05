@@ -14,9 +14,9 @@ import { NODE_KIND_BRIDGE, NODE_KIND_OVS_BRIDGE } from "./LinkNormalizer";
 import type { ParserLogger } from "./types";
 import { nullLogger } from "./types";
 
-export const CLASS_ALIASED_BASE_BRIDGE = "aliased-base-bridge" as const;
+const CLASS_ALIASED_BASE_BRIDGE = "aliased-base-bridge" as const;
 
-export interface AliasEntry {
+interface AliasEntry {
   yamlNodeId: string;
   interface: string;
   aliasNodeId: string;
@@ -29,14 +29,14 @@ export interface AliasEntry {
 /**
  * Checks if a kind is a bridge type.
  */
-export function isBridgeKind(kind: string | undefined): boolean {
+function isBridgeKind(kind: string | undefined): boolean {
   return kind === NODE_KIND_BRIDGE || kind === NODE_KIND_OVS_BRIDGE;
 }
 
 /**
  * Builds an index of node annotations by ID.
  */
-export function buildNodeAnnotationIndex(
+function buildNodeAnnotationIndex(
   annotations?: TopologyAnnotations
 ): Map<string, NodeAnnotation> {
   const m = new Map<string, NodeAnnotation>();
@@ -51,14 +51,14 @@ export function buildNodeAnnotationIndex(
 /**
  * Safely converts a value to a trimmed string.
  */
-export function asTrimmedString(val: unknown): string {
+function asTrimmedString(val: unknown): string {
   return typeof val === "string" ? val.trim() : "";
 }
 
 /**
  * Converts annotation to a position object.
  */
-export function toPosition(ann: NodeAnnotation | undefined): { x: number; y: number } {
+function toPosition(ann: NodeAnnotation | undefined): { x: number; y: number } {
   const pos = ann?.position;
   if (pos && typeof pos.x === "number" && typeof pos.y === "number") {
     return { x: pos.x, y: pos.y };
@@ -73,7 +73,7 @@ export function toPosition(ann: NodeAnnotation | undefined): { x: number; y: num
 /**
  * Collects alias entries from node annotations.
  */
-export function collectAliasEntriesNew(annotations?: TopologyAnnotations): AliasEntry[] {
+function collectAliasEntriesNew(annotations?: TopologyAnnotations): AliasEntry[] {
   const nodeAnns = annotations?.nodeAnnotations;
   if (!Array.isArray(nodeAnns)) return [];
   const out: AliasEntry[] = [];
@@ -91,7 +91,7 @@ export function collectAliasEntriesNew(annotations?: TopologyAnnotations): Alias
 /**
  * Lists alias entries from node annotations.
  */
-export function listAliasEntriesFromNodeAnnotations(
+function listAliasEntriesFromNodeAnnotations(
   annotations?: TopologyAnnotations
 ): AliasEntry[] {
   return collectAliasEntriesNew(annotations);
@@ -100,14 +100,14 @@ export function listAliasEntriesFromNodeAnnotations(
 /**
  * Normalizes annotations to alias list.
  */
-export function normalizeAliasList(annotations?: TopologyAnnotations): AliasEntry[] {
+function normalizeAliasList(annotations?: TopologyAnnotations): AliasEntry[] {
   return listAliasEntriesFromNodeAnnotations(annotations);
 }
 
 /**
  * Builds a map from yamlNodeId|interface to aliasNodeId.
  */
-export function buildAliasMap(list: AliasEntry[]): Map<string, string> {
+function buildAliasMap(list: AliasEntry[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const a of list) map.set(`${a.yamlNodeId}|${a.interface}`, a.aliasNodeId);
   return map;
@@ -120,7 +120,7 @@ export function buildAliasMap(list: AliasEntry[]): Map<string, string> {
 /**
  * Derives alias placement from annotations.
  */
-export function deriveAliasPlacement(
+function deriveAliasPlacement(
   aliasAnn: NodeAnnotation | undefined,
   baseAnn: NodeAnnotation | undefined
 ): { position: { x: number; y: number } } {
@@ -132,7 +132,7 @@ export function deriveAliasPlacement(
 /**
  * Builds a bridge alias element.
  */
-export function buildBridgeAliasElement(
+function buildBridgeAliasElement(
   aliasId: string,
   kind: string,
   position: { x: number; y: number },
@@ -188,7 +188,7 @@ export function buildBridgeAliasElement(
 /**
  * Creates an alias element.
  */
-export function createAliasElement(
+function createAliasElement(
   nodeMap: Partial<Record<string, { kind?: string }>>,
   aliasId: string,
   yamlRefId: string,
@@ -297,7 +297,7 @@ export function addAliasNodesFromAnnotations(
 /**
  * Rewires edges to use alias node IDs.
  */
-export function rewireEdges(elements: ParsedElement[], mapping: Map<string, string>): void {
+function rewireEdges(elements: ParsedElement[], mapping: Map<string, string>): void {
   for (const el of elements) {
     if (el.group !== "edges") continue;
     const data = el.data as {
@@ -340,7 +340,7 @@ export function applyAliasMappingsToEdges(
 /**
  * Collects alias groups from elements.
  */
-export function collectAliasGroups(elements: ParsedElement[]): Map<string, string[]> {
+function collectAliasGroups(elements: ParsedElement[]): Map<string, string[]> {
   const groups = new Map<string, string[]>();
   for (const el of elements) {
     if (el.group !== "nodes") continue;
@@ -360,7 +360,7 @@ export function collectAliasGroups(elements: ParsedElement[]): Map<string, strin
 /**
  * Collects base bridges that are still referenced by edges.
  */
-export function collectStillReferencedBaseBridges(
+function collectStillReferencedBaseBridges(
   elements: ParsedElement[],
   aliasGroups: Map<string, string[]>
 ): Set<string> {
@@ -379,7 +379,7 @@ export function collectStillReferencedBaseBridges(
 /**
  * Adds a class to a node element.
  */
-export function addClass(nodeEl: ParsedElement, className: string): void {
+function addClass(nodeEl: ParsedElement, className: string): void {
   const existing = nodeEl.classes;
   if (typeof existing !== "string" || existing.length === 0) {
     nodeEl.classes = className;

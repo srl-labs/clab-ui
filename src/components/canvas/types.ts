@@ -8,22 +8,13 @@ import type {
   FreeTextNodeData,
   TrafficRateNodeData,
   GroupNodeData,
-  RFNodeData,
-  RFNodeType,
   TopoEdge,
   TopoNode,
-  TopologyEdgeData,
-  TopologyNodeData,
-  TopologyRFNode,
-  NetworkRFNode,
-  FreeTextRFNode,
-  FreeShapeRFNode,
-  TrafficRateRFNode,
-  GroupRFNode
+  TopologyNodeData
 } from "../../core/types/graph";
 import { DEFAULT_ICON_COLOR, ROLE_SVG_MAP } from "../../core/types/graph";
 import { vscodePalette } from "../../theme/vscodeTheme";
-export type GridStyle = "dotted" | "quadratic";
+type GridStyle = "dotted" | "quadratic";
 
 /** Edge label rendering mode */
 export type EdgeLabelMode = "show-all" | "on-select" | "hide" | "telemetry-style";
@@ -34,19 +25,8 @@ export type {
   FreeTextNodeData,
   FreeShapeNodeData,
   TrafficRateNodeData,
-  GroupNodeData,
-  TopologyEdgeData,
-  RFNodeData,
-  RFNodeType,
-  TopologyRFNode,
-  NetworkRFNode,
-  FreeTextRFNode,
-  FreeShapeRFNode,
-  TrafficRateRFNode,
-  GroupRFNode
+  GroupNodeData
 };
-
-export type TopologyRFEdge = TopoEdge;
 
 /**
  * Ref interface for ReactFlowCanvas component
@@ -156,7 +136,7 @@ export interface AnnotationHandlers {
 }
 
 /** Position entry for undo/redo move tracking */
-export interface MovePositionEntry {
+interface MovePositionEntry {
   id: string;
   position: { x: number; y: number };
 }

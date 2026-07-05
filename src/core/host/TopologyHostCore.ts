@@ -29,6 +29,7 @@ import { AnnotationsIO } from "../io/AnnotationsIO";
 import { TopologyIO, migrateGeneratedNetworkNodeAnnotations } from "../io/TopologyIO";
 import { TransactionalFileSystemAdapter } from "../io/TransactionalFileSystemAdapter";
 import { createEmptyAnnotations } from "../annotations/types";
+import { isNonEmptyString, toFiniteNumber, toPosition } from "../../annotations/valueParsers";
 
 interface TopologyHostCoreOptions {
   fs: FileSystemAdapter;
@@ -990,34 +991,12 @@ function normalizeAnnotations(
   };
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function toRecord(value: unknown): Record<string, unknown> | undefined {
   return isRecord(value) ? value : undefined;
-}
-
-function toFiniteNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return undefined;
-}
-
-function toPosition(value: unknown): { x: number; y: number } | undefined {
-  if (!isRecord(value)) return undefined;
-  const rec = value;
-  const x = toFiniteNumber(rec.x);
-  const y = toFiniteNumber(rec.y);
-  if (x === undefined || y === undefined) return undefined;
-  return { x, y };
 }
 
 function errorToMessage(error: unknown): string {

@@ -23,6 +23,7 @@ import type {
   TopoViewerSvgExportPayload
 } from "./contracts";
 import type { ClabUiExtensions, ClabUiRuntime } from "./runtimeContext";
+import { isRecord } from "../core/utilities/typeHelpers";
 export * from "./controllers";
 export * from "./contracts";
 export * from "./runtimeContext";
@@ -80,10 +81,6 @@ interface ImageManagerResponseMessage {
   success: boolean;
   result?: unknown;
   error?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function isExplorerIncomingMessage(value: unknown): value is ExplorerIncomingMessage {

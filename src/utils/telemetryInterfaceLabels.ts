@@ -89,7 +89,7 @@ function parseGlobalInterfacePartIndex(selectedValue: string): number | null {
   return parsed;
 }
 
-export function resolveGlobalInterfaceOverrideValue(
+function resolveGlobalInterfaceOverrideValue(
   endpoint: string,
   selectedValue: string
 ): string | null {

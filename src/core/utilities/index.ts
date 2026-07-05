@@ -1,63 +1,29 @@
 /**
  * Shared utilities barrel file
- *
- * For large imports, prefer importing from sub-barrels directly:
- * - './conversions' - Node/network/element conversion utilities
- * - './identifiers' - ID generation and link type utilities
- * - './helpers' - Type helpers and migration utilities
  */
 
-// Re-export from conversions
+// Node editor conversions
 export {
   convertToEditorData,
   convertEditorDataToYaml,
-  convertEditorDataToNodeSaveData,
-  convertToNetworkEditorData,
-  convertNetworkEditorDataToYaml,
-  convertCustomTemplateToEditorData,
-  convertEditorDataToSaveData,
-  convertTemplateToEditorData,
-  createNewTemplateEditorData,
-  parsedElementToTopoNode,
-  parsedElementToTopoEdge,
-  convertElementsToTopologyData,
-  topoNodeToParsedElement,
-  topoEdgeToParsedElement,
-  convertTopologyDataToElements
-} from "./conversions";
-export type { YamlExtraData, SaveCustomNodeData } from "./conversions";
+  convertEditorDataToNodeSaveData
+} from "./nodeEditorConversions";
 
-// Re-export from identifiers
+// Network editor conversions
 export {
-  generateDummyId,
-  generateAdapterNodeId,
-  generateSpecialNodeId,
-  generateRegularNodeId,
-  getUniqueId,
+  convertToNetworkEditorData,
+  convertNetworkEditorDataToYaml
+} from "./networkEditorConversions";
+
+// Link types and utilities
+export {
   STR_HOST,
   STR_MGMT_NET,
   PREFIX_MACVLAN,
   PREFIX_VXLAN,
   PREFIX_VXLAN_STITCH,
-  PREFIX_DUMMY,
-  PREFIX_BRIDGE,
-  PREFIX_OVS_BRIDGE,
-  TYPE_DUMMY,
-  SINGLE_ENDPOINT_TYPES,
-  VX_TYPES,
-  HOSTY_TYPES,
-  isSpecialEndpointId,
-  isSpecialNodeOrBridge,
-  splitEndpointLike
-} from "./identifiers";
+  PREFIX_DUMMY
+} from "./LinkTypes";
 
-// Re-export from helpers
-export {
-  getString,
-  getStringOrEmpty,
-  getNumber,
-  getBoolean,
-  getStringArray,
-  getRecord,
-  applyInterfacePatternMigrations
-} from "./helpers";
+// Annotation migrations
+export { applyInterfacePatternMigrations } from "./annotationMigrations";

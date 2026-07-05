@@ -14,9 +14,7 @@ import {
   createNewTemplateEditorData,
   convertTemplateToEditorData
 } from "../../core/utilities/customNodeConversions";
-import {
-  useExtensionMessaging
-} from "../../messaging/extensionMessaging";
+import { useClabUiHost } from "../../host";
 import type { GroupStyleAnnotation } from "../../core/types/topology";
 import { useTopoViewerStore } from "../../stores/topoViewerStore";
 
@@ -37,7 +35,7 @@ export function useCustomNodeCommands(
   customNodes: CustomNodeTemplate[],
   editCustomTemplate: (data: CustomTemplateEditorData | null) => void
 ): CustomNodeCommands {
-  const { sendDeleteCustomNode, sendSetDefaultCustomNode } = useExtensionMessaging();
+  const { topoViewer } = useClabUiHost();
 
   const onNewCustomNode = React.useCallback(() => {
     const templateData = createNewTemplateEditorData();
@@ -61,12 +59,12 @@ export function useCustomNodeCommands(
   );
 
   const onDeleteCustomNode = React.useCallback((nodeName: string) => {
-    sendDeleteCustomNode(nodeName);
-  }, [sendDeleteCustomNode]);
+    topoViewer.deleteCustomNode(nodeName);
+  }, [topoViewer]);
 
   const onSetDefaultCustomNode = React.useCallback((nodeName: string) => {
-    sendSetDefaultCustomNode(nodeName);
-  }, [sendSetDefaultCustomNode]);
+    topoViewer.setDefaultCustomNode(nodeName);
+  }, [topoViewer]);
 
   return {
     onNewCustomNode,
@@ -76,36 +74,8 @@ export function useCustomNodeCommands(
   };
 }
 
-/**
- * Navbar commands interface
- */
-export interface NavbarCommands {
-  onLayoutToggle: () => void;
-  onToggleSplit: () => void;
-}
-
-/**
- * Hook for navbar UI commands
- */
-export function useNavbarCommands(): NavbarCommands {
-  const { sendToggleSplitView } = useExtensionMessaging();
-
-  const onLayoutToggle = React.useCallback(() => {
-    // Layout selection is handled entirely in the webview.
-  }, []);
-
-  const onToggleSplit = React.useCallback(() => {
-    sendToggleSplitView();
-  }, [sendToggleSplitView]);
-
-  return {
-    onLayoutToggle,
-    onToggleSplit
-  };
-}
-
 /** Layout option type for E2E testing */
-export type LayoutOption = "preset" | "force" | "geo";
+type LayoutOption = "preset" | "force" | "geo";
 
 /**
  * E2E testing exposure configuration

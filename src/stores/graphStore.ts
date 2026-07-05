@@ -13,7 +13,7 @@ import type { Node, Edge, NodeChange, EdgeChange } from "@xyflow/react";
 // Types
 // ============================================================================
 
-export interface GraphState {
+interface GraphState {
   nodes: Node[];
   edges: Edge[];
 }
@@ -35,9 +35,6 @@ export interface GraphActions {
   updateNode: (nodeId: string, updates: Partial<Node>) => void;
   replaceNode: (nodeId: string, newNode: Node) => void;
   renameNode: (oldId: string, newId: string, name?: string) => void;
-  updateNodePositions: (
-    positions: Array<{ id: string; position: { x: number; y: number } }>
-  ) => void;
   updateNodeData: (nodeId: string, data: Partial<Record<string, unknown>>) => void;
 
   // Edge mutations
@@ -147,18 +144,6 @@ export const useGraphStore = createWithEqualityFn<GraphStore>((set, get) => ({
     }));
   },
 
-  updateNodePositions: (positions) => {
-    if (positions.length === 0) return;
-    const updates = new Map(positions.map((p) => [p.id, p.position]));
-    set((state) => ({
-      nodes: state.nodes.map((node) => {
-        const pos = updates.get(node.id);
-        if (!pos) return node;
-        return { ...node, position: pos };
-      })
-    }));
-  },
-
   updateNodeData: (nodeId, extraData) => {
     set((state) => ({
       nodes: state.nodes.map((node) => {
@@ -230,9 +215,6 @@ export const useGraphStore = createWithEqualityFn<GraphStore>((set, get) => ({
 // Selector Hooks (for convenience)
 // ============================================================================
 
-/** Get nodes array */
-export const useNodes = () => useGraphStore((state) => state.nodes);
-
 /** Get edges array */
 export const useEdges = () => useGraphStore((state) => state.edges);
 
@@ -255,7 +237,6 @@ export const useGraphActions = () =>
       updateNode: state.updateNode,
       replaceNode: state.replaceNode,
       renameNode: state.renameNode,
-      updateNodePositions: state.updateNodePositions,
       updateNodeData: state.updateNodeData,
       addEdge: state.addEdge,
       removeEdge: state.removeEdge,

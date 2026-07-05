@@ -164,8 +164,12 @@ function useWrappedNodeDoubleClick(
       }
 
       if (node.type === FREE_TEXT_NODE_TYPE) {
-        log.info(`[ReactFlowCanvas] Editing free text: ${node.id}`);
-        annotationHandlers.onEditFreeText(node.id);
+        log.info(`[ReactFlowCanvas] Editing free text inline: ${node.id}`);
+        if (annotationHandlers.onStartInlineFreeTextEdit) {
+          annotationHandlers.onStartInlineFreeTextEdit(node.id);
+        } else {
+          annotationHandlers.onEditFreeText(node.id);
+        }
         return;
       }
 

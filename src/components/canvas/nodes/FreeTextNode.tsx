@@ -5,13 +5,16 @@
 import React, { memo, useMemo, useCallback, useEffect, useState } from "react";
 import { type NodeProps, NodeResizer, type ResizeParams } from "@xyflow/react";
 
-import type { FreeTextNodeData } from "../types";
+import type { AnnotationHandlers, FreeTextNodeData } from "../types";
 import { SELECTION_COLOR } from "../types";
+import type { FreeTextAnnotation } from "../../../core/types/topology";
 import { useIsLocked } from "../../../stores/topoViewerStore";
 import { useAnnotationHandlers } from "../../../stores/canvasStore";
+import { useAnnotationUIStore } from "../../../stores/annotationUIStore";
 import type { renderMarkdown as renderMarkdownType } from "../../../utils/markdownRenderer";
 
 import { RotationHandle } from "./AnnotationHandles";
+import { FreeTextInlineEditor } from "./FreeTextInlineEditor";
 import "./FreeTextNode.css";
 
 /** Minimum dimensions for resize */
@@ -66,6 +69,12 @@ function hasFixedHeight(height: unknown): boolean {
   return typeof height === "number" && Number.isFinite(height);
 }
 
+function isNoFillBackground(backgroundColor: string | undefined): boolean {
+  if (backgroundColor === undefined) return true;
+  const normalized = backgroundColor.trim().toLowerCase();
+  return normalized.length === 0 || normalized === "transparent";
+}
+
 /** Build text style for free text content */
 function getTextLayoutStyle(
   data: FreeTextNodeData,
@@ -106,7 +115,7 @@ function getTextPadding(
   if (isMediaOnly && hasFixedContentHeight) {
     return "0";
   }
-  if (backgroundColor !== undefined && backgroundColor.length > 0) {
+  if (!isNoFillBackground(backgroundColor)) {
     return "4px 8px";
   }
   return "4px";
@@ -116,7 +125,7 @@ function getTextBorderRadius(
   roundedBackground: boolean,
   backgroundColor: string | undefined
 ): number {
-  if (!roundedBackground || backgroundColor === undefined || backgroundColor.length === 0) {
+  if (!roundedBackground || isNoFillBackground(backgroundColor)) {
     return 0;
   }
   return 4;
@@ -127,6 +136,9 @@ function buildTextStyle(data: FreeTextNodeData, isMediaOnly: boolean): React.CSS
   const layoutStyle = getTextLayoutStyle(data, isMediaOnly);
   const fixedHeight = hasFixedHeight(data.height);
   const padding = getTextPadding(styleOptions.backgroundColor, isMediaOnly, fixedHeight);
+  const backgroundColor = isNoFillBackground(styleOptions.backgroundColor)
+    ? "transparent"
+    : styleOptions.backgroundColor;
 
   return {
     fontSize: `${styleOptions.fontSize}px`,
@@ -136,7 +148,7 @@ function buildTextStyle(data: FreeTextNodeData, isMediaOnly: boolean): React.CSS
     textDecoration: styleOptions.textDecoration,
     textAlign: styleOptions.textAlign,
     fontFamily: styleOptions.fontFamily,
-    backgroundColor: styleOptions.backgroundColor ?? undefined,
+    backgroundColor,
     padding,
     borderRadius: getTextBorderRadius(styleOptions.roundedBackground, styleOptions.backgroundColor),
     width: "100%",
@@ -202,6 +214,50 @@ function renderHtmlToReactNodes(html: string): React.ReactNode {
     .filter((child): child is React.ReactNode => child !== null);
 }
 
+interface InlineEditingState {
+  showInlineEditor: boolean;
+  /** WYSIWYG style for the inline textarea (raw text, media layout never applies) */
+  textStyle: React.CSSProperties;
+  onCommit: (text: string) => void;
+  onStyleChange?: (style: Partial<FreeTextAnnotation>) => void;
+  onOpenStyleEditor?: (text: string) => void;
+}
+
+/** Wires the inline editor (double-click / newly created annotation) to the
+ * annotation handlers. */
+function useInlineTextEditing(
+  id: string,
+  nodeData: FreeTextNodeData,
+  canEditAnnotations: boolean,
+  annotationHandlers: AnnotationHandlers | null
+): InlineEditingState {
+  const isInlineEditing = useAnnotationUIStore((state) => state.inlineEditingTextId === id);
+
+  const onCommit = useCallback(
+    (text: string) => {
+      annotationHandlers?.onCommitInlineFreeTextEdit?.(id, text);
+    },
+    [id, annotationHandlers]
+  );
+  const onStyleChange = useMemo(() => {
+    const updateStyle = annotationHandlers?.onUpdateFreeTextStyle;
+    if (!updateStyle) return undefined;
+    return (style: Partial<FreeTextAnnotation>) => updateStyle(id, style);
+  }, [id, annotationHandlers]);
+  const onOpenStyleEditor = useMemo(() => {
+    const openStyleEditor = annotationHandlers?.onOpenFreeTextStyleEditor;
+    if (!openStyleEditor) return undefined;
+    return (text: string) => openStyleEditor(id, text);
+  }, [id, annotationHandlers]);
+  const textStyle = useMemo(() => buildTextStyle(nodeData, false), [nodeData]);
+
+  const showInlineEditor = Boolean(
+    isInlineEditing && canEditAnnotations && annotationHandlers?.onCommitInlineFreeTextEdit
+  );
+
+  return { showInlineEditor, textStyle, onCommit, onStyleChange, onOpenStyleEditor };
+}
+
 /**
  * FreeTextNode component renders free text annotations on the canvas
  * with markdown support
@@ -213,6 +269,7 @@ const FreeTextNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) => {
   const annotationHandlers = useAnnotationHandlers();
   const canEditAnnotations = !isLocked;
   const rotation = nodeData.rotation ?? 0;
+  const inlineEditing = useInlineTextEditing(id, nodeData, canEditAnnotations, annotationHandlers);
 
   // Track resize/rotate state to keep selection border and handles visible
   const [isResizing, setIsResizing] = useState(false);
@@ -313,15 +370,26 @@ const FreeTextNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) => {
           onRotationEnd={handleRotationEnd}
         />
       )}
-      <div
-        style={textStyle}
-        className={`free-text-content free-text-markdown nowheel ${
-          hasFixedContentSize ? "free-text-content--fixed" : "free-text-content--auto"
-        } ${isMediaOnly ? "free-text-content--media" : ""}`}
-        onWheel={handleWheelEvent}
-      >
-        {renderedContent}
-      </div>
+      {inlineEditing.showInlineEditor ? (
+        <FreeTextInlineEditor
+          nodeId={id}
+          data={nodeData}
+          textStyle={inlineEditing.textStyle}
+          onCommit={inlineEditing.onCommit}
+          onStyleChange={inlineEditing.onStyleChange}
+          onOpenStyleEditor={inlineEditing.onOpenStyleEditor}
+        />
+      ) : (
+        <div
+          style={textStyle}
+          className={`free-text-content free-text-markdown nowheel ${
+            hasFixedContentSize ? "free-text-content--fixed" : "free-text-content--auto"
+          } ${isMediaOnly ? "free-text-content--media" : ""}`}
+          onWheel={handleWheelEvent}
+        >
+          {renderedContent}
+        </div>
+      )}
     </div>
   );
 };

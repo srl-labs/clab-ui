@@ -19,7 +19,13 @@ import type { FreeTextAnnotation } from "../../../core/types/topology";
 import { ColorField, InputField, PanelSection } from "../../ui/form";
 
 // Helper functions to avoid duplicate calculations
-const isBackgroundTransparent = (bg: string | undefined): boolean => bg === "transparent";
+const DEFAULT_FILL_COLOR = "#000000";
+
+const isNoFillBackground = (bg: string | undefined): boolean => {
+  if (bg === undefined) return true;
+  const normalized = bg.trim().toLowerCase();
+  return normalized.length === 0 || normalized === "transparent";
+};
 
 const FONTS = [
   "monospace",
@@ -170,7 +176,7 @@ const StyleOptions: React.FC<{
   formData: FreeTextAnnotation;
   updateField: Props["updateField"];
 }> = ({ formData, updateField }) => {
-  const isTransparent = isBackgroundTransparent(formData.backgroundColor);
+  const isNoFill = isNoFillBackground(formData.backgroundColor);
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
@@ -184,17 +190,17 @@ const StyleOptions: React.FC<{
         <Box sx={{ flex: 1 }}>
           <ColorField
             label="Fill"
-            value={isTransparent ? "#000000" : (formData.backgroundColor ?? "#000000")}
+            value={isNoFill ? DEFAULT_FILL_COLOR : (formData.backgroundColor ?? DEFAULT_FILL_COLOR)}
             onChange={(v) => updateField("backgroundColor", v)}
-            disabled={isTransparent}
+            disabled={isNoFill}
           />
           <FormControlLabel
             control={
               <Checkbox
                 size="small"
-                checked={isTransparent}
+                checked={isNoFill}
                 onChange={() =>
-                  updateField("backgroundColor", isTransparent ? "#000000" : "transparent")
+                  updateField("backgroundColor", isNoFill ? DEFAULT_FILL_COLOR : undefined)
                 }
               />
             }

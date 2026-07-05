@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useMemo } from "react";
 import { shallow } from "zustand/shallow";
 import Box from "@mui/material/Box";
 
 import type { TrafficRateAnnotation } from "../../../../core/types/topology";
-import { useGenericFormState, useEditorHandlersWithFooterRef } from "../../../../hooks/editor";
+import { useGenericFormState } from "../../../../hooks/editor";
 import { useGraphStore } from "../../../../stores/graphStore";
 import type { GraphStore } from "../../../../stores/graphStore";
 import { resolveComputedColor } from "../../../../utils/color";
@@ -12,21 +12,13 @@ import type { TrafficMonitorOptions } from "../../../../utils/trafficRateAnnotat
 import { CheckboxField, ColorField, InputField, PanelSection, SelectField } from "../../../ui/form";
 import { FIELDSET_RESET_STYLE } from "../ContextPanelScrollArea";
 
+import { useAnnotationLiveApply } from "./useAnnotationLiveApply";
+
 export interface TrafficRateEditorViewProps {
   annotation: TrafficRateAnnotation | null;
-  onSave: (annotation: TrafficRateAnnotation) => void;
-  onPreview?: (annotation: TrafficRateAnnotation) => void;
-  onClose: () => void;
-  onDelete?: (id: string) => void;
+  /** Live apply: update the canvas immediately, persistence is debounced downstream. */
+  onApply: (annotation: TrafficRateAnnotation) => void;
   readOnly?: boolean;
-  onFooterRef?: (ref: TrafficRateEditorFooterRef | null) => void;
-}
-
-interface TrafficRateEditorFooterRef {
-  handleApply: () => void;
-  handleSave: () => void;
-  handleDiscard: () => void;
-  hasChanges: boolean;
 }
 
 const DEFAULT_WIDTH = 280;
@@ -115,7 +107,7 @@ function getThemeTrafficRateDefaults(): {
   };
 }
 
-function canSave(annotation: TrafficRateAnnotation): boolean {
+function canApply(annotation: TrafficRateAnnotation): boolean {
   return (
     typeof annotation.nodeId === "string" &&
     annotation.nodeId.trim().length > 0 &&
@@ -273,53 +265,6 @@ function buildInterfaceSelectOptions(
   ];
 }
 
-function useTrafficRatePreviewLifecycle(params: {
-  annotation: TrafficRateAnnotation | null;
-  formData: TrafficRateAnnotation | null;
-  readOnly: boolean;
-  onPreview: ((annotation: TrafficRateAnnotation) => void) | undefined;
-}) {
-  const previewRef = useRef(params.onPreview);
-  previewRef.current = params.onPreview;
-  const initialAnnotationRef = useRef<TrafficRateAnnotation | null>(null);
-  const initialSerializedRef = useRef<string | null>(null);
-  const hasPreviewRef = useRef(false);
-
-  useEffect(() => {
-    if (!params.annotation) {
-      initialAnnotationRef.current = null;
-      initialSerializedRef.current = null;
-      hasPreviewRef.current = false;
-      return;
-    }
-
-    initialAnnotationRef.current = { ...params.annotation };
-    initialSerializedRef.current = JSON.stringify(params.annotation);
-    hasPreviewRef.current = false;
-  }, [params.annotation]);
-
-  useEffect(() => {
-    if (params.readOnly || !params.formData || !initialAnnotationRef.current) return;
-    if (!previewRef.current) return;
-
-    const serialized = JSON.stringify(params.formData);
-    if (serialized === initialSerializedRef.current) return;
-
-    previewRef.current(params.formData);
-    hasPreviewRef.current = true;
-  }, [params.formData, params.readOnly]);
-
-  // Revert live preview when leaving editor without apply/save.
-  useEffect(() => {
-    return () => {
-      if (!hasPreviewRef.current || !initialAnnotationRef.current) return;
-      previewRef.current?.(initialAnnotationRef.current);
-    };
-  }, []);
-
-  return { previewRef, initialAnnotationRef, initialSerializedRef, hasPreviewRef };
-}
-
 function resolveEditorResolvedFields(
   formData: TrafficRateAnnotation,
   themeDefaults: { backgroundColor: string; borderColor: string; textColor: string },
@@ -385,70 +330,28 @@ function useTrafficRateModeChangeHandler(
   );
 }
 
-function useTrafficRateCommitHandlers(params: {
-  onSave: (annotation: TrafficRateAnnotation) => void;
-  discardChanges: () => void;
-  previewRef: { current: ((annotation: TrafficRateAnnotation) => void) | undefined };
-  initialAnnotationRef: { current: TrafficRateAnnotation | null };
-  initialSerializedRef: { current: string | null };
-  hasPreviewRef: { current: boolean };
-}) {
-  const {
-    onSave,
-    discardChanges,
-    previewRef,
-    initialAnnotationRef,
-    initialSerializedRef,
-    hasPreviewRef
-  } = params;
-
-  const saveWithCommit = useCallback(
-    (next: TrafficRateAnnotation) => {
-      hasPreviewRef.current = false;
-      initialAnnotationRef.current = { ...next };
-      initialSerializedRef.current = JSON.stringify(next);
-      onSave(next);
-    },
-    [hasPreviewRef, initialAnnotationRef, initialSerializedRef, onSave]
-  );
-
-  const discardWithRevert = useCallback(() => {
-    discardChanges();
-    if (initialAnnotationRef.current) {
-      previewRef.current?.(initialAnnotationRef.current);
-    }
-    hasPreviewRef.current = false;
-  }, [discardChanges, initialAnnotationRef, previewRef, hasPreviewRef]);
-
-  return { saveWithCommit, discardWithRevert };
-}
-
-function resolveCanSaveNow(formData: TrafficRateAnnotation | null): boolean {
-  if (!formData) return false;
-  return canSave(formData);
+function cloneAnnotation(annotation: TrafficRateAnnotation): TrafficRateAnnotation {
+  return { ...annotation };
 }
 
 export const TrafficRateEditorView: React.FC<TrafficRateEditorViewProps> = ({
   annotation,
-  onSave,
-  onPreview,
-  onClose,
-  onDelete,
-  readOnly = false,
-  onFooterRef
+  onApply,
+  readOnly = false
 }) => {
   const topologyNodeIds = useGraphStore(selectTopologyNodeIds, shallow);
   const trafficOptions = useGraphStore(selectTrafficMonitorOptions, areTrafficMonitorOptionsEqual);
 
-  const { formData, updateField, hasChanges, resetInitialData, discardChanges } =
-    useGenericFormState(annotation);
-  const { previewRef, initialAnnotationRef, initialSerializedRef, hasPreviewRef } =
-    useTrafficRatePreviewLifecycle({
-      annotation,
-      formData,
-      readOnly,
-      onPreview
-    });
+  const { formData, updateField } = useGenericFormState(annotation);
+
+  useAnnotationLiveApply({
+    annotation,
+    formData,
+    readOnly,
+    onApply,
+    canApply,
+    snapshot: cloneAnnotation
+  });
 
   const nodeOptions = useMemo(() => {
     const ids = new Set<string>([...topologyNodeIds, ...trafficOptions.nodeIds]);
@@ -472,28 +375,6 @@ export const TrafficRateEditorView: React.FC<TrafficRateEditorViewProps> = ({
     trafficOptions.interfacesByNode
   );
   const handleModeChange = useTrafficRateModeChangeHandler(formData, updateField);
-
-  const canSaveNow = resolveCanSaveNow(formData);
-  const { saveWithCommit, discardWithRevert } = useTrafficRateCommitHandlers({
-    onSave,
-    discardChanges,
-    previewRef,
-    initialAnnotationRef,
-    initialSerializedRef,
-    hasPreviewRef
-  });
-
-  useEditorHandlersWithFooterRef({
-    formData,
-    onSave: saveWithCommit,
-    onClose,
-    onDelete,
-    resetInitialData,
-    discardChanges: discardWithRevert,
-    onFooterRef,
-    canSave,
-    hasChangesForFooter: hasChanges && canSaveNow
-  });
 
   if (!formData) return null;
 

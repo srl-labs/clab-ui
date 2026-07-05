@@ -10,15 +10,23 @@ import type { UseDerivedAnnotationsReturn } from "./useDerivedAnnotations";
 import { cloneFreeTextAnnotation } from "./cloneFreeTextAnnotation";
 import { findDeepestGroupAtPosition } from "./groupUtils";
 import { readThemeColor } from "./themeColor";
+
 interface UseTextAnnotationsParams {
   isLocked: boolean;
   onLockedAction: () => void;
   derived: UseDerivedAnnotationsReturn;
   sessionClient: TopologySessionClient;
-  uiState: Pick<AnnotationUIState, "isAddTextMode" | "selectedTextIds">;
+  /** Debounced whole-graph persist shared across annotation kinds (live apply). */
+  debouncedPersist: () => void;
+  uiState: Pick<AnnotationUIState, "isAddTextMode" | "selectedTextIds" | "inlineEditingTextId">;
   uiActions: Pick<
     AnnotationUIActions,
-    "setAddTextMode" | "disableAddTextMode" | "setEditingTextAnnotation" | "removeFromTextSelection"
+    | "setAddTextMode"
+    | "disableAddTextMode"
+    | "setEditingTextAnnotation"
+    | "closeTextEditor"
+    | "setInlineEditingTextId"
+    | "removeFromTextSelection"
   >;
 }
 
@@ -27,6 +35,11 @@ export interface TextAnnotationActions {
   createTextAtPosition: (position: { x: number; y: number }) => void;
   editTextAnnotation: (id: string) => void;
   saveTextAnnotation: (annotation: FreeTextAnnotation) => void;
+  applyTextAnnotationEdit: (annotation: FreeTextAnnotation) => void;
+  startInlineTextEdit: (id: string) => void;
+  commitInlineTextEdit: (id: string, text: string) => void;
+  commitInlineTextEditAndOpenStyleEditor: (id: string, text: string) => void;
+  updateTextStyle: (id: string, style: Partial<FreeTextAnnotation>) => void;
   duplicateTextAnnotation: (id: string) => void;
   deleteTextAnnotation: (id: string) => void;
   deleteSelectedTextAnnotations: () => void;
@@ -35,8 +48,39 @@ export interface TextAnnotationActions {
   handleTextCanvasClick: (position: { x: number; y: number }) => void;
 }
 
+/** Fields the text editor form / inline toolbar may change. Layout fields
+ * (position, size, group membership, geo) stay canvas-authoritative. */
+function pickTextEditableFields(annotation: FreeTextAnnotation): Partial<FreeTextAnnotation> {
+  return {
+    text: annotation.text,
+    fontSize: annotation.fontSize,
+    fontColor: annotation.fontColor,
+    backgroundColor: annotation.backgroundColor,
+    fontWeight: annotation.fontWeight,
+    fontStyle: annotation.fontStyle,
+    textDecoration: annotation.textDecoration,
+    textAlign: annotation.textAlign,
+    fontFamily: annotation.fontFamily,
+    rotation: annotation.rotation
+  };
+}
+
+function pickTextStyleMemory(annotation: Partial<FreeTextAnnotation>): Partial<FreeTextAnnotation> {
+  const memory: Partial<FreeTextAnnotation> = {};
+  if ("fontSize" in annotation) memory.fontSize = annotation.fontSize;
+  if ("fontColor" in annotation) memory.fontColor = annotation.fontColor;
+  if ("backgroundColor" in annotation) memory.backgroundColor = annotation.backgroundColor;
+  if ("fontWeight" in annotation) memory.fontWeight = annotation.fontWeight;
+  if ("fontStyle" in annotation) memory.fontStyle = annotation.fontStyle;
+  if ("textDecoration" in annotation) memory.textDecoration = annotation.textDecoration;
+  if ("textAlign" in annotation) memory.textAlign = annotation.textAlign;
+  if ("fontFamily" in annotation) memory.fontFamily = annotation.fontFamily;
+  return memory;
+}
+
 export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnotationActions {
-  const { isLocked, onLockedAction, derived, sessionClient, uiState, uiActions } = params;
+  const { isLocked, onLockedAction, derived, sessionClient, debouncedPersist, uiState, uiActions } =
+    params;
   const canEditAnnotations = !isLocked;
 
   const lastTextStyleRef = useRef<Partial<FreeTextAnnotation>>({});
@@ -65,14 +109,18 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
     [derived.groups]
   );
 
+  // New annotations are edited inline on the canvas: add them to the graph
+  // right away (persisted on first non-empty commit) and focus the inline editor.
   const startTextEditingAtPosition = useCallback(
     (position: { x: number; y: number }) => {
       const newAnnotation = buildTextAnnotation(position);
-      uiActions.setEditingTextAnnotation(newAnnotation);
+      derived.addTextAnnotation(newAnnotation);
+      uiActions.closeTextEditor();
+      uiActions.setInlineEditingTextId(newAnnotation.id);
       uiActions.disableAddTextMode();
       log.info(`[FreeText] Creating annotation at (${position.x}, ${position.y})`);
     },
-    [buildTextAnnotation, uiActions]
+    [buildTextAnnotation, derived, uiActions]
   );
 
   const handleAddText = useCallback(() => {
@@ -96,12 +144,15 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
 
   const editTextAnnotation = useCallback(
     (id: string) => {
+      // The inline editor owns this annotation; a stale panel snapshot would
+      // clobber its edits (click events may arrive after the double-click).
+      if (uiState.inlineEditingTextId === id) return;
       const annotation = derived.textAnnotations.find((a) => a.id === id);
       if (annotation) {
         uiActions.setEditingTextAnnotation(annotation);
       }
     },
-    [derived.textAnnotations, uiActions]
+    [derived.textAnnotations, uiActions, uiState.inlineEditingTextId]
   );
 
   const persist = useCallback(() => {
@@ -111,6 +162,13 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
   const persistQuiet = useCallback(() => {
     void saveAnnotationNodesFromGraph(sessionClient, undefined, { applySnapshot: false });
   }, [sessionClient]);
+
+  const rememberTextStyle = useCallback((annotation: Partial<FreeTextAnnotation>) => {
+    lastTextStyleRef.current = {
+      ...lastTextStyleRef.current,
+      ...pickTextStyleMemory(annotation)
+    };
+  }, []);
 
   const saveTextAnnotation = useCallback(
     (annotation: FreeTextAnnotation) => {
@@ -122,20 +180,84 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
         derived.updateTextAnnotation(annotation.id, annotation);
       }
 
-      lastTextStyleRef.current = {
-        fontSize: annotation.fontSize,
-        fontColor: annotation.fontColor,
-        backgroundColor: annotation.backgroundColor,
-        fontWeight: annotation.fontWeight,
-        fontStyle: annotation.fontStyle,
-        textDecoration: annotation.textDecoration,
-        textAlign: annotation.textAlign,
-        fontFamily: annotation.fontFamily
-      };
-
+      rememberTextStyle(annotation);
       persist();
     },
-    [derived, persist]
+    [derived, persist, rememberTextStyle]
+  );
+
+  /** Live apply from the text editor panel: merge editable fields and persist debounced. */
+  const applyTextAnnotationEdit = useCallback(
+    (annotation: FreeTextAnnotation) => {
+      if (!derived.textAnnotations.some((t) => t.id === annotation.id)) return;
+      derived.updateTextAnnotation(annotation.id, pickTextEditableFields(annotation));
+      rememberTextStyle(annotation);
+      debouncedPersist();
+    },
+    [derived, rememberTextStyle, debouncedPersist]
+  );
+
+  const startInlineTextEdit = useCallback(
+    (id: string) => {
+      if (!canEditAnnotations) {
+        onLockedAction();
+        return;
+      }
+      if (!derived.textAnnotations.some((a) => a.id === id)) return;
+      // The panel editor holds a snapshot; close it so it can't clobber inline edits.
+      uiActions.closeTextEditor();
+      uiActions.setInlineEditingTextId(id);
+    },
+    [canEditAnnotations, onLockedAction, derived.textAnnotations, uiActions]
+  );
+
+  const commitInlineTextEdit = useCallback(
+    (id: string, text: string) => {
+      uiActions.setInlineEditingTextId(null);
+      const annotation = derived.textAnnotations.find((a) => a.id === id);
+      if (!annotation) return null;
+
+      if (text.trim().length === 0) {
+        // Empty text annotations are never persisted, so only write the
+        // deletion when a previously saved annotation was emptied.
+        const wasPersisted = annotation.text.trim().length > 0;
+        derived.deleteTextAnnotation(id);
+        uiActions.removeFromTextSelection(id);
+        if (wasPersisted) persist();
+        return null;
+      }
+
+      if (annotation.text === text) return annotation;
+
+      const nextAnnotation = { ...annotation, text };
+      derived.updateTextAnnotation(id, { text });
+      rememberTextStyle(nextAnnotation);
+      debouncedPersist();
+      return nextAnnotation;
+    },
+    [derived, uiActions, persist, rememberTextStyle, debouncedPersist]
+  );
+
+  const commitInlineTextEditAndOpenStyleEditor = useCallback(
+    (id: string, text: string) => {
+      const annotation = commitInlineTextEdit(id, text);
+      if (!annotation) return;
+      uiActions.setEditingTextAnnotation(annotation);
+    },
+    [commitInlineTextEdit, uiActions]
+  );
+
+  /** Live style change from the inline formatting toolbar. */
+  const updateTextStyle = useCallback(
+    (id: string, style: Partial<FreeTextAnnotation>) => {
+      const annotation = derived.textAnnotations.find((a) => a.id === id);
+      if (!annotation) return;
+      derived.updateTextAnnotation(id, style);
+      rememberTextStyle(style);
+      // Not-yet-committed annotations (empty text) persist on inline commit instead.
+      if (annotation.text.trim().length > 0) debouncedPersist();
+    },
+    [derived, rememberTextStyle, debouncedPersist]
   );
 
   const duplicateTextAnnotation = useCallback(
@@ -152,9 +274,12 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
     (id: string) => {
       derived.deleteTextAnnotation(id);
       uiActions.removeFromTextSelection(id);
+      if (uiState.inlineEditingTextId === id) {
+        uiActions.setInlineEditingTextId(null);
+      }
       persist();
     },
-    [derived, uiActions, persist]
+    [derived, uiActions, persist, uiState.inlineEditingTextId]
   );
 
   const deleteSelectedTextAnnotations = useCallback(() => {
@@ -195,6 +320,11 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
       createTextAtPosition,
       editTextAnnotation,
       saveTextAnnotation,
+      applyTextAnnotationEdit,
+      startInlineTextEdit,
+      commitInlineTextEdit,
+      commitInlineTextEditAndOpenStyleEditor,
+      updateTextStyle,
       duplicateTextAnnotation,
       deleteTextAnnotation,
       deleteSelectedTextAnnotations,
@@ -207,6 +337,11 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
       createTextAtPosition,
       editTextAnnotation,
       saveTextAnnotation,
+      applyTextAnnotationEdit,
+      startInlineTextEdit,
+      commitInlineTextEdit,
+      commitInlineTextEditAndOpenStyleEditor,
+      updateTextStyle,
       duplicateTextAnnotation,
       deleteTextAnnotation,
       deleteSelectedTextAnnotations,

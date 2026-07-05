@@ -14,6 +14,7 @@ interface AnnotationState {
   textAnnotations: FreeTextAnnotation[];
   selectedTextIds: Set<string>;
   editingTextAnnotation: FreeTextAnnotation | null;
+  inlineEditingTextId: string | null;
   isAddTextMode: boolean;
   shapeAnnotations: FreeShapeAnnotation[];
   selectedShapeIds: Set<string>;
@@ -34,6 +35,7 @@ interface AnnotationActions {
   editGroup: (id: string) => void;
   closeGroupEditor: () => void;
   saveGroup: (data: GroupEditorData) => void;
+  applyGroupEdit: (data: GroupEditorData) => void;
   deleteGroup: (id: string) => void;
   updateGroup: (id: string, updates: Partial<GroupStyleAnnotation>) => void;
   updateGroupParent: (id: string, parentId: string | null) => void;
@@ -59,8 +61,11 @@ interface AnnotationActions {
   duplicateTextAnnotation: (id: string) => void;
   closeTextEditor: () => void;
   saveTextAnnotation: (annotation: FreeTextAnnotation) => void;
-  previewTextAnnotation: (annotation: FreeTextAnnotation) => void;
-  removePreviewTextAnnotation: (id: string) => void;
+  applyTextAnnotationEdit: (annotation: FreeTextAnnotation) => void;
+  startInlineTextEdit: (id: string) => void;
+  commitInlineTextEdit: (id: string, text: string) => void;
+  commitInlineTextEditAndOpenStyleEditor: (id: string, text: string) => void;
+  updateTextStyle: (id: string, style: Partial<FreeTextAnnotation>) => void;
   deleteTextAnnotation: (id: string) => void;
   deleteSelectedTextAnnotations: () => void;
   updateTextRotation: (id: string, rotation: number) => void;
@@ -82,8 +87,7 @@ interface AnnotationActions {
   editShapeAnnotation: (id: string) => void;
   closeShapeEditor: () => void;
   saveShapeAnnotation: (annotation: FreeShapeAnnotation) => void;
-  previewShapeAnnotation: (annotation: FreeShapeAnnotation) => void;
-  removePreviewShapeAnnotation: (id: string) => void;
+  applyShapeAnnotationEdit: (annotation: FreeShapeAnnotation) => void;
   deleteShapeAnnotation: (id: string) => void;
   deleteSelectedShapeAnnotations: () => void;
   updateShapeRotation: (id: string, rotation: number) => void;
@@ -108,6 +112,7 @@ interface AnnotationActions {
   editTrafficRateAnnotation: (id: string) => void;
   closeTrafficRateEditor: () => void;
   saveTrafficRateAnnotation: (annotation: TrafficRateAnnotation) => void;
+  applyTrafficRateAnnotationEdit: (annotation: TrafficRateAnnotation) => void;
   deleteTrafficRateAnnotation: (id: string) => void;
   deleteSelectedTrafficRateAnnotations: () => void;
   updateTrafficRateSize: (id: string, width: number, height: number) => void;

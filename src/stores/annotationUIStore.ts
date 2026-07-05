@@ -33,6 +33,8 @@ export interface AnnotationUIState {
   // Text annotation UI state
   selectedTextIds: Set<string>;
   editingTextAnnotation: FreeTextAnnotation | null;
+  /** Text annotation currently being edited inline on the canvas */
+  inlineEditingTextId: string | null;
   isAddTextMode: boolean;
 
   // Shape annotation UI state
@@ -66,6 +68,7 @@ export interface AnnotationUIActions {
   // Text annotation editing
   setEditingTextAnnotation: (annotation: FreeTextAnnotation | null) => void;
   closeTextEditor: () => void;
+  setInlineEditingTextId: (id: string | null) => void;
   setAddTextMode: (enabled: boolean) => void;
   disableAddTextMode: () => void;
 
@@ -113,6 +116,7 @@ const initialState: AnnotationUIState = {
   editingGroup: null,
   selectedTextIds: new Set(),
   editingTextAnnotation: null,
+  inlineEditingTextId: null,
   isAddTextMode: false,
   selectedShapeIds: new Set(),
   editingShapeAnnotation: null,
@@ -238,6 +242,9 @@ export const useAnnotationUIStore = createWithEqualityFn<AnnotationUIStore>((set
     clearTextAnnotationSelection: textSelection.clear,
     setEditingTextAnnotation: textEditor.setEditing,
     closeTextEditor: textEditor.close,
+    setInlineEditingTextId: (inlineEditingTextId) => {
+      set({ inlineEditingTextId });
+    },
     setAddTextMode: (isAddTextMode) => {
       // Add-text and add-shape modes are mutually exclusive.
       set({ isAddTextMode, isAddShapeMode: false });
@@ -305,6 +312,7 @@ export const useAnnotationUIState = () =>
       editingGroup: state.editingGroup,
       selectedTextIds: state.selectedTextIds,
       editingTextAnnotation: state.editingTextAnnotation,
+      inlineEditingTextId: state.inlineEditingTextId,
       isAddTextMode: state.isAddTextMode,
       selectedShapeIds: state.selectedShapeIds,
       editingShapeAnnotation: state.editingShapeAnnotation,
@@ -332,6 +340,7 @@ export const useAnnotationUIActions = () =>
       clearTextAnnotationSelection: state.clearTextAnnotationSelection,
       setEditingTextAnnotation: state.setEditingTextAnnotation,
       closeTextEditor: state.closeTextEditor,
+      setInlineEditingTextId: state.setInlineEditingTextId,
       setAddTextMode: state.setAddTextMode,
       disableAddTextMode: state.disableAddTextMode,
       selectShapeAnnotation: state.selectShapeAnnotation,

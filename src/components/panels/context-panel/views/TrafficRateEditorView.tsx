@@ -342,11 +342,12 @@ export const TrafficRateEditorView: React.FC<TrafficRateEditorViewProps> = ({
   const topologyNodeIds = useGraphStore(selectTopologyNodeIds, shallow);
   const trafficOptions = useGraphStore(selectTrafficMonitorOptions, areTrafficMonitorOptionsEqual);
 
-  const { formData, updateField } = useGenericFormState(annotation);
+  const { formData, updateField, formSource } = useGenericFormState(annotation);
 
   useAnnotationLiveApply({
     annotation,
     formData,
+    formSource,
     readOnly,
     onApply,
     canApply,

@@ -27,13 +27,14 @@ export const GroupEditorView: React.FC<GroupEditorViewProps> = ({
   onApply,
   readOnly = false
 }) => {
-  const { formData, updateField, setFormData } = useGenericFormState(groupData, {
+  const { formData, updateField, setFormData, formSource } = useGenericFormState(groupData, {
     transformData: cloneGroupData
   });
 
   useAnnotationLiveApply({
     annotation: groupData,
     formData,
+    formSource,
     readOnly,
     onApply,
     snapshot: cloneGroupData

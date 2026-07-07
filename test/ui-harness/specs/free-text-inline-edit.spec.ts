@@ -9,8 +9,11 @@ const SEL_INLINE_INPUT = '[data-testid="free-text-inline-input"]';
 const SEL_INLINE_TOOLBAR = '[data-testid="free-text-inline-toolbar"]';
 const SEL_INLINE_ITALIC = '[data-testid="inline-text-italic"]';
 const SEL_INLINE_MORE = '[data-testid="inline-text-more"]';
+const SEL_INLINE_PREVIEW = '[data-testid="free-text-inline-preview"]';
 const SEL_ADD_TEXT_ITEM = '[data-testid="context-menu-item-add-text"]';
+const SEL_EDIT_TEXT_ITEM = '[data-testid="context-menu-item-edit-text"]';
 const SEL_APPLY_BTN = '[data-testid="panel-apply-btn"]';
+const PANEL_TEXT_PLACEHOLDER = "Enter your text... (Markdown and fenced code blocks supported)";
 
 interface FreeTextFileEntry {
   id: string;
@@ -192,14 +195,15 @@ test.describe("Free Text Inline Editing", () => {
 
     await input.fill("Created inline edited");
     await page.locator(SEL_INLINE_MORE).click();
-    await expect(input).not.toBeVisible();
+    // The style drawer opens alongside; inline editing continues on the canvas.
+    await expect(input).toBeVisible();
 
     const panel = page.locator('[data-testid="context-panel"]');
     await expect(panel.getByText("Edit Text", { exact: true })).toBeVisible();
     await expect(panel.getByRole("checkbox", { name: "No fill" })).toBeChecked();
-    await expect(
-      panel.getByPlaceholder("Enter your text... (Markdown and fenced code blocks supported)")
-    ).toHaveValue("Created inline edited");
+    await expect(panel.getByPlaceholder(PANEL_TEXT_PLACEHOLDER)).toHaveValue(
+      "Created inline edited"
+    );
 
     await expect
       .poll(
@@ -302,5 +306,144 @@ test.describe("Free Text Inline Editing", () => {
         { timeout: 5000 }
       )
       .toBe(27);
+  });
+
+  test("context-menu Edit Text opens the style drawer and inline editor together", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const api = topoViewerPage as unknown as TopoViewerApi;
+    await setup(page, api);
+    const text = await getFirstTextAnnotation(api);
+
+    const textElement = page.locator(`[data-id="${text.id}"] .free-text-content`).first();
+    await expect(textElement).toBeVisible();
+    const box = await textElement.boundingBox();
+    expect(box).not.toBeNull();
+    await rightClick(page, box!.x + box!.width / 2, box!.y + box!.height / 2);
+
+    const editItem = page.locator(SEL_EDIT_TEXT_ITEM);
+    await expect(editItem).toBeVisible();
+    await editItem.click();
+
+    // Both surfaces open: inline editor on the canvas, style drawer in the panel.
+    const input = page.locator(SEL_INLINE_INPUT);
+    await expect(input).toBeVisible();
+    await expect(input).toHaveValue(text.text);
+    const panel = page.locator('[data-testid="context-panel"]');
+    await expect(panel.getByText("Edit Text", { exact: true })).toBeVisible();
+    await expect(panel.getByPlaceholder(PANEL_TEXT_PLACEHOLDER)).toHaveValue(text.text);
+
+    // Committing the inline edit updates the still-open drawer.
+    await input.fill("Edited via inline with drawer open");
+    await input.press("Escape");
+    await expect(input).not.toBeVisible();
+    await expect(panel.getByText("Edit Text", { exact: true })).toBeVisible();
+    await expect(panel.getByPlaceholder(PANEL_TEXT_PLACEHOLDER)).toHaveValue(
+      "Edited via inline with drawer open"
+    );
+
+    await expect
+      .poll(
+        async () => {
+          const after = await api.getAnnotationsFromFile(DATACENTER_FILE);
+          return after.freeTextAnnotations?.find((entry) => entry.id === text.id)?.text;
+        },
+        { timeout: 5000 }
+      )
+      .toBe("Edited via inline with drawer open");
+  });
+
+  test("drawer style change after inline typing keeps the committed text", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const api = topoViewerPage as unknown as TopoViewerApi;
+    await setup(page, api);
+    const text = await getFirstTextAnnotation(api);
+
+    const textElement = page.locator(`[data-id="${text.id}"] .free-text-content`).first();
+    const box = await textElement.boundingBox();
+    expect(box).not.toBeNull();
+    await rightClick(page, box!.x + box!.width / 2, box!.y + box!.height / 2);
+    await page.locator(SEL_EDIT_TEXT_ITEM).click();
+
+    const input = page.locator(SEL_INLINE_INPUT);
+    await expect(input).toBeVisible();
+    await input.fill("Typed inline before styling");
+
+    // Focusing the drawer commits the inline edit; the style change must apply
+    // on top of the committed text, not the drawer's stale snapshot.
+    const fontSizeInput = page.locator("#text-font-size");
+    await fontSizeInput.fill("27");
+    await expect(input).not.toBeVisible();
+
+    await expect
+      .poll(
+        async () => {
+          const after = await api.getAnnotationsFromFile(DATACENTER_FILE);
+          const entry = after.freeTextAnnotations?.find((item) => item.id === text.id);
+          return `${entry?.text}|${entry?.fontSize}`;
+        },
+        { timeout: 5000 }
+      )
+      .toBe("Typed inline before styling|27");
+  });
+
+  test("live markdown preview appears while typing markdown inline", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const api = topoViewerPage as unknown as TopoViewerApi;
+    await setup(page, api);
+    const text = await getFirstTextAnnotation(api);
+
+    const textElement = page.locator(`[data-id="${text.id}"] .free-text-content`).first();
+    await textElement.dblclick();
+    const input = page.locator(SEL_INLINE_INPUT);
+    await expect(input).toBeVisible();
+
+    // Plain text renders identically to the textarea — no preview needed.
+    await input.fill("plain text note");
+    await expect(page.locator(SEL_INLINE_PREVIEW)).not.toBeVisible();
+
+    // Markdown syntax shows the rendered result before committing.
+    await input.fill("**bold** and `code`");
+    const preview = page.locator(SEL_INLINE_PREVIEW);
+    await expect(preview).toBeVisible();
+    await expect(preview.locator("strong")).toHaveText("bold");
+    await expect(preview.locator("code")).toHaveText("code");
+
+    await input.press("Escape");
+    await expect(preview).not.toBeVisible();
+  });
+
+  test("committed newlines render as line breaks (WYSIWYG parity)", async ({
+    page,
+    topoViewerPage
+  }) => {
+    const api = topoViewerPage as unknown as TopoViewerApi;
+    await setup(page, api);
+    const text = await getFirstTextAnnotation(api);
+
+    const textElement = page.locator(`[data-id="${text.id}"] .free-text-content`).first();
+    await textElement.dblclick();
+    const input = page.locator(SEL_INLINE_INPUT);
+    await expect(input).toBeVisible();
+    await input.fill("first line\nsecond line");
+    await input.press("Escape");
+    await expect(input).not.toBeVisible();
+
+    // A single typed newline must stay a visible line break after rendering.
+    await expect(page.locator(`[data-id="${text.id}"] .free-text-content br`)).toHaveCount(1);
+    await expect
+      .poll(
+        async () => {
+          const after = await api.getAnnotationsFromFile(DATACENTER_FILE);
+          return after.freeTextAnnotations?.find((entry) => entry.id === text.id)?.text;
+        },
+        { timeout: 5000 }
+      )
+      .toBe("first line\nsecond line");
   });
 });

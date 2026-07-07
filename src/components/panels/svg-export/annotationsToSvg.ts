@@ -361,7 +361,8 @@ function getTextStyle(text: FreeTextAnnotation): TextStyle {
 
 function buildTextStyleString(style: TextStyle): string {
   let css = `width: 100%; height: 100%; overflow: hidden; `;
-  css += `font-size: ${style.fontSize}px; color: ${style.fontColor}; `;
+  // Match TEXT_LINE_HEIGHT in FreeTextNode.tsx so exports lay out like the canvas.
+  css += `font-size: ${style.fontSize}px; line-height: 1.5; color: ${style.fontColor}; `;
   css += `font-weight: ${style.fontWeight}; font-style: ${style.fontStyle}; `;
   css += `text-decoration: ${style.textDecoration}; text-align: ${style.textAlign}; `;
   css += `font-family: ${style.fontFamily}; `;
@@ -398,7 +399,7 @@ function estimateTextDimensions(
 
   // Calculate dimensions
   const charWidth = fontSize * charWidthRatio * boldMultiplier;
-  const lineHeight = fontSize * 1.4; // Standard line height
+  const lineHeight = fontSize * 1.5; // Match TEXT_LINE_HEIGHT in FreeTextNode.tsx
 
   // Add padding (8px on each side = 16px total)
   const padding = 16;

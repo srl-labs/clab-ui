@@ -17,6 +17,10 @@ interface UseGenericFormStateReturn<T> {
   discardChanges: () => void;
   isNew: boolean;
   setFormData: React.Dispatch<React.SetStateAction<T | null>>;
+  /** The exact `data` reference the current formData was initialized from.
+   * Lets callers detect a formData that predates an externally refreshed
+   * snapshot (form re-initialization happens one render later). */
+  formSource: T | null;
 }
 
 /**
@@ -32,12 +36,14 @@ export function useGenericFormState<T extends { id: string }>(
 
   const [formData, setFormData] = useState<T | null>(null);
   const [initialData, setInitialData] = useState<T | null>(null);
+  const [formSource, setFormSource] = useState<T | null>(null);
 
   useEffect(() => {
     if (data) {
       const transformed = transformData ? transformData(data) : { ...data };
       setFormData(transformed);
       setInitialData(transformed);
+      setFormSource(data);
     }
   }, [data, transformData]);
 
@@ -72,7 +78,8 @@ export function useGenericFormState<T extends { id: string }>(
     resetInitialData,
     discardChanges,
     isNew,
-    setFormData
+    setFormData,
+    formSource
   };
 }
 

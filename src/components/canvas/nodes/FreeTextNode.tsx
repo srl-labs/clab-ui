@@ -11,7 +11,11 @@ import type { FreeTextAnnotation } from "../../../core/types/topology";
 import { useIsLocked } from "../../../stores/topoViewerStore";
 import { useAnnotationHandlers } from "../../../stores/canvasStore";
 import { useAnnotationUIStore } from "../../../stores/annotationUIStore";
-import type { renderMarkdown as renderMarkdownType } from "../../../utils/markdownRenderer";
+import {
+  getLoadedMarkdownRenderer,
+  loadMarkdownRenderer
+} from "../../../utils/markdownRendererLazy";
+import { renderHtmlToReactNodes } from "../../../utils/renderHtmlToReactNodes";
 
 import { RotationHandle } from "./AnnotationHandles";
 import { FreeTextInlineEditor } from "./FreeTextInlineEditor";
@@ -21,18 +25,14 @@ import "./FreeTextNode.css";
 const MIN_WIDTH = 40;
 const MIN_HEIGHT = 20;
 
-type RenderMarkdown = typeof renderMarkdownType;
-
-let renderMarkdownFn: RenderMarkdown | null = null;
-let markdownRendererPromise: Promise<RenderMarkdown> | null = null;
-
-function loadMarkdownRenderer(): Promise<RenderMarkdown> {
-  markdownRendererPromise ??= import("../../../utils/markdownRenderer").then((module) => {
-    renderMarkdownFn = module.renderMarkdown;
-    return module.renderMarkdown;
-  });
-  return markdownRendererPromise;
-}
+/**
+ * Explicit line-height shared by the rendered content and the inline textarea.
+ * Without it the rendered div inherits the app's body line-height (MUI: 1.5)
+ * while the textarea falls back to the UA default (~1.15), so every line
+ * shifts and the box height jumps when entering/leaving edit mode. Must match
+ * the `1lh` paragraph gap in FreeTextNode.css and the SVG export text style.
+ */
+export const TEXT_LINE_HEIGHT = 1.5;
 
 /** Build wrapper style for the node */
 function buildWrapperStyle(rotation: number, selected: boolean): React.CSSProperties {
@@ -142,6 +142,7 @@ function buildTextStyle(data: FreeTextNodeData, isMediaOnly: boolean): React.CSS
 
   return {
     fontSize: `${styleOptions.fontSize}px`,
+    lineHeight: TEXT_LINE_HEIGHT,
     color: styleOptions.fontColor,
     fontWeight: styleOptions.fontWeight,
     fontStyle: styleOptions.fontStyle,
@@ -171,47 +172,6 @@ function toFreeTextNodeData(data: NodeProps["data"]): FreeTextNodeData {
     ...data,
     text: typeof data.text === "string" ? data.text : ""
   };
-}
-
-function domNodeToReactNode(node: ChildNode, key: string): React.ReactNode | null {
-  if (node.nodeType === Node.TEXT_NODE) {
-    return node.textContent;
-  }
-  if (!(node instanceof Element)) {
-    return null;
-  }
-
-  const props: Record<string, unknown> = { key };
-  for (const attr of Array.from(node.attributes)) {
-    if (attr.name === "class") {
-      props.className = attr.value;
-    } else if (attr.name !== "style" && !attr.name.startsWith("on")) {
-      props[attr.name] = attr.value;
-    }
-  }
-
-  const children = Array.from(node.childNodes)
-    .map((child, index) => domNodeToReactNode(child, `${key}:${index}`))
-    .filter((child): child is React.ReactNode => child !== null);
-
-  return React.createElement(node.tagName.toLowerCase(), props, ...children);
-}
-
-function renderHtmlToReactNodes(html: string): React.ReactNode {
-  if (html.length === 0) {
-    return null;
-  }
-
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(`<div>${html}</div>`, "text/html");
-  const root = doc.body.firstElementChild;
-  if (!(root instanceof Element)) {
-    return null;
-  }
-
-  return Array.from(root.childNodes)
-    .map((child, index) => domNodeToReactNode(child, `root:${index}`))
-    .filter((child): child is React.ReactNode => child !== null);
 }
 
 interface InlineEditingState {
@@ -275,10 +235,11 @@ const FreeTextNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) => {
   const [isResizing, setIsResizing] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
   const [renderedHtml, setRenderedHtml] = useState<string | null>(() =>
-    renderMarkdownFn?.(nodeData.text) ?? null
+    getLoadedMarkdownRenderer()?.(nodeData.text) ?? null
   );
 
   useEffect(() => {
+    const renderMarkdownFn = getLoadedMarkdownRenderer();
     if (renderMarkdownFn) {
       setRenderedHtml(renderMarkdownFn(nodeData.text));
       return;

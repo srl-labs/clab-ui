@@ -43,11 +43,12 @@ export function AnnotationFormEditorView<T extends { id: string }>({
   canApply,
   transformData
 }: AnnotationFormEditorViewProps<T>): React.ReactElement | null {
-  const { formData, updateField } = useGenericFormState(annotation, { transformData });
+  const { formData, updateField, formSource } = useGenericFormState(annotation, { transformData });
 
   useAnnotationLiveApply({
     annotation,
     formData,
+    formSource,
     readOnly,
     onApply,
     canApply,

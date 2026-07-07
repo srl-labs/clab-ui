@@ -104,7 +104,8 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     uiState: {
       isAddTextMode: uiState.isAddTextMode,
       selectedTextIds: uiState.selectedTextIds,
-      inlineEditingTextId: uiState.inlineEditingTextId
+      inlineEditingTextId: uiState.inlineEditingTextId,
+      editingTextAnnotation: uiState.editingTextAnnotation
     },
     uiActions
   });
@@ -435,13 +436,14 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
       boxSelectTextAnnotations: uiActions.boxSelectTextAnnotations,
       clearTextAnnotationSelection: uiActions.clearTextAnnotationSelection,
       editTextAnnotation: textActions.editTextAnnotation,
+      editTextWithInline: textActions.editTextWithInline,
       duplicateTextAnnotation: textActions.duplicateTextAnnotation,
       closeTextEditor: uiActions.closeTextEditor,
       saveTextAnnotation: textActions.saveTextAnnotation,
       applyTextAnnotationEdit: textActions.applyTextAnnotationEdit,
       startInlineTextEdit: textActions.startInlineTextEdit,
       commitInlineTextEdit: textActions.commitInlineTextEdit,
-      commitInlineTextEditAndOpenStyleEditor: textActions.commitInlineTextEditAndOpenStyleEditor,
+      openInlineTextStyleEditor: textActions.openInlineTextStyleEditor,
       updateTextStyle: textActions.updateTextStyle,
       deleteTextAnnotation: textActions.deleteTextAnnotation,
       deleteSelectedTextAnnotations: textActions.deleteSelectedTextAnnotations,

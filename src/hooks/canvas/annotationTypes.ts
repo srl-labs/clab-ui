@@ -58,13 +58,14 @@ interface AnnotationActions {
   boxSelectTextAnnotations: (ids: string[]) => void;
   clearTextAnnotationSelection: () => void;
   editTextAnnotation: (id: string) => void;
+  editTextWithInline: (id: string) => void;
   duplicateTextAnnotation: (id: string) => void;
   closeTextEditor: () => void;
   saveTextAnnotation: (annotation: FreeTextAnnotation) => void;
   applyTextAnnotationEdit: (annotation: FreeTextAnnotation) => void;
   startInlineTextEdit: (id: string) => void;
   commitInlineTextEdit: (id: string, text: string) => void;
-  commitInlineTextEditAndOpenStyleEditor: (id: string, text: string) => void;
+  openInlineTextStyleEditor: (id: string, text: string) => void;
   updateTextStyle: (id: string, style: Partial<FreeTextAnnotation>) => void;
   deleteTextAnnotation: (id: string) => void;
   deleteSelectedTextAnnotations: () => void;

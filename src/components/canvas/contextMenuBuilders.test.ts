@@ -166,6 +166,41 @@ test("edge capture menu displays topology names but invokes runtime container na
   ]);
 });
 
+test("free text Edit Text prefers the drawer+inline handler and falls back to drawer-only", () => {
+  const edited: string[] = [];
+  const editedWithInline: string[] = [];
+  const baseCtx = {
+    targetId: "freeText_1",
+    targetNodeType: FREE_TEXT_NODE_TYPE,
+    isEditMode: true,
+    isDeployed: false,
+    isLocked: false,
+    onNodeAction: () => {},
+    closeContextMenu: () => {},
+    editNode: () => {},
+    editNetwork: () => {},
+    handleDeleteNode: () => {},
+    deleteFreeText: () => {},
+    duplicateFreeText: () => {}
+  };
+
+  const withBoth = buildNodeContextMenu({
+    ...baseCtx,
+    editFreeText: (id) => edited.push(id),
+    editFreeTextWithInline: (id) => editedWithInline.push(id)
+  });
+  itemById(withBoth, "edit-text").onClick?.();
+  assert.deepEqual(editedWithInline, ["freeText_1"]);
+  assert.equal(edited.length, 0);
+
+  const withFallback = buildNodeContextMenu({
+    ...baseCtx,
+    editFreeText: (id) => edited.push(id)
+  });
+  itemById(withFallback, "edit-text").onClick?.();
+  assert.deepEqual(edited, ["freeText_1"]);
+});
+
 test("free text context menu offers Duplicate Text that duplicates the target and closes", () => {
   const duplicated: string[] = [];
   let closes = 0;

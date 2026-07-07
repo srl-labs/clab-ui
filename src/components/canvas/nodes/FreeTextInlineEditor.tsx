@@ -6,7 +6,7 @@
  * toolbar. Commits on blur / Escape / Ctrl+Enter; an empty commit deletes the
  * annotation. Style changes apply live through the annotation handlers.
  */
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NodeToolbar, Position } from "@xyflow/react";
 import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
 import FormatAlignLeftIcon from "@mui/icons-material/FormatAlignLeft";
@@ -15,13 +15,28 @@ import FormatBoldIcon from "@mui/icons-material/FormatBold";
 import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
 import TuneIcon from "@mui/icons-material/Tune";
+import Box from "@mui/material/Box";
 import Divider from "@mui/material/Divider";
 import MuiIconButton from "@mui/material/IconButton";
 import Paper from "@mui/material/Paper";
 import Tooltip from "@mui/material/Tooltip";
 
 import type { FreeTextAnnotation } from "../../../core/types/topology";
+import { loadMarkdownRenderer } from "../../../utils/markdownRendererLazy";
+import { renderHtmlToReactNodes } from "../../../utils/renderHtmlToReactNodes";
 import type { FreeTextNodeData } from "../types";
+
+/** Matches FreeTextNode's resize minimum so entering/leaving edit mode doesn't jump. */
+const MIN_EDITOR_WIDTH = 40;
+/** Comfortable width for typing into a brand-new (empty) annotation. */
+const EMPTY_EDITOR_WIDTH = 160;
+
+/**
+ * Cheap check for markdown syntax that renders differently than plain text.
+ * Used to decide whether the live preview adds information over the textarea.
+ */
+const MARKDOWN_HINT_REGEX =
+  /(^|\n)\s{0,3}(?:#{1,6}\s|>|```|(?:[-+*]|\d+[.)])\s)|\*\*|__|~~|`|!\[|\]\(|https?:\/\/|:[a-z0-9_+-]+:|\*\S/;
 
 interface FreeTextInlineEditorProps {
   nodeId: string;
@@ -61,10 +76,12 @@ const ToolbarButton: React.FC<{
 
 function buildTextareaStyle(
   textStyle: React.CSSProperties,
-  data: FreeTextNodeData
+  data: FreeTextNodeData,
+  isEmpty: boolean
 ): React.CSSProperties {
   const hasFixedWidth = typeof data.width === "number" && Number.isFinite(data.width);
   const hasFixedHeight = typeof data.height === "number" && Number.isFinite(data.height);
+  const autoMinWidth = isEmpty ? EMPTY_EDITOR_WIDTH : MIN_EDITOR_WIDTH;
   return {
     ...textStyle,
     display: "block",
@@ -73,7 +90,8 @@ function buildTextareaStyle(
     outline: "none",
     margin: 0,
     resize: "none",
-    overflow: "hidden",
+    // Fixed-height annotations scroll in view mode, so the editor must too.
+    overflow: hasFixedHeight ? "auto" : "hidden",
     backgroundColor:
       typeof textStyle.backgroundColor === "string" && textStyle.backgroundColor.length > 0
         ? textStyle.backgroundColor
@@ -81,13 +99,63 @@ function buildTextareaStyle(
     caretColor: typeof textStyle.color === "string" ? textStyle.color : undefined,
     width: hasFixedWidth ? "100%" : "auto",
     height: hasFixedHeight ? "100%" : "auto",
-    minWidth: hasFixedWidth ? undefined : 160,
+    minWidth: hasFixedWidth ? undefined : autoMinWidth,
     minHeight: hasFixedHeight ? undefined : 24,
     // Auto-grow with content where supported (Chromium); the resize effect
     // below covers the height for other engines.
     fieldSizing: "content"
   } as React.CSSProperties;
 }
+
+/**
+ * Live rendered preview of the markdown being typed. Only shown when the text
+ * uses markdown syntax — plain text already renders exactly like the textarea.
+ */
+function useMarkdownPreview(text: string): React.ReactNode {
+  const [previewNodes, setPreviewNodes] = useState<React.ReactNode>(null);
+
+  useEffect(() => {
+    if (!MARKDOWN_HINT_REGEX.test(text)) {
+      setPreviewNodes(null);
+      return;
+    }
+    let cancelled = false;
+    void loadMarkdownRenderer().then((renderMarkdown) => {
+      if (cancelled) return;
+      const html = renderMarkdown(text);
+      setPreviewNodes(html.length > 0 ? renderHtmlToReactNodes(html) : null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [text]);
+
+  return previewNodes;
+}
+
+const InlinePreviewCard: React.FC<{
+  nodeId: string;
+  textStyle: React.CSSProperties;
+  children: React.ReactNode;
+}> = ({ nodeId, textStyle, children }) => (
+  <NodeToolbar nodeId={nodeId} isVisible position={Position.Bottom} offset={10} className="nodrag nopan">
+    <Paper
+      elevation={4}
+      data-testid="free-text-inline-preview"
+      // Keep focus in the textarea so touching the preview doesn't commit.
+      onMouseDown={(e) => e.preventDefault()}
+      sx={{ p: 1, maxWidth: 420, overflow: "hidden" }}
+    >
+      <Box sx={{ fontSize: 10, opacity: 0.6, mb: 0.5, userSelect: "none" }}>Preview</Box>
+      <div
+        className="free-text-markdown free-text-content--auto free-text-inline-preview"
+        style={{ ...textStyle, width: "100%", height: "auto", overflow: "hidden" }}
+      >
+        {children}
+      </div>
+    </Paper>
+  </NodeToolbar>
+);
 
 export const FreeTextInlineEditor: React.FC<FreeTextInlineEditorProps> = ({
   nodeId,
@@ -159,6 +227,13 @@ export const FreeTextInlineEditor: React.FC<FreeTextInlineEditorProps> = ({
     // handlers (selection changes, opening the panel editor, ...).
     e.stopPropagation();
   }, []);
+
+  const isEmpty = text.length === 0;
+  const textareaStyle = useMemo(
+    () => buildTextareaStyle(textStyle, data, isEmpty),
+    [textStyle, data, isEmpty]
+  );
+  const previewNodes = useMarkdownPreview(text);
 
   const isBold = data.fontWeight === "bold";
   const isItalic = data.fontStyle === "italic";
@@ -258,8 +333,8 @@ export const FreeTextInlineEditor: React.FC<FreeTextInlineEditorProps> = ({
                 title="More styling options…"
                 testId="inline-text-more"
                 onClick={() => {
-                  // The style editor takes over; suppress the blur commit.
-                  committedRef.current = true;
+                  // Opens the style drawer alongside; inline editing continues
+                  // (the drawer and the inline editor stay in sync via commits).
                   onOpenStyleEditor(textRef.current);
                 }}
               >
@@ -275,7 +350,7 @@ export const FreeTextInlineEditor: React.FC<FreeTextInlineEditorProps> = ({
         data-testid="free-text-inline-input"
         value={text}
         placeholder="Type text… (Markdown supported)"
-        style={buildTextareaStyle(textStyle, data)}
+        style={textareaStyle}
         onChange={(e) => setText(e.target.value)}
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
@@ -283,6 +358,11 @@ export const FreeTextInlineEditor: React.FC<FreeTextInlineEditorProps> = ({
         onDoubleClick={stopMouseEvent}
         onContextMenu={stopMouseEvent}
       />
+      {previewNodes !== null && (
+        <InlinePreviewCard nodeId={nodeId} textStyle={textStyle}>
+          {previewNodes}
+        </InlinePreviewCard>
+      )}
     </>
   );
 };

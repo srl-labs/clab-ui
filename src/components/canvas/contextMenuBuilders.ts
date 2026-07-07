@@ -60,8 +60,10 @@ interface MenuBuilderContext {
   startLinkCreation?: (nodeId: string) => void;
   /** Cancel link creation mode */
   cancelLinkCreation?: () => void;
-  /** Edit free text annotation */
+  /** Edit free text annotation (style drawer only) */
   editFreeText?: (id: string) => void;
+  /** Edit free text annotation: style drawer plus inline canvas editor */
+  editFreeTextWithInline?: (id: string) => void;
   /** Edit free shape annotation */
   editFreeShape?: (id: string) => void;
   /** Delete free text annotation */
@@ -158,8 +160,15 @@ function isNodeActionDisabled(
  * Build context menu for free text annotations
  */
 function buildFreeTextContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, isLocked, closeContextMenu, editFreeText, duplicateFreeText, deleteFreeText } =
-    ctx;
+  const {
+    targetId,
+    isLocked,
+    closeContextMenu,
+    editFreeText,
+    editFreeTextWithInline,
+    duplicateFreeText,
+    deleteFreeText
+  } = ctx;
 
   const items: ContextMenuItem[] = [
     {
@@ -168,7 +177,8 @@ function buildFreeTextContextMenu(ctx: MenuBuilderContext): ContextMenuItem[] {
       icon: React.createElement(EditIcon, { fontSize: "small" }),
       disabled: isLocked,
       onClick: () => {
-        editFreeText?.(targetId);
+        // Prefer opening the style drawer together with the inline editor.
+        (editFreeTextWithInline ?? editFreeText)?.(targetId);
         closeContextMenu();
       }
     }

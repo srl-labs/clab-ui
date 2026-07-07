@@ -84,13 +84,15 @@ export interface AnnotationHandlers {
   onAddShapeClick: (position: { x: number; y: number }) => void;
   /** Edit a free text annotation */
   onEditFreeText: (id: string) => void;
+  /** Open the style drawer and the inline editor together (context menu) */
+  onEditFreeTextWithInline?: (id: string) => void;
   /** Start editing a free text annotation inline on the canvas */
   onStartInlineFreeTextEdit?: (id: string) => void;
   /** Commit inline text editing (empty text deletes the annotation) */
   onCommitInlineFreeTextEdit?: (id: string, text: string) => void;
   /** Live style change from the inline formatting toolbar */
   onUpdateFreeTextStyle?: (id: string, style: Partial<FreeTextAnnotation>) => void;
-  /** Commit inline editing and open the full style editor panel */
+  /** Open the full style editor panel alongside the inline editor */
   onOpenFreeTextStyleEditor?: (id: string, text: string) => void;
   /** Duplicate a free text annotation */
   onDuplicateFreeText: (id: string) => void;

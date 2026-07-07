@@ -18,7 +18,10 @@ interface UseTextAnnotationsParams {
   sessionClient: TopologySessionClient;
   /** Debounced whole-graph persist shared across annotation kinds (live apply). */
   debouncedPersist: () => void;
-  uiState: Pick<AnnotationUIState, "isAddTextMode" | "selectedTextIds" | "inlineEditingTextId">;
+  uiState: Pick<
+    AnnotationUIState,
+    "isAddTextMode" | "selectedTextIds" | "inlineEditingTextId" | "editingTextAnnotation"
+  >;
   uiActions: Pick<
     AnnotationUIActions,
     | "setAddTextMode"
@@ -34,11 +37,12 @@ export interface TextAnnotationActions {
   handleAddText: () => void;
   createTextAtPosition: (position: { x: number; y: number }) => void;
   editTextAnnotation: (id: string) => void;
+  editTextWithInline: (id: string) => void;
   saveTextAnnotation: (annotation: FreeTextAnnotation) => void;
   applyTextAnnotationEdit: (annotation: FreeTextAnnotation) => void;
   startInlineTextEdit: (id: string) => void;
   commitInlineTextEdit: (id: string, text: string) => void;
-  commitInlineTextEditAndOpenStyleEditor: (id: string, text: string) => void;
+  openInlineTextStyleEditor: (id: string, text: string) => void;
   updateTextStyle: (id: string, style: Partial<FreeTextAnnotation>) => void;
   duplicateTextAnnotation: (id: string) => void;
   deleteTextAnnotation: (id: string) => void;
@@ -155,6 +159,22 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
     [derived.textAnnotations, uiActions, uiState.inlineEditingTextId]
   );
 
+  /** Context-menu "Edit Text": open the style drawer and the inline editor
+   * together, so the user can type on the canvas and style in the drawer. */
+  const editTextWithInline = useCallback(
+    (id: string) => {
+      if (!canEditAnnotations) {
+        onLockedAction();
+        return;
+      }
+      const annotation = derived.textAnnotations.find((a) => a.id === id);
+      if (!annotation) return;
+      uiActions.setEditingTextAnnotation(annotation);
+      uiActions.setInlineEditingTextId(id);
+    },
+    [canEditAnnotations, onLockedAction, derived.textAnnotations, uiActions]
+  );
+
   const persist = useCallback(() => {
     void saveAnnotationNodesFromGraph(sessionClient);
   }, [sessionClient]);
@@ -216,6 +236,7 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
       uiActions.setInlineEditingTextId(null);
       const annotation = derived.textAnnotations.find((a) => a.id === id);
       if (!annotation) return null;
+      const drawerOpenForId = uiState.editingTextAnnotation?.id === id;
 
       if (text.trim().length === 0) {
         // Empty text annotations are never persisted, so only write the
@@ -223,6 +244,7 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
         const wasPersisted = annotation.text.trim().length > 0;
         derived.deleteTextAnnotation(id);
         uiActions.removeFromTextSelection(id);
+        if (drawerOpenForId) uiActions.closeTextEditor();
         if (wasPersisted) persist();
         return null;
       }
@@ -231,20 +253,30 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
 
       const nextAnnotation = { ...annotation, text };
       derived.updateTextAnnotation(id, { text });
+      // An open style drawer must pick up the committed text, or its next
+      // live-apply would write the stale snapshot back.
+      if (drawerOpenForId) uiActions.setEditingTextAnnotation(nextAnnotation);
       rememberTextStyle(nextAnnotation);
       debouncedPersist();
       return nextAnnotation;
     },
-    [derived, uiActions, persist, rememberTextStyle, debouncedPersist]
+    [derived, uiActions, persist, rememberTextStyle, debouncedPersist, uiState.editingTextAnnotation]
   );
 
-  const commitInlineTextEditAndOpenStyleEditor = useCallback(
+  /** Inline-toolbar "More styling options": open the style drawer next to the
+   * inline editor. Editing continues inline; commits keep the drawer synced. */
+  const openInlineTextStyleEditor = useCallback(
     (id: string, text: string) => {
-      const annotation = commitInlineTextEdit(id, text);
+      if (text.trim().length === 0) {
+        // Emptied annotations are deleted on commit; there is nothing to style.
+        commitInlineTextEdit(id, text);
+        return;
+      }
+      const annotation = derived.textAnnotations.find((a) => a.id === id);
       if (!annotation) return;
-      uiActions.setEditingTextAnnotation(annotation);
+      uiActions.setEditingTextAnnotation({ ...annotation, text });
     },
-    [commitInlineTextEdit, uiActions]
+    [commitInlineTextEdit, derived.textAnnotations, uiActions]
   );
 
   /** Live style change from the inline formatting toolbar. */
@@ -253,11 +285,17 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
       const annotation = derived.textAnnotations.find((a) => a.id === id);
       if (!annotation) return;
       derived.updateTextAnnotation(id, style);
+      // Keep an open style drawer in sync with inline-toolbar changes. The
+      // drawer snapshot may hold newer (uncommitted) text — preserve it.
+      const drawer = uiState.editingTextAnnotation;
+      if (drawer?.id === id) {
+        uiActions.setEditingTextAnnotation({ ...annotation, text: drawer.text, ...style });
+      }
       rememberTextStyle(style);
       // Not-yet-committed annotations (empty text) persist on inline commit instead.
       if (annotation.text.trim().length > 0) debouncedPersist();
     },
-    [derived, rememberTextStyle, debouncedPersist]
+    [derived, uiActions, rememberTextStyle, debouncedPersist, uiState.editingTextAnnotation]
   );
 
   const duplicateTextAnnotation = useCallback(
@@ -319,11 +357,12 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
       handleAddText,
       createTextAtPosition,
       editTextAnnotation,
+      editTextWithInline,
       saveTextAnnotation,
       applyTextAnnotationEdit,
       startInlineTextEdit,
       commitInlineTextEdit,
-      commitInlineTextEditAndOpenStyleEditor,
+      openInlineTextStyleEditor,
       updateTextStyle,
       duplicateTextAnnotation,
       deleteTextAnnotation,
@@ -336,11 +375,12 @@ export function useTextAnnotations(params: UseTextAnnotationsParams): TextAnnota
       handleAddText,
       createTextAtPosition,
       editTextAnnotation,
+      editTextWithInline,
       saveTextAnnotation,
       applyTextAnnotationEdit,
       startInlineTextEdit,
       commitInlineTextEdit,
-      commitInlineTextEditAndOpenStyleEditor,
+      openInlineTextStyleEditor,
       updateTextStyle,
       duplicateTextAnnotation,
       deleteTextAnnotation,

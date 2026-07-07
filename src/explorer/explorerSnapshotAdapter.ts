@@ -206,6 +206,7 @@ const BUILTIN_CONTAINER_ACTION_COMMANDS: readonly string[] = [
   "containerlab.node.copyImage"
 ];
 const STOPPED_CONTAINER_ENABLED_COMMANDS = new Set<string>([
+  "containerlab.node.showLogs",
   "containerlab.node.start",
   "containerlab.node.copyName",
   "containerlab.node.copyID",

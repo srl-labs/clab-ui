@@ -122,7 +122,7 @@ test("buildExplorerSnapshot disables running-only actions for stopped containers
 
   assert.equal(actionByCommand("containerlab.node.start")?.disabled, false);
   assert.equal(actionByCommand("containerlab.node.copyName")?.disabled, false);
-  assert.equal(actionByCommand("containerlab.node.showLogs")?.disabled, true);
+  assert.equal(actionByCommand("containerlab.node.showLogs")?.disabled, false);
   assert.equal(actionByCommand("containerlab.node.attachShell")?.disabled, true);
   assert.equal(actionByCommand("containerlab.node.ssh")?.disabled, true);
   assert.equal(actionByCommand("containerlab.node.telnet")?.disabled, true);
@@ -136,7 +136,7 @@ test("buildExplorerSnapshot disables running-only actions for stopped containers
 
   const logsAction = actionByCommand("containerlab.node.showLogs");
   assert.ok(logsAction);
-  assert.equal(actionBindings.get(logsAction.actionRef)?.disabled, true);
+  assert.equal(actionBindings.get(logsAction.actionRef)?.disabled, false);
 });
 
 test("buildExplorerSnapshot supports opt-in lazy file explorer section", async () => {

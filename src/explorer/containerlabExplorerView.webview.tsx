@@ -1429,7 +1429,6 @@ function ExplorerNodeMarker({
     </Box>
   );
 }
-
 interface ExplorerNodePrimaryLabelProps {
   label: string;
   isEndpointRoot: boolean;
@@ -2950,4 +2949,3 @@ export function ContainerlabExplorerView() {
     </Box>
   );
 }
-

@@ -5,6 +5,7 @@
  */
 
 import type { ReactFlowInstance } from "@xyflow/react";
+import type { StyleSpecification } from "maplibre-gl";
 
 import type { GroupStyleAnnotation } from "../core/types/topology";
 import type { NetworkType } from "../core/types/editors";
@@ -110,6 +111,7 @@ declare global {
     __INITIAL_DATA__?: WebviewInitialData;
     // Note: __SCHEMA_DATA__ is typed in hooks/editor/useSchema.ts
     __DOCKER_IMAGES__?: string[];
+    maplibreStyle?: StyleSpecification;
     maplibreWorkerUrl?: string;
     maplibreWorkerSourceBase64?: string;
   }

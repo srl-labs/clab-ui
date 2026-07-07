@@ -9,7 +9,8 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "dist-viewer"
   ],
   "repository": {
     "type": "git",
@@ -67,6 +68,11 @@
       "types": "./dist/wireshark-vnc/index.d.ts",
       "import": "./dist/wireshark-vnc/index.js"
     },
+    "./viewer": {
+      "types": "./dist/viewer/index.d.ts",
+      "import": "./dist/viewer/index.js"
+    },
+    "./viewer/static/*": "./dist-viewer/*",
     "./monaco/core": {
       "types": "./dist/monaco/core.d.ts",
       "import": "./dist/monaco/core.js"
@@ -87,7 +93,8 @@
     "./styles/global.css": "./dist/styles/global.css"
   },
   "scripts": {
-    "build": "node ./build.mjs",
+    "build": "node ./build.mjs && npm run build:viewer",
+    "build:viewer": "vite build --config vite.viewer.config.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "npm run typecheck && npm run lint:ts",
     "lint:ts": "oxlint --import-plugin --react-plugin --jsx-a11y-plugin .",

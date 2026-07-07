@@ -21,11 +21,15 @@ import {
 } from "./hooks/app";
 import { AppContent } from "./AppContent";
 
+/** Chrome level: "full" shows the editor navbar + side panel; "viewer" renders the canvas only. */
+export type AppChrome = "full" | "viewer";
+
 interface AppRootProps {
   initialData?: InitialGraphData;
+  chrome?: AppChrome;
 }
 
-function AppRoot({ initialData }: AppRootProps): React.JSX.Element {
+function AppRoot({ initialData, chrome }: AppRootProps): React.JSX.Element {
   const reactFlowRef = React.useRef<ReactFlowCanvasRef>(null);
   const [rfInstance, setRfInstance] = React.useState<ReactFlowInstance | null>(null);
   const layoutCanvasRef: React.RefObject<CanvasRef | null> = reactFlowRef;
@@ -45,18 +49,20 @@ function AppRoot({ initialData }: AppRootProps): React.JSX.Element {
       rfInstance={rfInstance}
       layoutControls={layoutControls}
       onInit={setRfInstance}
+      chrome={chrome}
     />
   );
 }
 
 /** Main App component - initializes stores and subscriptions */
-export const App: React.FC<{ initialData?: InitialGraphData; runtime: ClabUiRuntime }> = ({
-  initialData,
-  runtime
-}) => {
+export const App: React.FC<{
+  initialData?: InitialGraphData;
+  runtime: ClabUiRuntime;
+  chrome?: AppChrome;
+}> = ({ initialData, runtime, chrome }) => {
   return (
     <ClabUiRuntimeProvider runtime={runtime}>
-      <AppRoot initialData={initialData} />
+      <AppRoot initialData={initialData} chrome={chrome} />
     </ClabUiRuntimeProvider>
   );
 };

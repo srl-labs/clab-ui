@@ -13,6 +13,7 @@ import {
 } from "../../annotations/annotationNodeConverters";
 
 interface KeyboardShortcutsOptions {
+  disabled?: boolean;
   mode: "edit" | "view";
   isLocked: boolean;
   selectedNode: string | null;
@@ -710,6 +711,7 @@ function handleEscape(
  */
 export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
   const {
+    disabled = false,
     mode,
     isLocked,
     selectedNode,
@@ -738,6 +740,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
 
   const handleKeyDown = (event: KeyboardEvent): void => {
     if (event.defaultPrevented) return;
+    if (disabled) return;
     if (isInputElement(event)) return;
 
     if (
@@ -812,6 +815,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
 
   const handleClipboardEvent = (event: ClipboardEvent): void => {
     if (event.defaultPrevented) return;
+    if (disabled) return;
     if (isClipboardEventInEditableContext(event)) return;
 
     const shouldHandleTopology = shouldHandleTopologyShortcut(

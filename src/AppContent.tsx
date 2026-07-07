@@ -307,6 +307,8 @@ export interface AppContentProps {
   rfInstance: ReactFlowInstance | null;
   layoutControls: LayoutControls;
   onInit: (instance: ReactFlowInstance) => void;
+  /** "full" (default) shows the editor navbar + side panel; "viewer" renders only the canvas. */
+  chrome?: "full" | "viewer";
 }
 
 interface StoreSelectionState {
@@ -687,8 +689,10 @@ export const AppContent: React.FC<AppContentProps> = ({
   reactFlowRef,
   rfInstance,
   layoutControls,
-  onInit
+  onInit,
+  chrome = "full"
 }) => {
+  const viewerOnly = chrome === "viewer";
   const host = useClabUiHost();
   const sessionClient = useTopologySessionClient();
   const { renderAboutModal, renderDeployMenuItems } = useClabUiRuntime();
@@ -1178,6 +1182,7 @@ export const AppContent: React.FC<AppContentProps> = ({
   ]);
 
   useAppKeyboardShortcuts({
+    disabled: viewerOnly,
     state: {
       mode: interactionMode,
       isLocked: isInteractionLocked,
@@ -1208,13 +1213,14 @@ export const AppContent: React.FC<AppContentProps> = ({
   React.useEffect(() => {
     if (
       hasActiveTopology &&
+      !viewerOnly &&
       hasContextContent &&
       !isProcessing &&
       !panelVisibility.isContextPanelOpen
     ) {
       panelVisibility.handleOpenContextPanel("auto");
     }
-  }, [hasActiveTopology, hasContextContent, isProcessing, panelVisibility]);
+  }, [hasActiveTopology, viewerOnly, hasContextContent, isProcessing, panelVisibility]);
 
   // close if palette wasn't open, else go back to palette
   const handleContextPanelBack = React.useCallback(() => {
@@ -1236,17 +1242,18 @@ export const AppContent: React.FC<AppContentProps> = ({
   }, [reactFlowRef, rfInstance]);
 
   const handleOpenNodePalette = React.useCallback(() => {
-    if (!hasActiveTopology) {
+    if (!hasActiveTopology || viewerOnly) {
       return;
     }
     handleContextPanelBack();
     panelVisibility.handleOpenContextPanel();
-  }, [handleContextPanelBack, hasActiveTopology, panelVisibility]);
+  }, [handleContextPanelBack, hasActiveTopology, panelVisibility, viewerOnly]);
 
   const canvasProps = React.useMemo<CanvasPropsWithoutGraph>(
     () => ({
       topologyViewportKey,
-      isContextPanelOpen: hasActiveTopology && panelVisibility.isContextPanelOpen,
+      isContextPanelOpen: !viewerOnly && hasActiveTopology && panelVisibility.isContextPanelOpen,
+      readOnlyViewer: viewerOnly,
       onPaneClick: handleEmptyCanvasClick,
       layout: layoutControls.layout,
       isGeoLayout: layoutControls.isGeoLayout,
@@ -1277,6 +1284,7 @@ export const AppContent: React.FC<AppContentProps> = ({
     }),
     [
       topologyViewportKey,
+      viewerOnly,
       hasActiveTopology,
       panelVisibility.isContextPanelOpen,
       handleEmptyCanvasClick,
@@ -1433,31 +1441,33 @@ export const AppContent: React.FC<AppContentProps> = ({
           onLockedAction={handleLockedAction}
           runtimeRef={annotationRuntimeRef}
         />
-        <Navbar
-          hasActiveTopology={hasActiveTopology}
-          onZoomToFit={handleZoomToFit}
-          layout={layoutControls.layout}
-          onLayoutChange={layoutControls.setLayout}
-          onLabSettings={panelVisibility.handleShowLabSettings}
-          onToggleSplit={handleToggleSplit}
-          onFindNode={panelVisibility.handleOpenFindPopover}
-          onCaptureViewport={panelVisibility.handleShowSvgExport}
-          onShowShortcuts={panelVisibility.handleShowShortcuts}
-          onShowAbout={panelVisibility.handleShowAbout}
-          onShowBulkLink={panelVisibility.handleShowBulkLink}
-          linkLabelMode={state.linkLabelMode}
-          onLinkLabelModeChange={handleLinkLabelModeChange}
-          shortcutDisplayEnabled={shortcutDisplay.isEnabled}
-          onToggleShortcutDisplay={shortcutDisplay.toggle}
-          canUndo={undoRedo.canUndo}
-          canRedo={undoRedo.canRedo}
-          onUndo={undoRedo.undo}
-          onRedo={undoRedo.redo}
-          onLogoClick={easterEgg.handleLogoClick}
-          logoClickProgress={easterEgg.state.progress}
-          isPartyMode={easterEgg.state.isPartyMode}
-          renderDeployMenuItems={renderDeployMenuItems}
-        />
+        {!viewerOnly && (
+          <Navbar
+            hasActiveTopology={hasActiveTopology}
+            onZoomToFit={handleZoomToFit}
+            layout={layoutControls.layout}
+            onLayoutChange={layoutControls.setLayout}
+            onLabSettings={panelVisibility.handleShowLabSettings}
+            onToggleSplit={handleToggleSplit}
+            onFindNode={panelVisibility.handleOpenFindPopover}
+            onCaptureViewport={panelVisibility.handleShowSvgExport}
+            onShowShortcuts={panelVisibility.handleShowShortcuts}
+            onShowAbout={panelVisibility.handleShowAbout}
+            onShowBulkLink={panelVisibility.handleShowBulkLink}
+            linkLabelMode={state.linkLabelMode}
+            onLinkLabelModeChange={handleLinkLabelModeChange}
+            shortcutDisplayEnabled={shortcutDisplay.isEnabled}
+            onToggleShortcutDisplay={shortcutDisplay.toggle}
+            canUndo={undoRedo.canUndo}
+            canRedo={undoRedo.canRedo}
+            onUndo={undoRedo.undo}
+            onRedo={undoRedo.redo}
+            onLogoClick={easterEgg.handleLogoClick}
+            logoClickProgress={easterEgg.state.progress}
+            isPartyMode={easterEgg.state.isPartyMode}
+            renderDeployMenuItems={renderDeployMenuItems}
+          />
+        )}
         <Box
           ref={layoutRef}
           sx={{ display: "flex", flexGrow: 1, overflow: "hidden", position: "relative" }}
@@ -1498,7 +1508,7 @@ export const AppContent: React.FC<AppContentProps> = ({
               />
             </Box>
           )}
-          {hasActiveTopology && (
+          {!viewerOnly && hasActiveTopology && (
             <ContextPanel
               isOpen={panelVisibility.isContextPanelOpen}
               side={panelVisibility.panelSide}

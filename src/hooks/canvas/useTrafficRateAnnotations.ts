@@ -15,6 +15,8 @@ interface UseTrafficRateAnnotationsParams {
   onLockedAction: () => void;
   derived: UseDerivedAnnotationsReturn;
   sessionClient: TopologySessionClient;
+  /** Debounced whole-graph persist shared across annotation kinds (live apply). */
+  debouncedPersist: () => void;
   uiState: Pick<AnnotationUIState, "selectedTrafficRateIds">;
   uiActions: Pick<
     AnnotationUIActions,
@@ -26,8 +28,32 @@ export interface TrafficRateAnnotationActions {
   createTrafficRateAtPosition: (position: { x: number; y: number }) => void;
   editTrafficRateAnnotation: (id: string) => void;
   saveTrafficRateAnnotation: (annotation: TrafficRateAnnotation) => void;
+  applyTrafficRateAnnotationEdit: (annotation: TrafficRateAnnotation) => void;
   deleteTrafficRateAnnotation: (id: string) => void;
   deleteSelectedTrafficRateAnnotations: () => void;
+}
+
+/** Fields the traffic-rate editor form may change. Position, group membership
+ * and geo coordinates stay canvas-authoritative. */
+function pickTrafficRateEditableFields(
+  annotation: TrafficRateAnnotation
+): Partial<TrafficRateAnnotation> {
+  return {
+    nodeId: annotation.nodeId,
+    interfaceName: annotation.interfaceName,
+    mode: annotation.mode,
+    textMetric: annotation.textMetric,
+    width: annotation.width,
+    height: annotation.height,
+    backgroundColor: annotation.backgroundColor,
+    backgroundOpacity: annotation.backgroundOpacity,
+    borderColor: annotation.borderColor,
+    borderWidth: annotation.borderWidth,
+    borderStyle: annotation.borderStyle,
+    borderRadius: annotation.borderRadius,
+    textColor: annotation.textColor,
+    showLegend: annotation.showLegend
+  };
 }
 
 function resolveDefaultTarget(): { nodeId?: string; interfaceName?: string } {
@@ -56,7 +82,8 @@ function createTrafficRateAnnotationId(existingIds: Iterable<string>): string {
 export function useTrafficRateAnnotations(
   params: UseTrafficRateAnnotationsParams
 ): TrafficRateAnnotationActions {
-  const { isLocked, onLockedAction, derived, sessionClient, uiState, uiActions } = params;
+  const { isLocked, onLockedAction, derived, sessionClient, debouncedPersist, uiState, uiActions } =
+    params;
   const canEditAnnotations = !isLocked;
 
   const persist = useCallback(() => {
@@ -124,6 +151,16 @@ export function useTrafficRateAnnotations(
     [derived, persist]
   );
 
+  /** Live apply from the traffic-rate editor panel: merge editable fields, persist debounced. */
+  const applyTrafficRateAnnotationEdit = useCallback(
+    (annotation: TrafficRateAnnotation) => {
+      if (!derived.trafficRateAnnotations.some((entry) => entry.id === annotation.id)) return;
+      derived.updateTrafficRateAnnotation(annotation.id, pickTrafficRateEditableFields(annotation));
+      debouncedPersist();
+    },
+    [derived, debouncedPersist]
+  );
+
   const deleteTrafficRateAnnotation = useCallback(
     (id: string) => {
       derived.deleteTrafficRateAnnotation(id);
@@ -148,6 +185,7 @@ export function useTrafficRateAnnotations(
       createTrafficRateAtPosition,
       editTrafficRateAnnotation,
       saveTrafficRateAnnotation,
+      applyTrafficRateAnnotationEdit,
       deleteTrafficRateAnnotation,
       deleteSelectedTrafficRateAnnotations
     }),
@@ -155,6 +193,7 @@ export function useTrafficRateAnnotations(
       createTrafficRateAtPosition,
       editTrafficRateAnnotation,
       saveTrafficRateAnnotation,
+      applyTrafficRateAnnotationEdit,
       deleteTrafficRateAnnotation,
       deleteSelectedTrafficRateAnnotations
     ]

@@ -781,19 +781,19 @@ export const AppContent: React.FC<AppContentProps> = ({
           membersCleared: false
         },
       saveTextAnnotation: forward("saveTextAnnotation"),
+      applyTextAnnotationEdit: forward("applyTextAnnotationEdit"),
       updateTextAnnotation: forward("updateTextAnnotation"),
-      previewTextAnnotation: forward("previewTextAnnotation"),
-      removePreviewTextAnnotation: forward("removePreviewTextAnnotation"),
       deleteTextAnnotation: forward("deleteTextAnnotation"),
       saveShapeAnnotation: forward("saveShapeAnnotation"),
+      applyShapeAnnotationEdit: forward("applyShapeAnnotationEdit"),
       updateShapeAnnotation: forward("updateShapeAnnotation"),
-      previewShapeAnnotation: forward("previewShapeAnnotation"),
-      removePreviewShapeAnnotation: forward("removePreviewShapeAnnotation"),
       deleteShapeAnnotation: forward("deleteShapeAnnotation"),
       saveTrafficRateAnnotation: forward("saveTrafficRateAnnotation"),
+      applyTrafficRateAnnotationEdit: forward("applyTrafficRateAnnotationEdit"),
       updateTrafficRateAnnotation: forward("updateTrafficRateAnnotation"),
       deleteTrafficRateAnnotation: forward("deleteTrafficRateAnnotation"),
       saveGroup: forward("saveGroup"),
+      applyGroupEdit: forward("applyGroupEdit"),
       deleteGroup: forward("deleteGroup"),
       updateGroup: forward("updateGroup")
     }),
@@ -809,6 +809,11 @@ export const AppContent: React.FC<AppContentProps> = ({
       disableAddTextMode: forward("disableAddTextMode"),
       disableAddShapeMode: forward("disableAddShapeMode"),
       onEditFreeText: forward("editTextAnnotation"),
+      onEditFreeTextWithInline: forward("editTextWithInline"),
+      onStartInlineFreeTextEdit: forward("startInlineTextEdit"),
+      onCommitInlineFreeTextEdit: forward("commitInlineTextEdit"),
+      onUpdateFreeTextStyle: forward("updateTextStyle"),
+      onOpenFreeTextStyleEditor: forward("openInlineTextStyleEditor"),
       onDuplicateFreeText: forward("duplicateTextAnnotation"),
       onEditFreeShape: forward("editShapeAnnotation"),
       onEditTrafficRate: forward("editTrafficRateAnnotation"),
@@ -1553,57 +1558,27 @@ export const AppContent: React.FC<AppContentProps> = ({
                 },
                 editingTextAnnotation: annotationUiState.editingTextAnnotation,
                 textAnnotationHandlers: {
-                  onSave: annotationActions.saveTextAnnotation,
-                  onPreview: (annotation) => {
-                    const exists =
-                      annotationRuntimeRef.current?.textAnnotations.some(
-                        (entry) => entry.id === annotation.id
-                      ) ?? false;
-                    if (exists) {
-                      annotationActions.updateTextAnnotation(annotation.id, annotation);
-                      return true;
-                    }
-                    annotationActions.previewTextAnnotation(annotation);
-                    return false;
-                  },
-                  onPreviewDelete: annotationActions.removePreviewTextAnnotation,
+                  onApply: annotationActions.applyTextAnnotationEdit,
                   onClose: annotationUiActions.closeTextEditor,
                   onDelete: annotationActions.deleteTextAnnotation
                 },
                 editingShapeAnnotation: annotationUiState.editingShapeAnnotation,
                 shapeAnnotationHandlers: {
-                  onSave: annotationActions.saveShapeAnnotation,
-                  onPreview: (annotation) => {
-                    const exists =
-                      annotationRuntimeRef.current?.shapeAnnotations.some(
-                        (entry) => entry.id === annotation.id
-                      ) ?? false;
-                    if (exists) {
-                      annotationActions.updateShapeAnnotation(annotation.id, annotation);
-                      return true;
-                    }
-                    annotationActions.previewShapeAnnotation(annotation);
-                    return false;
-                  },
-                  onPreviewDelete: annotationActions.removePreviewShapeAnnotation,
+                  onApply: annotationActions.applyShapeAnnotationEdit,
                   onClose: annotationUiActions.closeShapeEditor,
                   onDelete: annotationActions.deleteShapeAnnotation
                 },
                 editingTrafficRateAnnotation: annotationUiState.editingTrafficRateAnnotation,
                 trafficRateAnnotationHandlers: {
-                  onSave: annotationActions.saveTrafficRateAnnotation,
-                  onPreview: (annotation) => {
-                    annotationActions.updateTrafficRateAnnotation(annotation.id, annotation);
-                  },
+                  onApply: annotationActions.applyTrafficRateAnnotationEdit,
                   onClose: annotationUiActions.closeTrafficRateEditor,
                   onDelete: annotationActions.deleteTrafficRateAnnotation
                 },
                 editingGroup: annotationUiState.editingGroup,
                 groupHandlers: {
-                  onSave: annotationActions.saveGroup,
+                  onApply: annotationActions.applyGroupEdit,
                   onClose: annotationUiActions.closeGroupEditor,
-                  onDelete: annotationActions.deleteGroup,
-                  onStylePreview: annotationActions.updateGroup
+                  onDelete: annotationActions.deleteGroup
                 }
               }}
             />

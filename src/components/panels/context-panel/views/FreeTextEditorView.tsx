@@ -8,12 +8,8 @@ import { AnnotationFormEditorView, type AnnotationEditorViewProps } from "./Anno
 
 export type FreeTextEditorViewProps = AnnotationEditorViewProps<FreeTextAnnotation>;
 
-function canSave(data: FreeTextAnnotation): boolean {
+function canApply(data: FreeTextAnnotation): boolean {
   return data.text.trim().length > 0;
-}
-
-function getIsNew(annotation: FreeTextAnnotation | null): boolean {
-  return annotation?.text === "";
 }
 
 function cloneAnnotation(annotation: FreeTextAnnotation): FreeTextAnnotation {
@@ -25,7 +21,6 @@ export const FreeTextEditorView: React.FC<FreeTextEditorViewProps> = (props) => 
     {...props}
     FormContent={FreeTextFormContent}
     snapshot={cloneAnnotation}
-    canSave={canSave}
-    getIsNew={getIsNew}
+    canApply={canApply}
   />
 );

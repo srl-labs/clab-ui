@@ -108,6 +108,7 @@ function buildNodeItems(
     startLinkCreation: params.startLinkCreation,
     cancelLinkCreation: params.cancelLinkCreation,
     editFreeText: params.annotationHandlers?.onEditFreeText,
+    editFreeTextWithInline: params.annotationHandlers?.onEditFreeTextWithInline,
     duplicateFreeText: params.annotationHandlers?.onDuplicateFreeText,
     editFreeShape: params.annotationHandlers?.onEditFreeShape,
     deleteFreeText: params.annotationHandlers?.onDeleteFreeText,

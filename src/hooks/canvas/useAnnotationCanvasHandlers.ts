@@ -12,7 +12,8 @@ import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
   TRAFFIC_RATE_NODE_TYPE,
-  GROUP_NODE_TYPE
+  GROUP_NODE_TYPE,
+  isAnnotationNodeType
 } from "../../annotations/annotationNodeConverters";
 import { log } from "../../utils/logger";
 import { snapToGrid } from "../../utils/grid";
@@ -158,14 +159,26 @@ function useWrappedNodeDoubleClick(
 ) {
   return useCallback(
     (event: React.MouseEvent, node: Node) => {
+      const isAnnotationNode = isAnnotationNodeType(node.type);
+      if (isAnnotationNode) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
+      }
+
       if (isLocked || !annotationHandlers) {
+        if (isAnnotationNode) return;
         baseOnNodeDoubleClick(event, node);
         return;
       }
 
       if (node.type === FREE_TEXT_NODE_TYPE) {
-        log.info(`[ReactFlowCanvas] Editing free text: ${node.id}`);
-        annotationHandlers.onEditFreeText(node.id);
+        log.info(`[ReactFlowCanvas] Editing free text inline: ${node.id}`);
+        if (annotationHandlers.onStartInlineFreeTextEdit) {
+          annotationHandlers.onStartInlineFreeTextEdit(node.id);
+        } else {
+          annotationHandlers.onEditFreeText(node.id);
+        }
         return;
       }
 

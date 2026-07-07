@@ -34,7 +34,10 @@ const markdownRenderer = new MarkdownIt({
   html: false, // Disable raw HTML for security
   linkify: true, // Auto-convert URLs to links
   typographer: true, // Smart quotes and dashes
-  breaks: false, // Don't convert \n to <br> (like GitHub)
+  // Annotations are edited in a plain textarea, so a typed newline must stay a
+  // line break after rendering (GitHub-comment style), or the committed result
+  // won't match what the editor showed.
+  breaks: true,
   langPrefix: "hljs language-",
   highlight(code: string, lang: string): string {
     try {

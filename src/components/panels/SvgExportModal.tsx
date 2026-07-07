@@ -39,6 +39,11 @@ import {
 } from "../../annotations/annotationNodeConverters";
 import { type ClabUiHost, useClabUiHost } from "../../host";
 import { useEdges } from "../../stores/graphStore";
+import { useTelemetryLabelSettings, useTopoViewerStore } from "../../stores/topoViewerStore";
+import {
+  clampTelemetryInterfaceSizePercent,
+  clampTelemetryNodeSizePx
+} from "../../utils/telemetryInterfaceLabels";
 import { log } from "../../utils/logger";
 import { ColorField, PREVIEW_GRID_BG_SX } from "../ui/form";
 import { DialogTitleWithClose } from "../ui/dialog/DialogChrome";
@@ -386,6 +391,8 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   customIcons
 }) => {
   const host = useClabUiHost();
+  const linkLabelMode = useTopoViewerStore((state) => state.linkLabelMode);
+  const telemetryLabelSettings = useTelemetryLabelSettings();
   const [borderZoom, setBorderZoom] = useState(100);
   const [borderPadding, setBorderPadding] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
@@ -395,7 +402,10 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   } | null>(null);
   const [grafanaSettingsTab, setGrafanaSettingsTab] = useState<GrafanaSettingsTab>("general");
   const [includeAnnotations, setIncludeAnnotations] = useState(true);
-  const [includeEdgeLabels, setIncludeEdgeLabels] = useState(true);
+  // Default to what the canvas currently shows: no labels in "hide"/"on-select" modes
+  const [includeEdgeLabels, setIncludeEdgeLabels] = useState(
+    () => linkLabelMode !== "hide" && linkLabelMode !== "on-select"
+  );
   const [exportGrafanaBundle, setExportGrafanaBundle] = useState(false);
   const [isGrafanaSettingsOpen, setIsGrafanaSettingsOpen] = useState(false);
   const [excludeNodesWithoutLinks, setExcludeNodesWithoutLinks] = useState(true);
@@ -408,9 +418,12 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   const [trafficThresholdUnit, setTrafficThresholdUnit] = useState<TrafficThresholdUnit>(
     DEFAULT_TRAFFIC_THRESHOLD_UNIT
   );
-  const [grafanaNodeSizePx, setGrafanaNodeSizePx] = useState(DEFAULT_GRAFANA_NODE_SIZE_PX);
-  const [grafanaInterfaceSizePercent, setGrafanaInterfaceSizePercent] = useState(
-    DEFAULT_GRAFANA_INTERFACE_SIZE_PERCENT
+  // Start from the live canvas sizing so Grafana bundles match the screen too
+  const [grafanaNodeSizePx, setGrafanaNodeSizePx] = useState(() =>
+    clampTelemetryNodeSizePx(telemetryLabelSettings.nodeSizePx)
+  );
+  const [grafanaInterfaceSizePercent, setGrafanaInterfaceSizePercent] = useState(() =>
+    clampTelemetryInterfaceSizePercent(telemetryLabelSettings.interfaceSizePercent)
   );
   const [globalInterfaceOverrideSelection, setGlobalInterfaceOverrideSelection] =
     useState(INTERFACE_SELECT_AUTO);
@@ -513,21 +526,29 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
       throw new Error("SVG export is not yet available");
     }
 
-    const grafanaRenderOptions: GraphSvgRenderOptions | undefined = exportGrafanaBundle
+    const renderOptions: GraphSvgRenderOptions = exportGrafanaBundle
       ? {
           nodeIconSize: grafanaNodeSizePx,
           interfaceScale: grafanaInterfaceSizePercent / 100,
-          interfaceLabelOverrides: effectiveInterfaceLabelOverrides
+          interfaceLabelOverrides: effectiveInterfaceLabelOverrides,
+          telemetryStyleLabels: true
         }
-      : undefined;
+      : {
+          // Mirror the live canvas settings so the export matches the screen 1:1
+          nodeIconSize: clampTelemetryNodeSizePx(telemetryLabelSettings.nodeSizePx),
+          interfaceScale:
+            clampTelemetryInterfaceSizePercent(telemetryLabelSettings.interfaceSizePercent) / 100,
+          interfaceLabelOverrides: telemetryLabelSettings.interfaceLabelOverrides,
+          globalInterfaceOverrideSelection: telemetryLabelSettings.globalInterfaceOverrideSelection,
+          telemetryStyleLabels: linkLabelMode === "telemetry-style"
+        };
     const graphSvg = buildGraphSvg(
       rfInstance,
       borderZoom,
       customIcons,
       includeEdgeLabels,
       ANNOTATION_NODE_TYPES,
-      exportGrafanaBundle,
-      grafanaRenderOptions
+      renderOptions
     );
     if (!graphSvg) {
       throw new Error("Unable to capture viewport for SVG export");
@@ -553,6 +574,8 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
     grafanaNodeSizePx,
     grafanaInterfaceSizePercent,
     effectiveInterfaceLabelOverrides,
+    linkLabelMode,
+    telemetryLabelSettings,
     rfInstance,
     borderZoom,
     customIcons,
@@ -584,7 +607,6 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
           "Traffic thresholds must be strictly ascending (green < yellow < orange < red)"
         );
       }
-
       const mappings = collectGrafanaEdgeCellMappings(
         prepared.graphSvg.edges,
         prepared.graphSvg.nodes,
@@ -607,7 +629,6 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
           Math.max(6, borderPadding)
         );
       }
-
       let grafanaSvg = applyGrafanaCellIdsToSvg(grafanaBaseSvg, mappings, {
         trafficRatesOnHoverOnly,
         trafficRateLabelPlacements
@@ -671,7 +692,10 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       log.error(`[SvgExport] Export failed: ${errorMessage}`);
-      setExportStatus({ type: "error", message: `Export failed: ${errorMessage}` });
+      setExportStatus({
+        type: "error",
+        message: `Export failed: ${errorMessage}`
+      });
     } finally {
       setIsExporting(false);
     }
@@ -999,7 +1023,13 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
               <Typography variant="body2" color="text.secondary">
                 Configure thresholds and topology sizing used in the exported Grafana panel.
               </Typography>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 1.5
+                }}
+              >
                 <TextField
                   label="Node size"
                   type="number"
@@ -1055,7 +1085,13 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
                 <MenuItem value="mbit">Mbit/s</MenuItem>
                 <MenuItem value="gbit">Gbit/s</MenuItem>
               </TextField>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 1.5
+                }}
+              >
                 <TextField
                   label="Green threshold"
                   type="number"

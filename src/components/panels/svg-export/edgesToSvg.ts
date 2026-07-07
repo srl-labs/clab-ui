@@ -12,16 +12,23 @@ import type { EdgeInfo } from "../../../stores/canvasStore";
 // Despite the hook-style name, useEdgeInfo is a plain cached function
 // (no React state) and is safe to call outside of components.
 import { useEdgeInfo as buildEdgeInfo } from "../../../stores/canvasStore";
+import { DEFAULT_ENDPOINT_LABEL_OFFSET } from "../../../annotations/endpointLabelOffset";
+import {
+  INTERFACE_SELECT_AUTO,
+  resolveTelemetryInterfaceLabel
+} from "../../../utils/telemetryInterfaceLabels";
 
 import {
   NODE_ICON_SIZE,
   EDGE_COLOR,
   EDGE_STYLE,
   EDGE_LABEL,
+  TELEMETRY_EDGE_LABEL,
   CONTROL_POINT_STEP_SIZE,
-  escapeXml
+  escapeXml,
+  resolveCssColor
 } from "./constants";
-import { getAutoCompactInterfaceLabel } from "../../../utils/telemetryInterfaceLabels";
+import { measureTextWidth } from "./textMetrics";
 
 // ============================================================================
 // Types
@@ -31,6 +38,8 @@ interface TopologyEdgeData {
   sourceEndpoint?: string;
   targetEndpoint?: string;
   linkStatus?: "up" | "down";
+  endpointLabelOffsetEnabled?: boolean;
+  endpointLabelOffset?: number;
   [key: string]: unknown;
 }
 
@@ -45,6 +54,9 @@ export interface EdgeSvgRenderOptions {
   nodeIconSize?: number;
   interfaceScale?: number;
   interfaceLabelOverrides?: Record<string, string>;
+  globalInterfaceOverrideSelection?: string;
+  /** Render endpoint labels like the canvas telemetry style (bubbles anchored at node sides). */
+  telemetryStyleLabels?: boolean;
 }
 
 type InterfaceSide = "top" | "right" | "bottom" | "left";
@@ -72,6 +84,11 @@ interface ResolvedEdgeRenderOptions {
   nodeIconSize: number;
   interfaceScale: number;
   interfaceLabelOverrides: Record<string, string>;
+  globalInterfaceOverrideSelection: string;
+  telemetryStyleLabels: boolean;
+  /** Theme colors for the default-style pill labels */
+  defaultLabelBackground: string;
+  defaultLabelForeground: string;
 }
 
 // ============================================================================
@@ -113,7 +130,22 @@ function resolveEdgeRenderOptions(renderOptions?: EdgeSvgRenderOptions): Resolve
       ? renderOptions.interfaceLabelOverrides
       : {};
 
-  return { nodeIconSize, interfaceScale, interfaceLabelOverrides };
+  return {
+    nodeIconSize,
+    interfaceScale,
+    interfaceLabelOverrides,
+    globalInterfaceOverrideSelection:
+      renderOptions?.globalInterfaceOverrideSelection ?? INTERFACE_SELECT_AUTO,
+    telemetryStyleLabels: renderOptions?.telemetryStyleLabels === true,
+    defaultLabelBackground: resolveCssColor(
+      "var(--topoviewer-edge-label-background)",
+      EDGE_LABEL.backgroundColor
+    ),
+    defaultLabelForeground: resolveCssColor(
+      "var(--topoviewer-edge-label-foreground)",
+      EDGE_LABEL.color
+    )
+  };
 }
 
 function normalizeEndpoint(value: unknown): string | null {
@@ -122,9 +154,20 @@ function normalizeEndpoint(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function getMeasuredNodeWidth(node: Node, fallback: number): number {
+  if (typeof node.measured?.width === "number") return node.measured.width;
+  if (typeof node.width === "number") return node.width;
+  return fallback;
+}
+
+/**
+ * Node icon rect in flow coordinates. Matches the canvas (TopologyEdge.tsx
+ * getNodeRect): the icon is horizontally centered within the measured node.
+ */
 function getNodeRect(node: Node, nodeIconSize: number): NodeRect {
+  const measuredWidth = getMeasuredNodeWidth(node, nodeIconSize);
   return {
-    x: node.position.x,
+    x: node.position.x + (measuredWidth - nodeIconSize) / 2,
     y: node.position.y,
     width: nodeIconSize,
     height: nodeIconSize
@@ -303,10 +346,9 @@ function buildNodeSideAssignments(
     const vector = nodeVectors?.get(endpoint);
     const side = classifyInterfaceSide(vector);
     const sortKey = getInterfaceSortKey(side, vector);
-    const { radius } = getEndpointLabelMetrics(
-      endpoint,
-      renderOptions.interfaceScale,
-      renderOptions.interfaceLabelOverrides
+    const { radius } = getTelemetryLabelMetrics(
+      resolveDisplayInterfaceLabel(endpoint, renderOptions),
+      renderOptions.interfaceScale
     );
     buckets[side].push({ endpoint, sortKey, radius });
   }
@@ -370,7 +412,12 @@ function resolveEdgePointsWithInterfaceAnchors(
   targetAnchor?: InterfaceAnchor
 ): { sx: number; sy: number; tx: number; ty: number } {
   if (sourceAnchor && targetAnchor) {
-    return { sx: sourceAnchor.x, sy: sourceAnchor.y, tx: targetAnchor.x, ty: targetAnchor.y };
+    return {
+      sx: sourceAnchor.x,
+      sy: sourceAnchor.y,
+      tx: targetAnchor.x,
+      ty: targetAnchor.y
+    };
   }
 
   if (sourceAnchor) {
@@ -383,7 +430,12 @@ function resolveEdgePointsWithInterfaceAnchors(
       sourceAnchor.x,
       sourceAnchor.y
     );
-    return { sx: sourceAnchor.x, sy: sourceAnchor.y, tx: targetPoint.x, ty: targetPoint.y };
+    return {
+      sx: sourceAnchor.x,
+      sy: sourceAnchor.y,
+      tx: targetPoint.x,
+      ty: targetPoint.y
+    };
   }
 
   if (targetAnchor) {
@@ -396,7 +448,12 @@ function resolveEdgePointsWithInterfaceAnchors(
       targetAnchor.x,
       targetAnchor.y
     );
-    return { sx: sourcePoint.x, sy: sourcePoint.y, tx: targetAnchor.x, ty: targetAnchor.y };
+    return {
+      sx: sourcePoint.x,
+      sy: sourcePoint.y,
+      tx: targetAnchor.x,
+      ty: targetAnchor.y
+    };
   }
 
   return getEdgePoints(sourceRect, targetRect);
@@ -407,89 +464,175 @@ function resolveEdgePointsWithInterfaceAnchors(
 // ============================================================================
 
 /**
- * Build SVG for edge endpoint label
+ * Resolve the label text shown for an endpoint. Telemetry style compacts the
+ * interface name exactly like the canvas (per-endpoint overrides, then global
+ * selection, then auto-compact); the default style shows the full name.
  */
-function buildEndpointLabelSvg(
+function resolveDisplayInterfaceLabel(
+  endpoint: string,
+  renderOptions: ResolvedEdgeRenderOptions
+): string {
+  if (!renderOptions.telemetryStyleLabels) return endpoint;
+  return resolveTelemetryInterfaceLabel(
+    endpoint,
+    renderOptions.globalInterfaceOverrideSelection,
+    renderOptions.interfaceLabelOverrides
+  );
+}
+
+/**
+ * Telemetry-style bubble metrics. Matches TopologyEdge.tsx getTelemetryLabelMetrics().
+ */
+function getTelemetryLabelMetrics(
+  labelText: string,
+  interfaceScale: number
+): {
+  text: string;
+  radius: number;
+  fontSize: number;
+  textStrokeWidth: number;
+} {
+  const text = labelText.trim();
+  const fontSize = TELEMETRY_EDGE_LABEL.fontSize * interfaceScale;
+  const textWidth = Math.max(
+    fontSize * 0.8,
+    text.length * fontSize * TELEMETRY_EDGE_LABEL.charWidthRatio
+  );
+  const radius = Math.max(
+    TELEMETRY_EDGE_LABEL.minRadius * interfaceScale,
+    textWidth / 2 + TELEMETRY_EDGE_LABEL.paddingX * interfaceScale
+  );
+  return {
+    text,
+    radius,
+    fontSize,
+    textStrokeWidth: TELEMETRY_EDGE_LABEL.textStrokeWidth * interfaceScale
+  };
+}
+
+/**
+ * Build SVG for a telemetry-style endpoint bubble (circle + compact text).
+ */
+function buildTelemetryEndpointLabelSvg(
   text: string,
   x: number,
   y: number,
-  interfaceScale: number,
-  interfaceLabelOverrides: Record<string, string>
+  interfaceScale: number
 ): string {
-  if (!text) return "";
-
-  const { compact, radius, fontSize, bubbleStrokeWidth, textStrokeWidth } = getEndpointLabelMetrics(
-    text,
-    interfaceScale,
-    interfaceLabelOverrides
-  );
-  const textY = y;
+  const metrics = getTelemetryLabelMetrics(text, interfaceScale);
+  if (!metrics.text) return "";
 
   let svg = `<g class="edge-label">`;
 
-  svg += `<circle cx="${x}" cy="${y}" r="${radius}" `;
-  svg += `fill="${EDGE_LABEL.backgroundColor}" stroke="${EDGE_LABEL.outlineColor}" `;
-  svg += `stroke-width="${bubbleStrokeWidth}"/>`;
+  svg += `<circle cx="${x}" cy="${y}" r="${metrics.radius}" `;
+  svg += `fill="${TELEMETRY_EDGE_LABEL.backgroundColor}" stroke="${TELEMETRY_EDGE_LABEL.outlineColor}" `;
+  svg += `stroke-width="${TELEMETRY_EDGE_LABEL.bubbleStrokeWidth}"/>`;
 
-  svg += `<text x="${x}" y="${textY}" `;
-  svg += `font-size="${fontSize}" `;
-  svg += `font-family='${EDGE_LABEL.fontFamily}' `;
-  svg += `dominant-baseline="middle" alignment-baseline="middle" `;
-  svg += `fill="${EDGE_LABEL.color}" text-anchor="middle" `;
-  svg += `stroke="${EDGE_LABEL.textStrokeColor}" stroke-width="${textStrokeWidth}" `;
+  svg += `<text x="${x}" y="${y}" `;
+  svg += `font-size="${metrics.fontSize}" font-weight="${TELEMETRY_EDGE_LABEL.fontWeight}" `;
+  svg += `font-family='${TELEMETRY_EDGE_LABEL.fontFamily}' `;
+  svg += `dominant-baseline="central" `;
+  svg += `fill="${TELEMETRY_EDGE_LABEL.color}" text-anchor="middle" `;
+  svg += `stroke="${TELEMETRY_EDGE_LABEL.textStrokeColor}" stroke-width="${metrics.textStrokeWidth}" `;
   svg += `paint-order="stroke" stroke-linejoin="round">`;
-  svg += escapeXml(compact);
+  svg += escapeXml(metrics.text);
   svg += `</text>`;
 
   svg += `</g>`;
   return svg;
 }
 
-function getDisplayInterfaceLabel(
-  endpoint: string,
-  interfaceLabelOverrides: Record<string, string>
+/**
+ * Build SVG for a default-style endpoint label (rounded pill + full text).
+ * Matches the canvas EndpointLabel default variant (TopologyEdge.tsx).
+ */
+function buildDefaultEndpointLabelSvg(
+  text: string,
+  x: number,
+  y: number,
+  renderOptions: ResolvedEdgeRenderOptions
 ): string {
-  const override = interfaceLabelOverrides[endpoint];
-  if (typeof override === "string" && override.trim().length > 0) {
-    return override.trim();
-  }
-  return getAutoCompactInterfaceLabel(endpoint);
+  if (!text) return "";
+
+  const { interfaceScale } = renderOptions;
+  const fontSize = Math.max(8, EDGE_LABEL.fontSize * interfaceScale);
+  const paddingX = Math.max(2, EDGE_LABEL.paddingX * interfaceScale);
+  const textWidth = measureTextWidth(text, {
+    fontFamily: EDGE_LABEL.fontFamily,
+    fontSizePx: fontSize,
+    fontWeight: "400"
+  });
+  const bgWidth = textWidth + paddingX * 2;
+  const bgHeight = fontSize * EDGE_LABEL.lineHeight;
+
+  let svg = `<g class="edge-label">`;
+
+  svg += `<rect x="${x - bgWidth / 2}" y="${y - bgHeight / 2}" width="${bgWidth}" height="${bgHeight}" `;
+  svg += `fill="${renderOptions.defaultLabelBackground}" rx="${EDGE_LABEL.borderRadius}" ry="${EDGE_LABEL.borderRadius}"/>`;
+
+  svg += `<text x="${x}" y="${y}" `;
+  svg += `font-size="${fontSize}" `;
+  svg += `font-family='${EDGE_LABEL.fontFamily}' `;
+  svg += `dominant-baseline="central" `;
+  svg += `fill="${renderOptions.defaultLabelForeground}" text-anchor="middle">`;
+  svg += escapeXml(text);
+  svg += `</text>`;
+
+  svg += `</g>`;
+  return svg;
 }
 
-function getEndpointLabelMetrics(
+function buildEndpointLabelSvg(
   endpoint: string,
-  interfaceScale: number,
-  interfaceLabelOverrides: Record<string, string>
-): {
-  compact: string;
-  radius: number;
-  fontSize: number;
-  bubbleStrokeWidth: number;
-  textStrokeWidth: number;
-} {
-  const compact = getDisplayInterfaceLabel(endpoint, interfaceLabelOverrides);
-  const safeScale = clamp(interfaceScale, 0.4, 4);
-  const fontSize = EDGE_LABEL.fontSize * safeScale;
-  const charWidth = fontSize * 0.58;
-  const textWidth = Math.max(fontSize * 0.8, compact.length * charWidth);
-  const radius = Math.max(6 * safeScale, textWidth / 2 + 2 * safeScale);
-  const bubbleStrokeWidth = 0.7 * Math.max(0.6, safeScale);
-  const textStrokeWidth = EDGE_LABEL.textStrokeWidth * Math.max(0.6, safeScale);
-
-  return { compact, radius, fontSize, bubbleStrokeWidth, textStrokeWidth };
+  x: number,
+  y: number,
+  renderOptions: ResolvedEdgeRenderOptions
+): string {
+  const text = resolveDisplayInterfaceLabel(endpoint, renderOptions);
+  if (renderOptions.telemetryStyleLabels) {
+    return buildTelemetryEndpointLabelSvg(text, x, y, renderOptions.interfaceScale);
+  }
+  return buildDefaultEndpointLabelSvg(text, x, y, renderOptions);
 }
 
-function getLabelOffsetForEndpoint(
-  endpoint: string | undefined,
-  nodeProximateLabels: boolean,
-  interfaceScale: number,
-  interfaceLabelOverrides: Record<string, string>
-): number {
-  if (!nodeProximateLabels || endpoint === undefined || endpoint.length === 0) {
-    return EDGE_LABEL.offset;
+/**
+ * Per-endpoint label offsets. Matches TopologyEdge.tsx resolveEdgeLabelOffsets().
+ */
+function resolveEdgeLabelOffsets(
+  edgeData: TopologyEdgeData | undefined,
+  renderOptions: ResolvedEdgeRenderOptions
+): { source: number; target: number; loop: number } {
+  if (edgeData?.endpointLabelOffsetEnabled === false) {
+    return { source: 0, target: 0, loop: 0 };
   }
-  const { radius } = getEndpointLabelMetrics(endpoint, interfaceScale, interfaceLabelOverrides);
-  return radius + 1;
+
+  const { interfaceScale } = renderOptions;
+  if (renderOptions.telemetryStyleLabels) {
+    const resolveOffset = (endpoint: string | null): number => {
+      if (endpoint === null) return DEFAULT_ENDPOINT_LABEL_OFFSET;
+      const label = resolveDisplayInterfaceLabel(endpoint, renderOptions);
+      return (
+        getTelemetryLabelMetrics(label, interfaceScale).radius +
+        TELEMETRY_EDGE_LABEL.offsetPadding * interfaceScale
+      );
+    };
+    return {
+      source: resolveOffset(normalizeEndpoint(edgeData?.sourceEndpoint)),
+      target: resolveOffset(normalizeEndpoint(edgeData?.targetEndpoint)),
+      loop: TELEMETRY_EDGE_LABEL.loopOffset * interfaceScale
+    };
+  }
+
+  const defaultOffset =
+    typeof edgeData?.endpointLabelOffset === "number"
+      ? edgeData.endpointLabelOffset
+      : DEFAULT_ENDPOINT_LABEL_OFFSET;
+  const scaledDefaultOffset = defaultOffset * interfaceScale;
+  return {
+    source: scaledDefaultOffset,
+    target: scaledDefaultOffset,
+    loop: scaledDefaultOffset
+  };
 }
 
 function getRegularEdgeLabelPositions(
@@ -498,26 +641,18 @@ function getRegularEdgeLabelPositions(
   controlPoint: { x: number; y: number } | null,
   sourceAnchor?: InterfaceAnchor,
   targetAnchor?: InterfaceAnchor
-): { sourceLabelPos: { x: number; y: number }; targetLabelPos: { x: number; y: number } } {
-  if (ctx.nodeProximateLabels && sourceAnchor && targetAnchor) {
+): {
+  sourceLabelPos: { x: number; y: number };
+  targetLabelPos: { x: number; y: number };
+} {
+  if (ctx.renderOptions.telemetryStyleLabels && sourceAnchor && targetAnchor) {
     return {
       sourceLabelPos: sourceAnchor,
       targetLabelPos: targetAnchor
     };
   }
 
-  const sourceOffset = getLabelOffsetForEndpoint(
-    ctx.edgeData?.sourceEndpoint,
-    ctx.nodeProximateLabels,
-    ctx.interfaceScale,
-    ctx.interfaceLabelOverrides
-  );
-  const targetOffset = getLabelOffsetForEndpoint(
-    ctx.edgeData?.targetEndpoint,
-    ctx.nodeProximateLabels,
-    ctx.interfaceScale,
-    ctx.interfaceLabelOverrides
-  );
+  const labelOffsets = resolveEdgeLabelOffsets(ctx.edgeData, ctx.renderOptions);
 
   return {
     sourceLabelPos: getLabelPosition(
@@ -525,7 +660,7 @@ function getRegularEdgeLabelPositions(
       points.sy,
       points.tx,
       points.ty,
-      sourceOffset,
+      labelOffsets.source,
       controlPoint ?? undefined
     ),
     targetLabelPos: getLabelPosition(
@@ -533,7 +668,7 @@ function getRegularEdgeLabelPositions(
       points.ty,
       points.sx,
       points.sy,
-      targetOffset,
+      labelOffsets.target,
       controlPoint ?? undefined
     )
   };
@@ -554,7 +689,8 @@ function buildLoopEdgePath(
   nodeY: number,
   nodeWidth: number,
   nodeHeight: number,
-  loopIndex: number
+  loopIndex: number,
+  labelOffset: number
 ): {
   path: string;
   sourceLabelPos: { x: number; y: number };
@@ -579,8 +715,8 @@ function buildLoopEdgePath(
 
   return {
     path,
-    sourceLabelPos: { x: labelX, y: centerY - 10 },
-    targetLabelPos: { x: labelX, y: centerY + 10 }
+    sourceLabelPos: { x: labelX, y: centerY - labelOffset },
+    targetLabelPos: { x: labelX, y: centerY + labelOffset }
   };
 }
 
@@ -593,10 +729,7 @@ interface EdgeRenderContext {
   strokeColor: string;
   edgeData: TopologyEdgeData | undefined;
   includeLabels: boolean;
-  nodeProximateLabels: boolean;
-  nodeIconSize: number;
-  interfaceScale: number;
-  interfaceLabelOverrides: Record<string, string>;
+  renderOptions: ResolvedEdgeRenderOptions;
   interfaceAnchors?: NodeInterfaceAnchorMap;
 }
 
@@ -617,8 +750,7 @@ function buildEdgeLabels(
       sourceEndpoint,
       sourceLabelPos.x,
       sourceLabelPos.y,
-      ctx.interfaceScale,
-      ctx.interfaceLabelOverrides
+      ctx.renderOptions
     );
   }
   if (targetEndpoint !== null) {
@@ -626,8 +758,7 @@ function buildEdgeLabels(
       targetEndpoint,
       targetLabelPos.x,
       targetLabelPos.y,
-      ctx.interfaceScale,
-      ctx.interfaceLabelOverrides
+      ctx.renderOptions
     );
   }
   return svg;
@@ -637,15 +768,16 @@ function buildEdgeLabels(
  * Render a loop edge (self-referencing) to SVG
  */
 function renderLoopEdge(ctx: EdgeRenderContext, sourceNode: Node, loopIndex: number): string {
-  const nodeX = sourceNode.position.x;
-  const nodeY = sourceNode.position.y;
+  const rect = getNodeRect(sourceNode, ctx.renderOptions.nodeIconSize);
+  const { loop: loopLabelOffset } = resolveEdgeLabelOffsets(ctx.edgeData, ctx.renderOptions);
 
   const { path, sourceLabelPos, targetLabelPos } = buildLoopEdgePath(
-    nodeX,
-    nodeY,
-    ctx.nodeIconSize,
-    ctx.nodeIconSize,
-    loopIndex
+    rect.x,
+    rect.y,
+    rect.width,
+    rect.height,
+    loopIndex,
+    loopLabelOffset
   );
 
   let svg = `<g class="export-edge loop-edge" data-id="${escapeXml(ctx.edgeId)}">`;
@@ -708,8 +840,8 @@ function renderRegularEdge(
   targetNode: Node,
   parallelInfo: { index: number; total: number; isCanonicalDirection: boolean } | undefined
 ): string {
-  const sourceRect = getNodeRect(sourceNode, ctx.nodeIconSize);
-  const targetRect = getNodeRect(targetNode, ctx.nodeIconSize);
+  const sourceRect = getNodeRect(sourceNode, ctx.renderOptions.nodeIconSize);
+  const targetRect = getNodeRect(targetNode, ctx.renderOptions.nodeIconSize);
   const { sourceAnchor, targetAnchor } = resolveRegularEdgeAnchors(ctx, sourceNode, targetNode);
   const points = resolveEdgePointsWithInterfaceAnchors(
     sourceRect,
@@ -720,7 +852,9 @@ function renderRegularEdge(
   const { path, controlPoint } = buildRegularEdgePath(
     points,
     parallelInfo,
-    ctx.nodeProximateLabels && sourceAnchor !== undefined && targetAnchor !== undefined
+    ctx.renderOptions.telemetryStyleLabels &&
+      sourceAnchor !== undefined &&
+      targetAnchor !== undefined
   );
 
   let svg = `<g class="export-edge" data-id="${escapeXml(ctx.edgeId)}">`;
@@ -746,24 +880,19 @@ function edgeToSvg(
   nodeMap: Map<string, Node>,
   edgeInfo: EdgeInfo,
   includeLabels: boolean,
-  nodeProximateLabels = false,
-  interfaceAnchors?: NodeInterfaceAnchorMap,
-  renderOptions?: ResolvedEdgeRenderOptions
+  interfaceAnchors: NodeInterfaceAnchorMap | undefined,
+  renderOptions: ResolvedEdgeRenderOptions
 ): string {
   const sourceNode = nodeMap.get(edge.source);
   if (!sourceNode) return "";
 
-  const resolvedRenderOptions = renderOptions ?? resolveEdgeRenderOptions();
   const edgeData = edge.data as TopologyEdgeData | undefined;
   const ctx: EdgeRenderContext = {
     edgeId: edge.id,
     strokeColor: getEdgeColor(edgeData?.linkStatus),
     edgeData,
     includeLabels,
-    nodeProximateLabels,
-    nodeIconSize: resolvedRenderOptions.nodeIconSize,
-    interfaceScale: resolvedRenderOptions.interfaceScale,
-    interfaceLabelOverrides: resolvedRenderOptions.interfaceLabelOverrides,
+    renderOptions,
     interfaceAnchors
   };
 
@@ -794,7 +923,6 @@ export function renderEdgesToSvg(
   nodes: Node[],
   includeLabels: boolean,
   annotationNodeTypes?: Set<string>,
-  nodeProximateLabels = false,
   renderOptions?: EdgeSvgRenderOptions
 ): string {
   const resolvedRenderOptions = resolveEdgeRenderOptions(renderOptions);
@@ -820,7 +948,7 @@ export function renderEdgesToSvg(
 
   // Build edge info for parallel/loop detection (same grouping/ordering as the canvas)
   const edgeInfo = buildEdgeInfo(validEdges);
-  const interfaceAnchors = nodeProximateLabels
+  const interfaceAnchors = resolvedRenderOptions.telemetryStyleLabels
     ? buildInterfaceAnchorMap(validEdges, nodeMap, resolvedRenderOptions)
     : undefined;
 
@@ -831,7 +959,6 @@ export function renderEdgesToSvg(
       nodeMap,
       edgeInfo,
       includeLabels,
-      nodeProximateLabels,
       interfaceAnchors,
       resolvedRenderOptions
     );

@@ -37,12 +37,13 @@ import {
   saveNodePositionsWithMemberships
 } from "../../services";
 import { useGraphStore } from "../../stores/graphStore";
+import { useDeploymentState } from "../../stores/topoViewerStore";
 import { allocateEndpointsForLink } from "../../utils/endpointAllocator";
 import { buildEdgeId } from "../../utils/edgeId";
 import { snapToGrid } from "../../utils/grid";
 
 /** Handlers for group member movement during drag */
-export interface GroupMemberHandlers {
+interface GroupMemberHandlers {
   /** Get member node IDs for a group */
   getGroupMembers?: (groupId: string, options?: { includeNested?: boolean }) => string[];
   /** Handle node dropped (for group membership updates) */
@@ -115,7 +116,7 @@ interface CanvasHandlers {
   onEdgeDoubleClick: EdgeMouseHandler;
   onPaneClick: (event: React.MouseEvent) => void;
   onConnect: OnConnect;
-  handleNodesChange: OnNodesChange;
+  onNodesChange: OnNodesChange;
   onSelectionChange: OnSelectionChangeFunc;
   onNodeContextMenu: (event: React.MouseEvent, node: Node) => void;
   onEdgeContextMenu: (event: React.MouseEvent, edge: Edge) => void;
@@ -205,10 +206,13 @@ function collectLineDragNodes(
 
   if (draggedNode.type === GROUP_NODE_TYPE && groupMemberHandlers?.getGroupMembers) {
     const memberIds = groupMemberHandlers.getGroupMembers(draggedNode.id, { includeNested: true });
-    return memberIds
-      .map((id) => nodes.find((node) => node.id === id))
-      .filter((node): node is Node => Boolean(node))
-      .filter(isLineShapeNode);
+    const nodesById = new Map(nodes.map((node) => [node.id, node]));
+    const lineNodes: Node[] = [];
+    for (const id of memberIds) {
+      const node = nodesById.get(id);
+      if (node && isLineShapeNode(node)) lineNodes.push(node);
+    }
+    return lineNodes;
   }
 
   const selectedLines = nodes.filter((node) => node.selected === true && isLineShapeNode(node));
@@ -220,9 +224,10 @@ function applyLineDragSnapshots(snapshots: Map<string, LineDragSnapshot>): void 
   if (snapshots.size === 0) return;
   const currentNodes = useGraphStore.getState().nodes;
   const updateNode = useGraphStore.getState().updateNode;
+  const nodesById = new Map(currentNodes.map((node) => [node.id, node]));
 
   for (const [id, snapshot] of snapshots) {
-    const currentNode = currentNodes.find((node) => node.id === id);
+    const currentNode = nodesById.get(id);
     if (!currentNode) continue;
     const dx = currentNode.position.x - snapshot.nodePosition.x;
     const dy = currentNode.position.y - snapshot.nodePosition.y;
@@ -254,9 +259,11 @@ function buildGroupMemberChanges(
   members: string[],
   nodes: Node[] | undefined
 ): NodeChange[] {
+  if (!nodes || members.length === 0) return [];
+  const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const changes: NodeChange[] = [];
   for (const memberId of members) {
-    const memberNode = nodes?.find((n) => n.id === memberId);
+    const memberNode = nodesById.get(memberId);
     if (memberNode) {
       changes.push({
         type: "position",
@@ -582,7 +589,7 @@ function useNodeDragHandlers(
         groupLastPositionRef.current.set(node.id, { ...node.position });
       }
     },
-    [isLockedRef, flushPendingGroupMove, scheduleGroupMoveFlush]
+    [isLockedRef, setNodes, flushPendingGroupMove, scheduleGroupMoveFlush]
   );
 
   const onNodeDragStop: NodeMouseHandler = useCallback(
@@ -747,32 +754,52 @@ function useNodeClickHandlers(
   editNode: (id: string | null) => void,
   editNetwork: (id: string | null) => void,
   closeContextMenu: () => void,
-  modeRef: React.RefObject<"view" | "edit">
+  modeRef: React.RefObject<"view" | "edit">,
+  isDeployedRef: React.RefObject<boolean>
 ) {
+  const openNodeEditor = useCallback(
+    (node: Node) => {
+      if (node.type === NODE_TYPE_NETWORK) {
+        editNetwork(node.id);
+      } else {
+        editNode(node.id);
+      }
+    },
+    [editNode, editNetwork]
+  );
+
   const onNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
       log.info(`[ReactFlowCanvas] Node clicked: ${node.id}`);
       closeContextMenu();
       if (isAnnotationNodeType(node.type)) return;
-      // In edit mode, open editor directly (read-only when locked)
-      if (modeRef.current === "edit" && EDITABLE_NODE_TYPES.includes(node.type ?? "")) {
-        if (node.type === NODE_TYPE_NETWORK) {
-          editNetwork(node.id);
-        } else {
-          editNode(node.id);
-        }
+      // Deployed labs select on click so the info panel shows runtime data;
+      // the editor opens via double-click or the context menu instead.
+      if (
+        modeRef.current === "edit" &&
+        !isDeployedRef.current &&
+        EDITABLE_NODE_TYPES.includes(node.type ?? "")
+      ) {
+        openNodeEditor(node);
       } else {
         selectNode(node.id);
         selectEdge(null);
       }
     },
-    [selectNode, selectEdge, editNode, editNetwork, closeContextMenu, modeRef]
+    [selectNode, selectEdge, openNodeEditor, closeContextMenu, modeRef, isDeployedRef]
   );
 
-  const onNodeDoubleClick: NodeMouseHandler = useCallback((_event, _node) => {
-    // Node editing in edit mode is handled by single click.
-    // Annotation double-click (text/shape/group) is handled by the annotation wrapper.
-  }, []);
+  const onNodeDoubleClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      // Annotation double-click (text/shape/group) is handled by the annotation wrapper.
+      if (isAnnotationNodeType(node.type)) return;
+      // Undeployed labs open the editor on single click already.
+      if (modeRef.current === "edit" && EDITABLE_NODE_TYPES.includes(node.type ?? "")) {
+        openNodeEditor(node);
+      }
+    },
+    [openNodeEditor, modeRef]
+  );
 
   return { onNodeClick, onNodeDoubleClick };
 }
@@ -783,26 +810,34 @@ function useEdgeClickHandlers(
   selectEdge: (id: string | null) => void,
   editEdge: (id: string | null) => void,
   closeContextMenu: () => void,
-  modeRef: React.RefObject<"view" | "edit">
+  modeRef: React.RefObject<"view" | "edit">,
+  isDeployedRef: React.RefObject<boolean>
 ) {
   const onEdgeClick: EdgeMouseHandler = useCallback(
     (_event, edge) => {
       log.info(`[ReactFlowCanvas] Edge clicked: ${edge.id}`);
       closeContextMenu();
-      // In edit mode, open editor directly (read-only when locked)
-      if (modeRef.current === "edit") {
+      // Deployed labs select on click so the info panel shows runtime data;
+      // the editor opens via double-click or the context menu instead.
+      if (modeRef.current === "edit" && !isDeployedRef.current) {
         editEdge(edge.id);
       } else {
         selectEdge(edge.id);
         selectNode(null);
       }
     },
-    [selectNode, selectEdge, editEdge, closeContextMenu, modeRef]
+    [selectNode, selectEdge, editEdge, closeContextMenu, modeRef, isDeployedRef]
   );
 
-  const onEdgeDoubleClick: EdgeMouseHandler = useCallback((_event, _edge) => {
-    // Edge editing in edit mode is handled by single click.
-  }, []);
+  const onEdgeDoubleClick: EdgeMouseHandler = useCallback(
+    (_event, edge) => {
+      // Undeployed labs open the editor on single click already.
+      if (modeRef.current === "edit") {
+        editEdge(edge.id);
+      }
+    },
+    [editEdge, modeRef]
+  );
 
   return { onEdgeClick, onEdgeDoubleClick };
 }
@@ -813,10 +848,6 @@ function usePaneClickHandler(
   selectEdge: (id: string | null) => void,
   editNode: (id: string | null) => void,
   closeContextMenu: () => void,
-  reactFlowInstance: React.RefObject<ReactFlowInstance | null>,
-  modeRef: React.RefObject<"view" | "edit">,
-  isLockedRef: React.RefObject<boolean>,
-  onLockedAction?: () => void,
   onPaneClickExtra?: () => void
 ) {
   return useCallback(
@@ -830,17 +861,7 @@ function usePaneClickHandler(
       editNode(null);
       onPaneClickExtra?.();
     },
-    [
-      selectNode,
-      selectEdge,
-      editNode,
-      closeContextMenu,
-      onLockedAction,
-      onPaneClickExtra,
-      reactFlowInstance,
-      modeRef,
-      isLockedRef
-    ]
+    [selectNode, selectEdge, editNode, closeContextMenu, onPaneClickExtra]
   );
 }
 
@@ -976,11 +997,15 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     geoLayout
   } = config;
 
-  const reactFlowInstance = reactFlowInstanceRef ?? useRef<ReactFlowInstance | null>(null);
+  const localReactFlowInstanceRef = useRef<ReactFlowInstance | null>(null);
+  const reactFlowInstance = reactFlowInstanceRef ?? localReactFlowInstanceRef;
+  const deploymentState = useDeploymentState();
   const modeRef = useRef(mode);
   const isLockedRef = useRef(isLocked);
+  const isDeployedRef = useRef(deploymentState === "deployed");
   modeRef.current = mode;
   isLockedRef.current = isLocked;
+  isDeployedRef.current = deploymentState === "deployed";
 
   // Context menu state
   const { contextMenu, closeContextMenu, openNodeMenu, openEdgeMenu, openPaneMenu } =
@@ -1006,36 +1031,25 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     editNode,
     editNetwork,
     closeContextMenu,
-    modeRef
+    modeRef,
+    isDeployedRef
   );
   const { onEdgeClick, onEdgeDoubleClick } = useEdgeClickHandlers(
     selectNode,
     selectEdge,
     editEdge,
     closeContextMenu,
-    modeRef
+    modeRef,
+    isDeployedRef
   );
   const onPaneClick = usePaneClickHandler(
     selectNode,
     selectEdge,
     editNode,
     closeContextMenu,
-    reactFlowInstance,
-    modeRef,
-    isLockedRef,
-    onLockedAction,
     onPaneClickExtra
   );
   const onConnect = useConnectionHandler(modeRef, isLockedRef, onLockedAction, onEdgeCreated);
-
-  // Node changes handler - all nodes (topology + annotation) live in the graph store
-  // The graph store is the single source of truth, so we pass changes through directly
-  const handleNodesChange: OnNodesChange = useCallback(
-    (changes: NodeChange[]) => {
-      onNodesChangeBase(changes);
-    },
-    [onNodesChangeBase]
-  );
 
   // Drag handlers (extracted hook)
   const { onNodeDragStart, onNodeDrag, onNodeDragStop } = useNodeDragHandlers(
@@ -1077,7 +1091,9 @@ export function useCanvasHandlers(config: CanvasHandlersConfig): CanvasHandlers 
     onEdgeDoubleClick,
     onPaneClick,
     onConnect,
-    handleNodesChange,
+    // All nodes (topology + annotation) live in the graph store - the single
+    // source of truth - so node changes pass through to it directly.
+    onNodesChange: onNodesChangeBase,
     onSelectionChange,
     onNodeContextMenu,
     onEdgeContextMenu,

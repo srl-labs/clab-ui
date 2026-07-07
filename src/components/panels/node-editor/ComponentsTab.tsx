@@ -1,23 +1,22 @@
+/* eslint-disable import-x/max-dependencies */
 // Components tab for node editor (Nokia SROS).
 import React, { useCallback, useState } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import {
-  Box,
-  Button,
-  Chip,
-  Collapse,
-  Divider,
-  IconButton,
-  InputAdornment,
-  Paper,
-  Tab,
-  Tabs,
-  TextField,
-  Typography
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
+import Collapse from "@mui/material/Collapse";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import Paper from "@mui/material/Paper";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 
 import { InputField, FilterableDropdown } from "../../ui/form";
 import { useSchema, type SrosComponentTypes } from "../../../hooks/editor";

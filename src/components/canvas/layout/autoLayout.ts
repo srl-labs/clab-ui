@@ -16,7 +16,12 @@ import type { Node, Edge } from "@xyflow/react";
 import ELK from "elkjs/lib/elk.bundled.js";
 import { isLayoutableNode, applyPositionMap } from "./types";
 import type { LayoutOptions } from "./types";
-import { classifyComponent, buildAdjacency, findComponent } from "./graphAnalysis";
+import {
+  classifyComponent,
+  buildAdjacency,
+  findComponent,
+  getMaxMappedValue
+} from "./graphAnalysis";
 import { forceLayoutComponent, starPlaceComponent } from "./forceLayout";
 
 const elk = new ELK();
@@ -92,7 +97,7 @@ export async function applyAutoLayout(
       // 2. Identify "upstream" roots: network-nodes connected to a core but with lower degree.
       //    (e.g., a macvlan cloud connected to a spine).
       // 3. If upstream nodes exist, they become the roots. Otherwise, the cores themselves are roots.
-      const maxDeg = Math.max(...component.map(id => degree.get(id) ?? 0));
+      const maxDeg = getMaxMappedValue(component, degree);
       const cores = new Set(component.filter(id => (degree.get(id) ?? 0) === maxDeg));
 
       const upstreamRoots = component.filter(id => {
@@ -114,8 +119,9 @@ export async function applyAutoLayout(
       for (const id of component) layer.set(id, -1);
       for (const rId of roots) layer.set(rId, 0);
       const bfsQ = [...roots];
-      while (bfsQ.length > 0) {
-        const cur = bfsQ.shift()!;
+      let bfsHead = 0;
+      while (bfsHead < bfsQ.length) {
+        const cur = bfsQ[bfsHead++];
         const curLayer = layer.get(cur)!;
         for (const nb of adj.get(cur) ?? []) {
           if (layer.get(nb) === -1) {

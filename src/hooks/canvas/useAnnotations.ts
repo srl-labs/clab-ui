@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
 
 import { useTopologySessionClient } from "../../host";
@@ -30,6 +30,41 @@ interface UseAnnotationsParams {
   onLockedAction?: () => void;
 }
 
+/** Debounce window for persisting live-applied annotation edits. */
+const LIVE_APPLY_PERSIST_DEBOUNCE_MS = 500;
+
+/**
+ * Debounced annotation persistence for live-apply editing flows.
+ *
+ * The graph store is updated immediately by the caller; this only batches the
+ * host write so a typing burst becomes a single undo entry. Persists quietly
+ * (no snapshot re-apply) so in-flight edits don't snap back. Pending writes
+ * are flushed on unmount so nothing is lost.
+ */
+function useDebouncedPersist(persistQuiet: () => void): () => void {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const persistQuietRef = useRef(persistQuiet);
+  persistQuietRef.current = persistQuiet;
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+        persistQuietRef.current();
+      }
+    };
+  }, []);
+
+  return useCallback(() => {
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      persistQuietRef.current();
+    }, LIVE_APPLY_PERSIST_DEBOUNCE_MS);
+  }, []);
+}
+
 export function useAnnotations(params?: UseAnnotationsParams): AnnotationContextValue {
   const rfInstance = params?.rfInstance ?? null;
   const onLockedAction = params?.onLockedAction ?? (() => {});
@@ -40,12 +75,23 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
   const uiActions = useAnnotationUIActions();
   const derived = useDerivedAnnotations();
 
+  // Persist without re-applying snapshot - use for continuous updates like handle dragging
+  const persistAnnotationNodesQuiet = useCallback(() => {
+    saveAnnotationNodesFromGraph(sessionClient, undefined, { applySnapshot: false }).catch((err) => {
+      console.error("[Annotations] Failed to save annotations (quiet)", err);
+    });
+  }, [sessionClient]);
+
+  // Shared debounced persistence for live-apply edits (one timer, one flush).
+  const debouncedPersist = useDebouncedPersist(persistAnnotationNodesQuiet);
+
   const groupActions = useGroupAnnotations({
     isLocked,
     onLockedAction,
     rfInstance,
     derived,
     sessionClient,
+    debouncedPersist,
     uiActions
   });
 
@@ -54,9 +100,12 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     onLockedAction,
     derived,
     sessionClient,
+    debouncedPersist,
     uiState: {
       isAddTextMode: uiState.isAddTextMode,
-      selectedTextIds: uiState.selectedTextIds
+      selectedTextIds: uiState.selectedTextIds,
+      inlineEditingTextId: uiState.inlineEditingTextId,
+      editingTextAnnotation: uiState.editingTextAnnotation
     },
     uiActions
   });
@@ -66,6 +115,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     onLockedAction,
     derived,
     sessionClient,
+    debouncedPersist,
     uiState: {
       isAddShapeMode: uiState.isAddShapeMode,
       pendingShapeType: uiState.pendingShapeType,
@@ -79,6 +129,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     onLockedAction,
     derived,
     sessionClient,
+    debouncedPersist,
     uiState: {
       selectedTrafficRateIds: uiState.selectedTrafficRateIds
     },
@@ -325,13 +376,6 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
     });
   }, [sessionClient]);
 
-  // Persist without re-applying snapshot - use for continuous updates like handle dragging
-  const persistAnnotationNodesQuiet = useCallback(() => {
-    saveAnnotationNodesFromGraph(sessionClient, undefined, { applySnapshot: false }).catch((err) => {
-      console.error("[Annotations] Failed to save annotations (quiet)", err);
-    });
-  }, [sessionClient]);
-
   return useMemo<AnnotationContextValue>(
     () => ({
       // State
@@ -341,6 +385,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
       textAnnotations: derived.textAnnotations,
       selectedTextIds: uiState.selectedTextIds,
       editingTextAnnotation: uiState.editingTextAnnotation,
+      inlineEditingTextId: uiState.inlineEditingTextId,
       isAddTextMode: uiState.isAddTextMode,
       shapeAnnotations: derived.shapeAnnotations,
       selectedShapeIds: uiState.selectedShapeIds,
@@ -359,6 +404,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
       editGroup: groupActions.editGroup,
       closeGroupEditor: uiActions.closeGroupEditor,
       saveGroup: groupActions.saveGroup,
+      applyGroupEdit: groupActions.applyGroupEdit,
       deleteGroup: groupActions.deleteGroup,
       updateGroup: derived.updateGroup,
       updateGroupParent: (id, parentId) => {
@@ -390,19 +436,15 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
       boxSelectTextAnnotations: uiActions.boxSelectTextAnnotations,
       clearTextAnnotationSelection: uiActions.clearTextAnnotationSelection,
       editTextAnnotation: textActions.editTextAnnotation,
+      editTextWithInline: textActions.editTextWithInline,
+      duplicateTextAnnotation: textActions.duplicateTextAnnotation,
       closeTextEditor: uiActions.closeTextEditor,
       saveTextAnnotation: textActions.saveTextAnnotation,
-      previewTextAnnotation: (annotation) => {
-        const exists = derived.textAnnotations.some((entry) => entry.id === annotation.id);
-        if (exists) {
-          derived.updateTextAnnotation(annotation.id, annotation);
-          return;
-        }
-        derived.addTextAnnotation(annotation);
-      },
-      removePreviewTextAnnotation: (id) => {
-        derived.deleteTextAnnotation(id);
-      },
+      applyTextAnnotationEdit: textActions.applyTextAnnotationEdit,
+      startInlineTextEdit: textActions.startInlineTextEdit,
+      commitInlineTextEdit: textActions.commitInlineTextEdit,
+      openInlineTextStyleEditor: textActions.openInlineTextStyleEditor,
+      updateTextStyle: textActions.updateTextStyle,
       deleteTextAnnotation: textActions.deleteTextAnnotation,
       deleteSelectedTextAnnotations: textActions.deleteSelectedTextAnnotations,
       updateTextRotation: (id: string, rotation: number) => {
@@ -435,17 +477,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
       editShapeAnnotation: shapeActions.editShapeAnnotation,
       closeShapeEditor: uiActions.closeShapeEditor,
       saveShapeAnnotation: shapeActions.saveShapeAnnotation,
-      previewShapeAnnotation: (annotation) => {
-        const exists = derived.shapeAnnotations.some((entry) => entry.id === annotation.id);
-        if (exists) {
-          derived.updateShapeAnnotation(annotation.id, annotation);
-          return;
-        }
-        derived.addShapeAnnotation(annotation);
-      },
-      removePreviewShapeAnnotation: (id) => {
-        derived.deleteShapeAnnotation(id);
-      },
+      applyShapeAnnotationEdit: shapeActions.applyShapeAnnotationEdit,
       deleteShapeAnnotation: shapeActions.deleteShapeAnnotation,
       deleteSelectedShapeAnnotations: shapeActions.deleteSelectedShapeAnnotations,
       updateShapeRotation: (id, rotation) => {
@@ -491,6 +523,7 @@ export function useAnnotations(params?: UseAnnotationsParams): AnnotationContext
       editTrafficRateAnnotation: trafficActions.editTrafficRateAnnotation,
       closeTrafficRateEditor: uiActions.closeTrafficRateEditor,
       saveTrafficRateAnnotation: trafficActions.saveTrafficRateAnnotation,
+      applyTrafficRateAnnotationEdit: trafficActions.applyTrafficRateAnnotationEdit,
       deleteTrafficRateAnnotation: trafficActions.deleteTrafficRateAnnotation,
       deleteSelectedTrafficRateAnnotations: trafficActions.deleteSelectedTrafficRateAnnotations,
       updateTrafficRateSize: (id, width, height) => {

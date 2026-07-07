@@ -1,17 +1,16 @@
 // Navbar for React TopoViewer.
 import React from "react";
-import {
-  AppBar,
-  Divider,
-  IconButton,
-  ListItemIcon,
-  ListItemText,
-  Menu,
-  MenuItem,
-  Toolbar,
-  Tooltip,
-  Typography
-} from "@mui/material";
+import AppBar from "@mui/material/AppBar";
+import Badge from "@mui/material/Badge";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import Toolbar from "@mui/material/Toolbar";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import CheckIcon from "@mui/icons-material/Check";
 import CleaningServicesIcon from "@mui/icons-material/CleaningServices";
@@ -37,6 +36,8 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
 import type { LinkLabelMode } from "../../stores/topoViewerStore";
 import {
+  useDeploymentState,
+  useIsDirty,
   useIsLocked,
   useIsProcessing,
   useLabName,
@@ -53,6 +54,12 @@ const SUCCESS_MAIN = "success.main";
 
 function isGeneratedLayoutOption(layout: LayoutOption): boolean {
   return layout === "force" || layout === "auto" || layout === "radial";
+}
+
+function getApplyTooltip(isInSync: boolean, isDeployed: boolean): string {
+  if (isInSync) return "Topology in sync — nothing to apply";
+  if (!isDeployed) return "Apply Topology (deploys the lab)";
+  return "Apply Topology Changes";
 }
 
 function getToolbarAnchorPosition(
@@ -96,6 +103,10 @@ export interface NavbarProps {
   onLogoClick?: () => void;
   linkLabelMode: LinkLabelMode;
   onLinkLabelModeChange: (mode: LinkLabelMode) => void;
+  renderDeployMenuItems?: (context: {
+    isViewerMode: boolean;
+    closeMenu: () => void;
+  }) => React.ReactNode;
 }
 
 // This is a UI composition component with lots of conditional rendering and menu wiring.
@@ -122,19 +133,35 @@ export const Navbar: React.FC<NavbarProps> = ({
   logoClickProgress = 0,
   isPartyMode = false,
   linkLabelMode,
-  onLinkLabelModeChange
+  onLinkLabelModeChange,
+  renderDeployMenuItems
 }) => {
   const isTopologyActive = hasActiveTopology;
   const mode = useMode();
   const labName = useLabName();
   const isLocked = useIsLocked();
   const isProcessing = useIsProcessing();
+  const deploymentState = useDeploymentState();
+  const isDirty = useIsDirty();
   const { toggleLock, setProcessing } = useTopoViewerActions();
   const deploymentCommands = useDeploymentCommands();
 
   const isEditMode = mode === "edit" && !isProcessing;
   const isViewerMode = mode === "view";
   const isGeneratedLayoutDisabled = !isTopologyActive || isLocked;
+
+  // Apply covers both worlds: it deploys an absent lab and reconciles a
+  // running one, so the UI no longer branches on running vs. undeployed for
+  // its primary action. Only a confirmed in-sync lab has nothing to apply.
+  const isDeployed = deploymentState === "deployed";
+  const isInSync = isDeployed && isDirty === false;
+  const showDirtyBadge = isDeployed && isDirty === true;
+  const isApplyDisabled = isProcessing || !isTopologyActive || isInSync;
+  // Lifecycle actions that need a running lab stay listed but disabled when
+  // the lab is confirmed undeployed.
+  const isRunningActionDisabled =
+    isProcessing || !isTopologyActive || deploymentState === "undeployed";
+  const applyTooltip = getApplyTooltip(isInSync, isDeployed);
 
   const appBarRef = React.useRef<HTMLDivElement>(null);
   const [linkLabelMenuPosition, setLinkLabelMenuPosition] = React.useState<{
@@ -182,9 +209,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     setDeployMenuPosition(null);
   }, []);
 
-  const handleDeploy = React.useCallback(() => {
-    setProcessing(true, "deploy");
-    deploymentCommands.onDeploy();
+  const extraDeployMenuItems = renderDeployMenuItems?.({
+    isViewerMode,
+    closeMenu: handleDeployMenuClose
+  });
+
+  const handleApply = React.useCallback(() => {
+    setDeployMenuPosition(null);
+    setProcessing(true, "apply");
+    deploymentCommands.onApply();
   }, [setProcessing, deploymentCommands]);
 
   const handleDeployCleanup = React.useCallback(() => {
@@ -194,6 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   }, [setProcessing, deploymentCommands]);
 
   const handleDestroy = React.useCallback(() => {
+    setDeployMenuPosition(null);
     setProcessing(true, "destroy");
     deploymentCommands.onDestroy();
   }, [setProcessing, deploymentCommands]);
@@ -234,15 +268,12 @@ export const Navbar: React.FC<NavbarProps> = ({
     deploymentCommands.onRestartLab();
   }, [setProcessing, deploymentCommands]);
 
-  // Primary action depends on mode
+  // Primary action: apply the on-disk topology (deploys when absent,
+  // reconciles when running).
   const handlePrimaryAction = React.useCallback(() => {
     if (!isTopologyActive) return;
-    if (isViewerMode) {
-      handleDestroy();
-    } else {
-      handleDeploy();
-    }
-  }, [isTopologyActive, isViewerMode, handleDestroy, handleDeploy]);
+    handleApply();
+  }, [isTopologyActive, handleApply]);
 
   const [layoutMenuPosition, setLayoutMenuPosition] = React.useState<{
     top: number;
@@ -318,17 +349,25 @@ export const Navbar: React.FC<NavbarProps> = ({
           {labName || "TopoViewer"}
         </Typography>
 
-        {/* Deploy / Destroy */}
-        <Tooltip title={isViewerMode ? "Destroy Lab" : "Deploy Lab"}>
+        {/* Apply topology (deploys when absent, reconciles when running) */}
+        <Tooltip title={applyTooltip}>
           <span>
             <IconButton
               size="small"
               onClick={handlePrimaryAction}
-              disabled={isProcessing || !isTopologyActive}
-              sx={{ color: isViewerMode ? ERROR_MAIN : SUCCESS_MAIN }}
+              disabled={isApplyDisabled}
+              sx={{ color: SUCCESS_MAIN }}
               data-testid="navbar-deploy"
             >
-              {isViewerMode ? <StopIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />}
+              <Badge
+                variant="dot"
+                color="warning"
+                overlap="circular"
+                invisible={!showDirtyBadge}
+                data-testid="navbar-apply-dirty-badge"
+              >
+                <PlayArrowIcon fontSize="small" />
+              </Badge>
             </IconButton>
           </span>
         </Tooltip>
@@ -339,7 +378,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           aria-controls={deployMenuOpen ? "deploy-split-menu" : undefined}
           aria-haspopup="true"
           aria-expanded={deployMenuOpen ? "true" : undefined}
-          sx={{ color: isViewerMode ? ERROR_MAIN : SUCCESS_MAIN, ml: -0.5 }}
+          sx={{ color: SUCCESS_MAIN, ml: -0.5 }}
           data-testid="navbar-deploy-menu"
         >
           <ExpandMoreIcon fontSize="small" />
@@ -352,106 +391,101 @@ export const Navbar: React.FC<NavbarProps> = ({
           anchorPosition={deployMenuPosition ?? undefined}
           transformOrigin={{ vertical: "top", horizontal: "center" }}
         >
-          {isViewerMode
-            ? [
-                <MenuItem
-                  key="destroy"
-                  onClick={handleDestroy}
-                  data-testid="navbar-deploy-item-destroy"
-                >
-                  <ListItemIcon>
-                    <StopIcon fontSize="small" sx={{ color: ERROR_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Destroy</ListItemText>
-                </MenuItem>,
-                <MenuItem
-                  key="destroy-cleanup"
-                  onClick={handleDestroyCleanup}
-                  data-testid="navbar-deploy-item-destroy-cleanup"
-                >
-                  <ListItemIcon>
-                    <CleaningServicesIcon fontSize="small" sx={{ color: ERROR_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Destroy (cleanup)</ListItemText>
-                </MenuItem>,
-                <Divider key="divider" sx={{ my: 0.5 }} />,
-                <MenuItem
-                  key="redeploy"
-                  onClick={handleRedeploy}
-                  data-testid="navbar-deploy-item-redeploy"
-                >
-                  <ListItemIcon>
-                    <ReplayIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Redeploy</ListItemText>
-                </MenuItem>,
-                <MenuItem
-                  key="redeploy-cleanup"
-                  onClick={handleRedeployCleanup}
-                  data-testid="navbar-deploy-item-redeploy-cleanup"
-                >
-                  <ListItemIcon>
-                    <CleaningServicesIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Redeploy (cleanup)</ListItemText>
-                </MenuItem>,
-                <Divider key="node-lifecycle-divider" sx={{ my: 0.5 }} />,
-                <MenuItem
-                  key="start-lab"
-                  onClick={handleStartLab}
-                  data-testid="navbar-deploy-item-start-lab"
-                >
-                  <ListItemIcon>
-                    <PlayArrowIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Start Nodes</ListItemText>
-                </MenuItem>,
-                <MenuItem
-                  key="stop-lab"
-                  onClick={handleStopLab}
-                  data-testid="navbar-deploy-item-stop-lab"
-                >
-                  <ListItemIcon>
-                    <StopIcon fontSize="small" sx={{ color: ERROR_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Stop Nodes</ListItemText>
-                </MenuItem>,
-                <MenuItem
-                  key="restart-lab"
-                  onClick={handleRestartLab}
-                  data-testid="navbar-deploy-item-restart-lab"
-                >
-                  <ListItemIcon>
-                    <ReplayIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Restart Nodes</ListItemText>
-                </MenuItem>
-              ]
-            : [
-                <MenuItem
-                  key="deploy"
-                  onClick={() => {
-                    handleDeployMenuClose();
-                    handleDeploy();
-                  }}
-                  data-testid="navbar-deploy-item-deploy"
-                >
-                  <ListItemIcon>
-                    <PlayArrowIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Deploy</ListItemText>
-                </MenuItem>,
-                <MenuItem
-                  key="deploy-cleanup"
-                  onClick={handleDeployCleanup}
-                  data-testid="navbar-deploy-item-deploy-cleanup"
-                >
-                  <ListItemIcon>
-                    <CleaningServicesIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
-                  </ListItemIcon>
-                  <ListItemText>Deploy (cleanup)</ListItemText>
-                </MenuItem>
-              ]}
+          <MenuItem
+            onClick={handleApply}
+            disabled={isApplyDisabled}
+            data-testid="navbar-deploy-item-apply"
+          >
+            <ListItemIcon>
+              <PlayArrowIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Apply</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={handleDeployCleanup}
+            disabled={isProcessing || !isTopologyActive || isDeployed}
+            data-testid="navbar-deploy-item-deploy-cleanup"
+          >
+            <ListItemIcon>
+              <CleaningServicesIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Deploy (cleanup)</ListItemText>
+          </MenuItem>
+          <Divider sx={{ my: 0.5 }} />
+          <MenuItem
+            onClick={handleRedeploy}
+            disabled={isRunningActionDisabled}
+            data-testid="navbar-deploy-item-redeploy"
+          >
+            <ListItemIcon>
+              <ReplayIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Redeploy</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={handleRedeployCleanup}
+            disabled={isRunningActionDisabled}
+            data-testid="navbar-deploy-item-redeploy-cleanup"
+          >
+            <ListItemIcon>
+              <CleaningServicesIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Redeploy (cleanup)</ListItemText>
+          </MenuItem>
+          <Divider sx={{ my: 0.5 }} />
+          <MenuItem
+            onClick={handleDestroy}
+            disabled={isRunningActionDisabled}
+            data-testid="navbar-deploy-item-destroy"
+          >
+            <ListItemIcon>
+              <StopIcon fontSize="small" sx={{ color: ERROR_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Destroy</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={handleDestroyCleanup}
+            disabled={isRunningActionDisabled}
+            data-testid="navbar-deploy-item-destroy-cleanup"
+          >
+            <ListItemIcon>
+              <CleaningServicesIcon fontSize="small" sx={{ color: ERROR_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Destroy (cleanup)</ListItemText>
+          </MenuItem>
+          <Divider sx={{ my: 0.5 }} />
+          <MenuItem
+            onClick={handleStartLab}
+            disabled={isRunningActionDisabled}
+            data-testid="navbar-deploy-item-start-lab"
+          >
+            <ListItemIcon>
+              <PlayArrowIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Start Nodes</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={handleStopLab}
+            disabled={isRunningActionDisabled}
+            data-testid="navbar-deploy-item-stop-lab"
+          >
+            <ListItemIcon>
+              <StopIcon fontSize="small" sx={{ color: ERROR_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Stop Nodes</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={handleRestartLab}
+            disabled={isRunningActionDisabled}
+            data-testid="navbar-deploy-item-restart-lab"
+          >
+            <ListItemIcon>
+              <ReplayIcon fontSize="small" sx={{ color: SUCCESS_MAIN }} />
+            </ListItemIcon>
+            <ListItemText>Restart Nodes</ListItemText>
+          </MenuItem>
+          {extraDeployMenuItems ? <Divider sx={{ my: 0.5 }} /> : null}
+          {extraDeployMenuItems}
         </Menu>
 
         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />

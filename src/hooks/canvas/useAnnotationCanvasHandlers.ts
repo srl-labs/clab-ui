@@ -4,7 +4,7 @@
  */
 import type { RefObject } from "react";
 import type React from "react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect } from "react";
 import type { Node, ReactFlowInstance } from "@xyflow/react";
 
 import type { AnnotationModeState, AnnotationHandlers } from "../../components/canvas/types";
@@ -12,7 +12,8 @@ import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
   TRAFFIC_RATE_NODE_TYPE,
-  GROUP_NODE_TYPE
+  GROUP_NODE_TYPE,
+  isAnnotationNodeType
 } from "../../annotations/annotationNodeConverters";
 import { log } from "../../utils/logger";
 import { snapToGrid } from "../../utils/grid";
@@ -76,6 +77,11 @@ function useWrappedPaneClick(
   baseOnPaneClick: (event: React.MouseEvent) => void,
   onShiftClickCreate?: (position: { x: number; y: number }) => void
 ) {
+  // Depend on the primitive flags so the callback stays stable when the
+  // annotationMode object identity changes without the flags changing.
+  const isAddTextMode = annotationMode?.isAddTextMode === true;
+  const isAddShapeMode = annotationMode?.isAddShapeMode === true;
+
   return useCallback(
     (event: React.MouseEvent) => {
       const rfInstance = reactFlowInstanceRef.current;
@@ -95,7 +101,7 @@ function useWrappedPaneClick(
         return;
       }
 
-      if (annotationMode?.isAddTextMode === true && annotationHandlers !== undefined) {
+      if (isAddTextMode && annotationHandlers !== undefined) {
         const position = rfInstance.screenToFlowPosition({
           x: event.clientX,
           y: event.clientY
@@ -105,7 +111,7 @@ function useWrappedPaneClick(
         return;
       }
 
-      if (annotationMode?.isAddShapeMode === true && annotationHandlers !== undefined) {
+      if (isAddShapeMode && annotationHandlers !== undefined) {
         const position = rfInstance.screenToFlowPosition({
           x: event.clientX,
           y: event.clientY
@@ -133,7 +139,8 @@ function useWrappedPaneClick(
     [
       mode,
       isLocked,
-      annotationMode,
+      isAddTextMode,
+      isAddShapeMode,
       annotationHandlers,
       reactFlowInstanceRef,
       baseOnPaneClick,
@@ -152,14 +159,26 @@ function useWrappedNodeDoubleClick(
 ) {
   return useCallback(
     (event: React.MouseEvent, node: Node) => {
+      const isAnnotationNode = isAnnotationNodeType(node.type);
+      if (isAnnotationNode) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
+      }
+
       if (isLocked || !annotationHandlers) {
+        if (isAnnotationNode) return;
         baseOnNodeDoubleClick(event, node);
         return;
       }
 
       if (node.type === FREE_TEXT_NODE_TYPE) {
-        log.info(`[ReactFlowCanvas] Editing free text: ${node.id}`);
-        annotationHandlers.onEditFreeText(node.id);
+        log.info(`[ReactFlowCanvas] Editing free text inline: ${node.id}`);
+        if (annotationHandlers.onStartInlineFreeTextEdit) {
+          annotationHandlers.onStartInlineFreeTextEdit(node.id);
+        } else {
+          annotationHandlers.onEditFreeText(node.id);
+        }
         return;
       }
 
@@ -193,20 +212,14 @@ function useAddModeState(annotationMode?: AnnotationModeState) {
   const isInAddMode =
     annotationMode?.isAddTextMode === true || annotationMode?.isAddShapeMode === true;
 
-  const addModeMessage = useMemo(() => {
-    if (annotationMode?.isAddTextMode === true) {
-      return "Adding text — Press Escape to cancel";
-    }
-    if (annotationMode?.isAddShapeMode === true) {
-      const shapeType = annotationMode.pendingShapeType ?? "shape";
-      return `Click on the canvas to add ${shapeType} — Press Escape to cancel`;
-    }
-    return null;
-  }, [
-    annotationMode?.isAddTextMode,
-    annotationMode?.isAddShapeMode,
-    annotationMode?.pendingShapeType
-  ]);
+  // Cheap string derivation - memoizing it would cost more than recomputing.
+  let addModeMessage: string | null = null;
+  if (annotationMode?.isAddTextMode === true) {
+    addModeMessage = "Adding text — Press Escape to cancel";
+  } else if (annotationMode?.isAddShapeMode === true) {
+    const shapeType = annotationMode.pendingShapeType ?? "shape";
+    addModeMessage = `Click on the canvas to add ${shapeType} — Press Escape to cancel`;
+  }
 
   return { isInAddMode, addModeMessage };
 }
@@ -248,18 +261,9 @@ export function useAnnotationCanvasHandlers(
     annotationHandlers,
     baseOnNodeDoubleClick
   );
-  const wrappedOnNodeDragStart = useCallback(
-    (event: React.MouseEvent, node: Node) => {
-      baseOnNodeDragStart(event, node);
-    },
-    [baseOnNodeDragStart]
-  );
-  const wrappedOnNodeDragStop = useCallback(
-    (event: React.MouseEvent, node: Node) => {
-      baseOnNodeDragStop(event, node);
-    },
-    [baseOnNodeDragStop]
-  );
+  // The drag handlers need no annotation-specific wrapping; pass them through.
+  const wrappedOnNodeDragStart = baseOnNodeDragStart;
+  const wrappedOnNodeDragStop = baseOnNodeDragStop;
 
   // Add mode state
   const { isInAddMode, addModeMessage } = useAddModeState(annotationMode);

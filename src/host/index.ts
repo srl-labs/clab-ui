@@ -22,7 +22,8 @@ import type {
   TopoViewerNodeAction,
   TopoViewerSvgExportPayload
 } from "./contracts";
-import type { ClabUiRuntime } from "./runtimeContext";
+import type { ClabUiExtensions, ClabUiRuntime } from "./runtimeContext";
+import { isRecord } from "../core/utilities/typeHelpers";
 export * from "./controllers";
 export * from "./contracts";
 export * from "./runtimeContext";
@@ -82,10 +83,6 @@ interface ImageManagerResponseMessage {
   error?: string;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function isExplorerIncomingMessage(value: unknown): value is ExplorerIncomingMessage {
   if (!isRecord(value) || typeof value.command !== "string") {
     return false;
@@ -132,7 +129,8 @@ function toModeChangedEvent(
   return {
     type: "modeChanged",
     mode: normalizedMode,
-    deploymentState
+    deploymentState,
+    ...(typeof data?.dirty === "boolean" ? { dirty: data.dirty } : {})
   };
 }
 
@@ -165,9 +163,9 @@ function toCustomNodeErrorEvent(
 ): Extract<ClabUiTopoViewerEvent, { type: "customNodeError" }> | null {
   return typeof value.error === "string"
     ? {
-        type: "customNodeError",
-        error: value.error
-      }
+      type: "customNodeError",
+      error: value.error
+    }
     : null;
 }
 
@@ -699,22 +697,19 @@ export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
   };
 }
 
-export interface CreateClabUiRuntimeOptions {
+export interface CreateClabUiRuntimeOptions extends ClabUiExtensions {
   host: ClabUiHost;
   session?: TopologySessionClient;
   initialContext?: TopologyUiContext;
 }
 
 export function createClabUiRuntime(options: CreateClabUiRuntimeOptions): ClabUiRuntime {
+  // host/session/initialContext are runtime wiring; everything else is the
+  // ClabUiExtensions surface, passed straight through so adding an extension
+  // never means editing this function.
+  const { host, session: providedSession, initialContext, ...extensions } = options;
   const session =
-    options.session ??
-    createTopologySessionClient({
-      host: options.host,
-      initialContext: options.initialContext
-    });
+    providedSession ?? createTopologySessionClient({ host, initialContext });
 
-  return {
-    host: options.host,
-    session
-  };
+  return { host, session, ...extensions };
 }

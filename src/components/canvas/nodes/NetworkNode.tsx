@@ -33,13 +33,11 @@ const NetworkNodeComponent: React.FC<NodeProps> = ({ id, data, selected }) => {
   const { linkSourceNode } = useLinkCreationContext();
   const { suppressLabels } = useNodeRenderConfig();
   const easterEggGlow = useEasterEggGlow();
-  const telemetryNodeSizePx = useTopoViewerStore((state) => state.telemetryNodeSizePx);
-  const [isHovered, setIsHovered] = useState(false);
-  const directionRotation = useMemo(() => getNodeDirectionRotation(direction), [direction]);
-  const iconSize = useMemo(
-    () => clampTelemetryNodeSizePx(telemetryNodeSizePx),
-    [telemetryNodeSizePx]
+  const iconSize = useTopoViewerStore((state) =>
+    clampTelemetryNodeSizePx(state.telemetryNodeSizePx)
   );
+  const [isHovered, setIsHovered] = useState(false);
+  const directionRotation = getNodeDirectionRotation(direction);
   const handleMouseEnter = useCallback(() => {
     setIsHovered(true);
   }, []);

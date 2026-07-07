@@ -1,7 +1,7 @@
 /**
  * useAppEditorBindings - editor handler wiring for AppContent.
  */
-import type { LinkEditorData, NodeEditorData } from "../../core/types/editors";
+import type { LinkEditorData } from "../../core/types/editors";
 import type { TopoViewerActions, TopoViewerState } from "../../stores/topoViewerStore";
 import { useNodeEditorHandlers, useLinkEditorHandlers, useNetworkEditorHandlers } from "../editor";
 
@@ -14,7 +14,6 @@ interface AppEditorBindingsParams {
     "editNode" | "editEdge" | "editNetwork" | "setEdgeAnnotations" | "refreshEditorData"
   >;
   selectionData: ReturnType<typeof useSelectionData>;
-  effectiveNodeEditorData: NodeEditorData | null;
   renameNodeInGraph: (oldId: string, newId: string, name?: string) => void;
   handleUpdateNodeData: (nodeId: string, extraData: Record<string, unknown>) => void;
   handleUpdateEdgeData: (edgeId: string, data: LinkEditorData) => void;
@@ -24,7 +23,6 @@ export function useAppEditorBindings({
   state,
   actions,
   selectionData,
-  effectiveNodeEditorData,
   renameNodeInGraph,
   handleUpdateNodeData,
   handleUpdateEdgeData
@@ -33,7 +31,7 @@ export function useAppEditorBindings({
 
   const nodeEditorHandlers = useNodeEditorHandlers(
     editNode,
-    effectiveNodeEditorData,
+    selectionData.editingNodeData,
     renameNodeInGraph,
     handleUpdateNodeData,
     refreshEditorData

@@ -1,3 +1,4 @@
+/* eslint-disable import-x/max-dependencies */
 // Text annotation editor form.
 import React from "react";
 import FormatAlignCenterIcon from "@mui/icons-material/FormatAlignCenter";
@@ -6,21 +7,25 @@ import FormatAlignRightIcon from "@mui/icons-material/FormatAlignRight";
 import FormatBoldIcon from "@mui/icons-material/FormatBold";
 import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
-import {
-  Box,
-  Checkbox,
-  Divider,
-  FormControlLabel,
-  IconButton as MuiIconButton,
-  MenuItem,
-  TextField
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import MuiIconButton from "@mui/material/IconButton";
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
 
 import type { FreeTextAnnotation } from "../../../core/types/topology";
 import { ColorField, InputField, PanelSection } from "../../ui/form";
 
 // Helper functions to avoid duplicate calculations
-const isBackgroundTransparent = (bg: string | undefined): boolean => bg === "transparent";
+const DEFAULT_FILL_COLOR = "#000000";
+
+const isNoFillBackground = (bg: string | undefined): boolean => {
+  if (bg === undefined) return true;
+  const normalized = bg.trim().toLowerCase();
+  return normalized.length === 0 || normalized === "transparent";
+};
 
 const FONTS = [
   "monospace",
@@ -33,6 +38,13 @@ const FONTS = [
   "Times New Roman",
   "Verdana"
 ];
+
+// Static menu items, hoisted so they are not rebuilt on every render
+const FONT_MENU_ITEMS = FONTS.map((f) => (
+  <MenuItem key={f} value={f}>
+    {f}
+  </MenuItem>
+));
 
 interface Props {
   formData: FreeTextAnnotation;
@@ -142,11 +154,7 @@ const FontControls: React.FC<{
       onChange={(e) => updateField("fontFamily", e.target.value)}
       sx={{ flex: 7 }}
     >
-      {FONTS.map((f) => (
-        <MenuItem key={f} value={f}>
-          {f}
-        </MenuItem>
-      ))}
+      {FONT_MENU_ITEMS}
     </TextField>
     <Box sx={{ flex: 3 }}>
       <InputField
@@ -168,7 +176,7 @@ const StyleOptions: React.FC<{
   formData: FreeTextAnnotation;
   updateField: Props["updateField"];
 }> = ({ formData, updateField }) => {
-  const isTransparent = isBackgroundTransparent(formData.backgroundColor);
+  const isNoFill = isNoFillBackground(formData.backgroundColor);
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
       <Box sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
@@ -182,17 +190,17 @@ const StyleOptions: React.FC<{
         <Box sx={{ flex: 1 }}>
           <ColorField
             label="Fill"
-            value={isTransparent ? "#000000" : (formData.backgroundColor ?? "#000000")}
+            value={isNoFill ? DEFAULT_FILL_COLOR : (formData.backgroundColor ?? DEFAULT_FILL_COLOR)}
             onChange={(v) => updateField("backgroundColor", v)}
-            disabled={isTransparent}
+            disabled={isNoFill}
           />
           <FormControlLabel
             control={
               <Checkbox
                 size="small"
-                checked={isTransparent}
+                checked={isNoFill}
                 onChange={() =>
-                  updateField("backgroundColor", isTransparent ? "#000000" : "transparent")
+                  updateField("backgroundColor", isNoFill ? DEFAULT_FILL_COLOR : undefined)
                 }
               />
             }

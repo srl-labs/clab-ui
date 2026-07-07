@@ -20,9 +20,9 @@ const CLICKS_REQUIRED = 10;
 const CLICK_TIMEOUT = 2000;
 
 /** Available easter egg modes */
-export type EasterEggMode = "nightcall" | "stickerbrush" | "aquatic" | "vaporwave" | "deusex";
+type EasterEggMode = "nightcall" | "stickerbrush" | "aquatic" | "vaporwave" | "deusex";
 
-export interface EasterEggState {
+interface EasterEggState {
   /** Whether easter egg mode is currently active */
   isPartyMode: boolean;
   /** Which easter egg mode is active */
@@ -40,6 +40,15 @@ export interface UseEasterEggOptions {
 
 /** All available modes in order */
 const ALL_MODES: EasterEggMode[] = ["nightcall", "stickerbrush", "aquatic", "vaporwave", "deusex"];
+
+/** Display names for each mode */
+const MODE_NAMES: Record<EasterEggMode, string> = {
+  nightcall: "Nightcall",
+  stickerbrush: "Stickerbrush",
+  aquatic: "Aquatic",
+  vaporwave: "Vaporwave",
+  deusex: "Deus Ex"
+};
 
 export interface UseEasterEggReturn {
   /** Current easter egg state */
@@ -92,14 +101,7 @@ export function useEasterEgg(options: UseEasterEggOptions): UseEasterEggReturn {
    * Get display name for the current mode
    */
   const getModeName = useCallback((): string => {
-    const names: Record<EasterEggMode, string> = {
-      nightcall: "Nightcall",
-      stickerbrush: "Stickerbrush",
-      aquatic: "Aquatic",
-      vaporwave: "Vaporwave",
-      deusex: "Deus Ex"
-    };
-    return names[easterEggMode];
+    return MODE_NAMES[easterEggMode];
   }, [easterEggMode]);
 
   /**

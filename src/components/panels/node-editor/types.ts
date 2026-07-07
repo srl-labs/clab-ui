@@ -6,7 +6,6 @@
  */
 
 import type {
-  NodeEditorTabId as _NodeEditorTabId,
   HealthCheckConfig as _HealthCheckConfig,
   SrosMda as _SrosMda,
   SrosXiom as _SrosXiom,
@@ -16,7 +15,6 @@ import type {
 import { INTEGRATED_SROS_TYPES as _INTEGRATED_SROS_TYPES } from "../../../core/types/editors";
 
 // Re-export types
-export type NodeEditorTabId = _NodeEditorTabId;
 export type HealthCheckConfig = _HealthCheckConfig;
 export type SrosMda = _SrosMda;
 export type SrosXiom = _SrosXiom;
@@ -34,6 +32,4 @@ export interface TabProps {
   onChange: (updates: Partial<NodeEditorData>) => void;
   /** Array of property names that are inherited from defaults/kinds/groups */
   inheritedProps?: string[];
-  /** Visual-only mode used in unlocked view mode node editing */
-  visualOnly?: boolean;
 }

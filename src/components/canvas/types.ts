@@ -8,22 +8,14 @@ import type {
   FreeTextNodeData,
   TrafficRateNodeData,
   GroupNodeData,
-  RFNodeData,
-  RFNodeType,
   TopoEdge,
   TopoNode,
-  TopologyEdgeData,
-  TopologyNodeData,
-  TopologyRFNode,
-  NetworkRFNode,
-  FreeTextRFNode,
-  FreeShapeRFNode,
-  TrafficRateRFNode,
-  GroupRFNode
+  TopologyNodeData
 } from "../../core/types/graph";
 import { DEFAULT_ICON_COLOR, ROLE_SVG_MAP } from "../../core/types/graph";
+import type { FreeTextAnnotation } from "../../core/types/topology";
 import { vscodePalette } from "../../theme/vscodeTheme";
-export type GridStyle = "dotted" | "quadratic";
+type GridStyle = "dotted" | "quadratic";
 
 /** Edge label rendering mode */
 export type EdgeLabelMode = "show-all" | "on-select" | "hide" | "telemetry-style";
@@ -34,19 +26,8 @@ export type {
   FreeTextNodeData,
   FreeShapeNodeData,
   TrafficRateNodeData,
-  GroupNodeData,
-  TopologyEdgeData,
-  RFNodeData,
-  RFNodeType,
-  TopologyRFNode,
-  NetworkRFNode,
-  FreeTextRFNode,
-  FreeShapeRFNode,
-  TrafficRateRFNode,
-  GroupRFNode
+  GroupNodeData
 };
-
-export type TopologyRFEdge = TopoEdge;
 
 /**
  * Ref interface for ReactFlowCanvas component
@@ -103,6 +84,18 @@ export interface AnnotationHandlers {
   onAddShapeClick: (position: { x: number; y: number }) => void;
   /** Edit a free text annotation */
   onEditFreeText: (id: string) => void;
+  /** Open the style drawer and the inline editor together (context menu) */
+  onEditFreeTextWithInline?: (id: string) => void;
+  /** Start editing a free text annotation inline on the canvas */
+  onStartInlineFreeTextEdit?: (id: string) => void;
+  /** Commit inline text editing (empty text deletes the annotation) */
+  onCommitInlineFreeTextEdit?: (id: string, text: string) => void;
+  /** Live style change from the inline formatting toolbar */
+  onUpdateFreeTextStyle?: (id: string, style: Partial<FreeTextAnnotation>) => void;
+  /** Open the full style editor panel alongside the inline editor */
+  onOpenFreeTextStyleEditor?: (id: string, text: string) => void;
+  /** Duplicate a free text annotation */
+  onDuplicateFreeText: (id: string) => void;
   /** Edit a free shape annotation */
   onEditFreeShape: (id: string) => void;
   /** Delete a free text annotation */
@@ -154,7 +147,7 @@ export interface AnnotationHandlers {
 }
 
 /** Position entry for undo/redo move tracking */
-export interface MovePositionEntry {
+interface MovePositionEntry {
   id: string;
   position: { x: number; y: number };
 }

@@ -33,54 +33,7 @@
  * - `./LinkNormalizer` - link endpoint normalization
  * - `./DistributedSrosMapper` - SR OS distributed interface mapping
  * - `./GraphLabelMigrator` - graph label migration
- * - `./InterfacePatternResolver` - interface pattern resolution
  */
 
-// Main parser API
-export {
-  TopologyParser,
-  parseTopologyToReactFlow,
-  parseTopologyToReactFlowFromParsed,
-  parseTopologyForEditorRF,
-  parseTopologyForEditorRFParsed
-} from "./TopologyParser";
-
-// Core types
-export type {
-  ParseOptions,
-  ParseResultRF,
-  ContainerDataProvider,
-  ContainerInfo,
-  InterfaceInfo,
-  ParserLogger,
-  InterfacePatternMigration,
-  GraphLabelMigration,
-  NodeBuildContext,
-  EdgeBuildContext,
-  NodeRole,
-  TopologyData
-} from "./types";
-
 // Re-export topology types for convenience
-export type {
-  ClabTopology,
-  ParsedElement,
-  TopologyAnnotations,
-  NodeAnnotation,
-  NetemState
-} from "./types";
-
-// Constants and utilities from types
-export { nullLogger, ROUTER_KINDS, CLIENT_KINDS, detectRole } from "./types";
-
-// Node config resolver (commonly used)
-export { resolveNodeConfig } from "./NodeConfigResolver";
-
-// Commonly used utilities
-export { computeFullPrefix, getLabName, getTopologyNodeIds, isPresetLayout } from "./utils";
-
-// Edge stats (used by EdgeStatsBuilder)
-export { extractEdgeInterfaceStats, computeEdgeClassFromStates } from "./EdgeElementBuilder";
-
-// Interface patterns
-export { DEFAULT_INTERFACE_PATTERNS } from "../constants/interfacePatterns";
+export type { NetemState } from "./types";

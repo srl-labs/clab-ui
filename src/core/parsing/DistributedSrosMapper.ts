@@ -9,7 +9,7 @@ import type { ContainerDataProvider, ContainerInfo, InterfaceInfo } from "./type
 
 function asRecord(value: unknown): Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(Object.entries(value));
+  return value as Record<string, unknown>;
 }
 
 /**
@@ -57,7 +57,7 @@ export function mapSrosInterfaceName(ifaceName: string): string | undefined {
 /**
  * Gets candidate interface names for matching.
  */
-export function getCandidateInterfaceNames(ifaceName: string): string[] {
+function getCandidateInterfaceNames(ifaceName: string): string[] {
   const unique = new Set<string>();
   if (ifaceName.length > 0) {
     unique.add(ifaceName);
@@ -72,13 +72,13 @@ export function getCandidateInterfaceNames(ifaceName: string): string[] {
 /**
  * Matches an interface in a container.
  */
-export function matchInterfaceInContainer(
+function matchInterfaceInContainer(
   container: ContainerInfo,
   ifaceName: string
 ): InterfaceInfo | undefined {
   const candidates = getCandidateInterfaceNames(ifaceName);
+  const labelStr = container.label ?? "";
   for (const iface of container.interfaces) {
-    const labelStr = container.label ?? "";
     if (
       candidates.includes(iface.name) ||
       candidates.includes(iface.alias) ||
@@ -91,26 +91,9 @@ export function matchInterfaceInContainer(
 }
 
 /**
- * Checks if a container belongs to a distributed node.
- */
-export function containerBelongsToDistributedNode(
-  container: ContainerInfo,
-  baseNodeName: string,
-  fullPrefix: string
-): boolean {
-  const prefix = fullPrefix ? `${fullPrefix}-${baseNodeName}` : baseNodeName;
-  const shortPrefix = `${baseNodeName}`;
-  return (
-    container.name.startsWith(`${prefix}-`) ||
-    container.name_short.startsWith(`${shortPrefix}-`) ||
-    (typeof container.label === "string" && container.label.startsWith(`${shortPrefix}-`))
-  );
-}
-
-/**
  * Builds candidate container names for distributed SROS nodes.
  */
-export function buildDistributedCandidateNames(
+function buildDistributedCandidateNames(
   baseNodeName: string,
   fullPrefix: string,
   components: unknown[]
@@ -129,50 +112,6 @@ export function buildDistributedCandidateNames(
   return names;
 }
 
-/**
- * Extracts SROS component info from a container.
- */
-export function extractSrosComponentInfo(
-  container: ContainerInfo
-): { base: string; slot: string } | undefined {
-  const candidateNames = [container.name_short, container.name].filter(Boolean);
-  for (const raw of candidateNames) {
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    const lastDash = trimmed.lastIndexOf("-");
-    if (lastDash === -1) {
-      continue;
-    }
-
-    const base = trimmed.slice(0, lastDash);
-    const slot = trimmed.slice(lastDash + 1);
-    if (!base || !slot) {
-      continue;
-    }
-
-    return { base, slot };
-  }
-
-  return undefined;
-}
-
-/**
- * Gets the slot priority for SROS components.
- */
-export function srosSlotPriority(slot: string): number {
-  const normalized = slot.toLowerCase();
-  if (normalized === "a") {
-    return 0;
-  }
-  if (normalized === "b") {
-    return 1;
-  }
-  return 2;
-}
-
 // ============================================================================
 // ContainerDataProvider-based functions
 // ============================================================================
@@ -180,7 +119,7 @@ export function srosSlotPriority(slot: string): number {
 /**
  * Finds an interface by candidate names using ContainerDataProvider.
  */
-export function findInterfaceByCandidateNames(params: {
+function findInterfaceByCandidateNames(params: {
   candidateNames: string[];
   ifaceName: string;
   provider: ContainerDataProvider;

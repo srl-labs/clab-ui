@@ -3,7 +3,7 @@
  *
  * Hosts can override bundled schema data via window.__SCHEMA_DATA__.
  */
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 
 import { defaultSchemaData } from "../../core/schema";
 import { log } from "../../utils/logger";
@@ -55,50 +55,50 @@ interface UseSchemaResult extends SchemaData {
 }
 
 /**
+ * Load host-provided schema data or fall back to the bundled containerlab schema.
+ * Schema data is synchronously available (window.__SCHEMA_DATA__ is injected
+ * before React renders), so this runs as a lazy state initializer.
+ */
+function buildSchemaData(): SchemaData {
+  const data = window.__SCHEMA_DATA__ ?? defaultSchemaData;
+
+  const kinds = Array.isArray(data.kinds) ? data.kinds : [];
+  const typesByKind = new Map<string, string[]>();
+  const kindsWithTypeSupport = new Set<string>();
+
+  // Convert Record to Map and build kindsWithTypeSupport set
+  for (const [kind, types] of Object.entries(data.typesByKind ?? {})) {
+    if (Array.isArray(types)) {
+      typesByKind.set(kind, types);
+      kindsWithTypeSupport.add(kind);
+    }
+  }
+
+  // Get SROS component types
+  const srosComponentTypes = data.srosComponentTypes ?? EMPTY_SROS_TYPES;
+
+  log.info(
+    `Schema loaded: ${kinds.length} kinds, ${typesByKind.size} kinds with type options, SROS types: sfm=${srosComponentTypes.sfm.length}, cpm=${srosComponentTypes.cpm.length}, card=${srosComponentTypes.card.length}, mda=${srosComponentTypes.mda.length}`
+  );
+
+  return {
+    kinds,
+    typesByKind,
+    kindsWithTypeSupport,
+    srosComponentTypes,
+    isLoaded: true,
+    error: null
+  };
+}
+
+/**
  * Hook to access containerlab schema data
  */
 export function useSchema(): UseSchemaResult {
-  const [schemaData, setSchemaData] = useState<SchemaData>({
-    kinds: [],
-    typesByKind: new Map(),
-    kindsWithTypeSupport: new Set(),
-    srosComponentTypes: EMPTY_SROS_TYPES,
-    isLoaded: false,
-    error: null
-  });
-
-  // Load host-provided schema data or fall back to the bundled containerlab schema.
-  useEffect(() => {
-    const data = window.__SCHEMA_DATA__ ?? defaultSchemaData;
-
-    const kinds = Array.isArray(data.kinds) ? data.kinds : [];
-    const typesByKind = new Map<string, string[]>();
-    const kindsWithTypeSupport = new Set<string>();
-
-    // Convert Record to Map and build kindsWithTypeSupport set
-    for (const [kind, types] of Object.entries(data.typesByKind ?? {})) {
-      if (Array.isArray(types)) {
-        typesByKind.set(kind, types);
-        kindsWithTypeSupport.add(kind);
-      }
-    }
-
-    // Get SROS component types
-    const srosComponentTypes = data.srosComponentTypes ?? EMPTY_SROS_TYPES;
-
-    log.info(
-      `Schema loaded: ${kinds.length} kinds, ${typesByKind.size} kinds with type options, SROS types: sfm=${srosComponentTypes.sfm.length}, cpm=${srosComponentTypes.cpm.length}, card=${srosComponentTypes.card.length}, mda=${srosComponentTypes.mda.length}`
-    );
-
-    setSchemaData({
-      kinds,
-      typesByKind,
-      kindsWithTypeSupport,
-      srosComponentTypes,
-      isLoaded: true,
-      error: null
-    });
-  }, []);
+  // Initialize synchronously (lazy initializer) instead of via a mount effect;
+  // this avoids a wasted first render where isLoaded is false and consumers
+  // flash a loading state.
+  const [schemaData] = useState<SchemaData>(buildSchemaData);
 
   // Get types for a specific kind
   const getTypesForKind = useCallback(

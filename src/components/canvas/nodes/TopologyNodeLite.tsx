@@ -1,7 +1,7 @@
 /**
  * TopologyNodeLite - Lightweight node renderer for large/zoomed-out graphs
  */
-import React, { memo, useMemo } from "react";
+import React, { memo } from "react";
 import type { NodeProps } from "@xyflow/react";
 
 import type { TopologyNodeData } from "../types";
@@ -27,10 +27,8 @@ function toTopologyNodeData(data: NodeProps["data"]): TopologyNodeData {
 const TopologyNodeLiteComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const nodeData = toTopologyNodeData(data);
   const deploymentState = useDeploymentState();
-  const telemetryNodeSizePx = useTopoViewerStore((state) => state.telemetryNodeSizePx);
-  const iconSize = useMemo(
-    () => clampTelemetryNodeSizePx(telemetryNodeSizePx),
-    [telemetryNodeSizePx]
+  const iconSize = useTopoViewerStore((state) =>
+    clampTelemetryNodeSizePx(state.telemetryNodeSizePx)
   );
   const color = nodeData.iconColor ?? DEFAULT_ICON_COLOR;
   const corner = nodeData.iconCornerRadius ?? 4;

@@ -27,9 +27,13 @@ export function clampTelemetryInterfaceSizePercent(value: number): number {
   return Math.max(40, Math.min(400, value));
 }
 
+const NON_ALPHANUMERIC_REGEX = /[^A-Za-z0-9]+/g;
+const NUMERIC_SEGMENT_REGEX = /\d+/g;
+const INTERFACE_SEPARATOR_REGEX = /[:/.-]/;
+
 export function splitInterfaceParts(endpoint: string): string[] {
   const baseParts = endpoint
-    .split(/[^A-Za-z0-9]+/g)
+    .split(NON_ALPHANUMERIC_REGEX)
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
 
@@ -43,7 +47,7 @@ export function splitInterfaceParts(endpoint: string): string[] {
 
   for (const part of baseParts) {
     addUnique(part);
-    const numericSegments = part.match(/\d+/g);
+    const numericSegments = part.match(NUMERIC_SEGMENT_REGEX);
     if (!numericSegments) continue;
     for (const numeric of numericSegments) {
       addUnique(numeric);
@@ -71,7 +75,7 @@ export function getAutoCompactInterfaceLabel(endpoint: string): string {
 
   const token =
     trimmed
-      .split(/[:/.-]/)
+      .split(INTERFACE_SEPARATOR_REGEX)
       .filter((part) => part.length > 0)
       .pop() ?? trimmed;
   return token.length <= 3 ? token : token.slice(-3);
@@ -85,7 +89,7 @@ function parseGlobalInterfacePartIndex(selectedValue: string): number | null {
   return parsed;
 }
 
-export function resolveGlobalInterfaceOverrideValue(
+function resolveGlobalInterfaceOverrideValue(
   endpoint: string,
   selectedValue: string
 ): string | null {

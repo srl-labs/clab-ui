@@ -11,7 +11,7 @@ import { useAnnotationHandlers } from "../../../stores/canvasStore";
 // Types
 // ============================================================================
 
-export interface GroupNodeData {
+interface GroupNodeData {
   name: string;
   label?: string;
   level?: string;
@@ -44,6 +44,7 @@ const DEFAULT_BORDER_WIDTH = 2;
 const DEFAULT_BORDER_STYLE = "dashed";
 const DEFAULT_BORDER_RADIUS = 8;
 const DEFAULT_LABEL_COLOR = vscodePalette.text.primary;
+const RGBA_COLOR_REGEX = /rgba?\((\d+),\s*(\d+),\s*(\d+)/;
 
 // ============================================================================
 // Helper Functions
@@ -54,7 +55,7 @@ function getBackgroundWithOpacity(color: string, opacity?: number): string {
   if (opacity === undefined) return color;
   // If already rgba, modify the alpha
   if (color.startsWith("rgba")) {
-    const match = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(color);
+    const match = RGBA_COLOR_REGEX.exec(color);
     if (match) {
       return `rgba(${match[1]}, ${match[2]}, ${match[3]}, ${opacity / 100})`;
     }

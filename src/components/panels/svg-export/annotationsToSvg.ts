@@ -4,18 +4,10 @@ import type {
   FreeShapeAnnotation,
   GroupStyleAnnotation
 } from "../../../core/types/topology";
-import {
-  DEFAULT_FILL_COLOR,
-  DEFAULT_FILL_OPACITY,
-  DEFAULT_BORDER_COLOR,
-  DEFAULT_BORDER_WIDTH,
-  DEFAULT_BORDER_STYLE,
-  DEFAULT_ARROW_SIZE,
-  DEFAULT_LINE_LENGTH
-} from "../../../annotations/constants";
+import { DEFAULT_ARROW_SIZE, DEFAULT_LINE_LENGTH } from "../../../annotations/constants";
 import { applyAlphaToColor } from "../../../utils/color";
 import { renderMarkdown } from "../../../utils/markdownRenderer";
-import { GRAPH_LAYER_CLASS } from "./constants";
+import { GRAPH_LAYER_CLASS, resolveCssColor } from "./constants";
 
 // ============================================================================
 // Constants
@@ -28,6 +20,23 @@ const ANNOTATION_GROUPS_LAYER = "annotation-groups-layer";
 const ANNOTATION_SHAPES_LAYER = "annotation-shapes-layer";
 const ANNOTATION_TEXT_LAYER = "annotation-text-layer";
 const DEFAULT_FONT_FAMILY = "sans-serif";
+
+/** Theme foreground used by canvas annotation defaults (vscodePalette.text.primary). */
+const THEME_FOREGROUND_CSS = "var(--clab-ui-editor-foreground, var(--vscode-foreground))";
+const THEME_FOREGROUND_FALLBACK = "#d4d4d4";
+
+/** Canvas shape defaults (matches FreeShapeNode.tsx BoxNode/LineNode fallbacks). */
+const SHAPE_DEFAULT_FILL_COLOR = "rgba(100, 100, 100, 0.2)";
+const SHAPE_DEFAULT_FILL_OPACITY = 0.2;
+const SHAPE_DEFAULT_BORDER_WIDTH = 2;
+const SHAPE_DEFAULT_BORDER_STYLE = "solid" as const;
+
+/** Canvas group defaults (matches GroupNode.tsx constants). */
+const GROUP_DEFAULT_BACKGROUND_CSS = "var(--vscode-list-hoverBackground)";
+const GROUP_DEFAULT_BACKGROUND_FALLBACK = "#2a2d2e";
+const GROUP_DEFAULT_BORDER_WIDTH = 2;
+const GROUP_DEFAULT_BORDER_STYLE = "dashed" as const;
+const GROUP_DEFAULT_BORDER_RADIUS = 8;
 
 function escapeXml(str: string): string {
   return str
@@ -72,12 +81,13 @@ interface ShapeStyle {
 function getShapeStyle(shape: FreeShapeAnnotation): ShapeStyle {
   return {
     fillColor: applyAlphaToColor(
-      shape.fillColor ?? DEFAULT_FILL_COLOR,
-      shape.fillOpacity ?? DEFAULT_FILL_OPACITY
+      shape.fillColor ?? SHAPE_DEFAULT_FILL_COLOR,
+      shape.fillOpacity ?? SHAPE_DEFAULT_FILL_OPACITY
     ),
-    strokeColor: shape.borderColor ?? DEFAULT_BORDER_COLOR,
-    strokeWidth: shape.borderWidth ?? DEFAULT_BORDER_WIDTH,
-    dashArray: getBorderDashArray(shape.borderStyle ?? DEFAULT_BORDER_STYLE)
+    strokeColor:
+      shape.borderColor ?? resolveCssColor(THEME_FOREGROUND_CSS, THEME_FOREGROUND_FALLBACK),
+    strokeWidth: shape.borderWidth ?? SHAPE_DEFAULT_BORDER_WIDTH,
+    dashArray: getBorderDashArray(shape.borderStyle ?? SHAPE_DEFAULT_BORDER_STYLE)
   };
 }
 
@@ -114,7 +124,7 @@ interface GroupRect {
 /**
  * Calculate label position based on labelPosition property.
  * Matches GroupNode.tsx getLabelPositionStyle() CSS offsets:
- * - top positions: top: -20, left/right: 8
+ * - top positions: top: -20, left/right: 8, with 2px/6px label padding
  * - bottom positions: bottom: -20, left/right: 8
  */
 function calculateLabelPosition(
@@ -123,17 +133,36 @@ function calculateLabelPosition(
   labelFontSize: number
 ): LabelPosition {
   const { x, y, width, height } = rect;
-  // Match CSS offsets from GroupNode.tsx: top: -20, left: 8
-  const topOffset = 20;
-  const sideOffset = 8;
+  // CSS offsets from GroupNode.tsx (top: -20, left: 8) plus the label's own
+  // 2px/6px padding; the label div is ~18px tall, so the text baseline sits
+  // ~12px below the div top.
+  const sideOffset = 8 + 6;
+  const topBaseline = y - 20 + labelFontSize;
+  const bottomBaseline = y + height + 20 - 18 + labelFontSize;
 
   const positions: Record<string, LabelPosition> = {
-    "top-left": { x: x + sideOffset, y: y - topOffset + labelFontSize, textAnchor: "start" },
-    "top-center": { x: x + width / 2, y: y - topOffset + labelFontSize, textAnchor: "middle" },
-    "top-right": { x: x + width - sideOffset, y: y - topOffset + labelFontSize, textAnchor: "end" },
-    "bottom-left": { x: x + sideOffset, y: y + height + topOffset, textAnchor: "start" },
-    "bottom-center": { x: x + width / 2, y: y + height + topOffset, textAnchor: "middle" },
-    "bottom-right": { x: x + width - sideOffset, y: y + height + topOffset, textAnchor: "end" }
+    "top-left": { x: x + sideOffset, y: topBaseline, textAnchor: "start" },
+    "top-center": { x: x + width / 2, y: topBaseline, textAnchor: "middle" },
+    "top-right": {
+      x: x + width - sideOffset,
+      y: topBaseline,
+      textAnchor: "end"
+    },
+    "bottom-left": {
+      x: x + sideOffset,
+      y: bottomBaseline,
+      textAnchor: "start"
+    },
+    "bottom-center": {
+      x: x + width / 2,
+      y: bottomBaseline,
+      textAnchor: "middle"
+    },
+    "bottom-right": {
+      x: x + width - sideOffset,
+      y: bottomBaseline,
+      textAnchor: "end"
+    }
   };
 
   return positions[labelPosition] ?? positions["top-left"];
@@ -149,10 +178,11 @@ function buildGroupLabelSvg(
   labelColor: string,
   labelFontSize: number
 ): string {
-  // No background rect - canvas GroupNode.tsx doesn't have one
+  // No background rect - canvas GroupNode.tsx doesn't have one.
+  // The canvas label inherits the app font, so resolve it from the live DOM.
   let svg = `<text x="${labelPos.x}" y="${labelPos.y}" `;
   svg += `fill="${labelColor}" font-size="${labelFontSize}" font-weight="500" `;
-  svg += `font-family="${DEFAULT_FONT_FAMILY}" text-anchor="${labelPos.textAnchor}">`;
+  svg += `font-family='${escapeXml(resolveInheritedFontFamily())}' text-anchor="${labelPos.textAnchor}">`;
   svg += escapeXml(name);
   svg += `</text>`;
 
@@ -160,26 +190,40 @@ function buildGroupLabelSvg(
 }
 
 /**
+ * Apply background opacity like the canvas (GroupNode.tsx getBackgroundWithOpacity):
+ * only when an explicit opacity is present; rgba alpha gets replaced, hex gets
+ * an alpha channel appended.
+ */
+function getGroupBackgroundWithOpacity(color: string, opacity: number | undefined): string {
+  if (opacity === undefined) return color;
+  return applyAlphaToColor(color, opacity / 100);
+}
+
+/**
  * Convert a GroupStyleAnnotation to an SVG string.
  * Groups are rendered as rectangles with optional label.
  * NOTE: Uses MODEL coordinates - the parent transform handles scaling.
- * Group position represents the CENTER of the group (same as canvas rendering).
+ * Group position is the TOP-LEFT corner (React Flow node position, same as canvas).
  */
 function groupToSvgString(group: GroupStyleAnnotation): string {
   const width = group.width;
   const height = group.height;
-  // Group position is CENTER-based, convert to top-left for SVG rect
-  const x = group.position.x - group.width / 2;
-  const y = group.position.y - group.height / 2;
+  const x = group.position.x;
+  const y = group.position.y;
 
-  const bgColor = group.backgroundColor ?? "#d9d9d9";
-  const bgOpacity = (group.backgroundOpacity ?? 20) / 100;
-  const fillColor = bgColor === "transparent" ? "none" : applyAlphaToColor(bgColor, bgOpacity);
+  const bgColor =
+    group.backgroundColor ??
+    resolveCssColor(GROUP_DEFAULT_BACKGROUND_CSS, GROUP_DEFAULT_BACKGROUND_FALLBACK);
+  const fillColor =
+    bgColor === "transparent"
+      ? "none"
+      : getGroupBackgroundWithOpacity(bgColor, group.backgroundOpacity);
 
-  const borderColor = group.borderColor ?? "#dddddd";
-  const borderWidth = group.borderWidth ?? 0.5;
-  const borderRadius = group.borderRadius ?? 0;
-  const dashArray = getGroupBorderDashArray(group.borderStyle);
+  const themeForeground = resolveCssColor(THEME_FOREGROUND_CSS, THEME_FOREGROUND_FALLBACK);
+  const borderColor = group.borderColor ?? themeForeground;
+  const borderWidth = group.borderWidth ?? GROUP_DEFAULT_BORDER_WIDTH;
+  const borderRadius = group.borderRadius ?? GROUP_DEFAULT_BORDER_RADIUS;
+  const dashArray = getGroupBorderDashArray(group.borderStyle ?? GROUP_DEFAULT_BORDER_STYLE);
 
   let svg = `<g class="annotation-group" data-id="${escapeXml(group.id)}">`;
   svg += `<rect x="${x}" y="${y}" width="${width}" height="${height}" `;
@@ -196,8 +240,12 @@ function groupToSvgString(group: GroupStyleAnnotation): string {
       group.labelPosition ?? "top-left",
       labelFontSize
     );
-    // Use #666 as default label color (matches DEFAULT_LABEL_COLOR in GroupNode.tsx)
-    svg += buildGroupLabelSvg(group.name, labelPos, group.labelColor ?? "#666", labelFontSize);
+    svg += buildGroupLabelSvg(
+      group.name,
+      labelPos,
+      group.labelColor ?? themeForeground,
+      labelFontSize
+    );
   }
 
   svg += `</g>`;
@@ -228,15 +276,14 @@ function buildRectangleSvg(shape: FreeShapeAnnotation): string {
   const style = getShapeStyle(shape);
   const width = shape.width ?? 50;
   const height = shape.height ?? 50;
-  // Shape position is CENTER-based on canvas (uses translate(-50%, -50%))
-  // Convert to top-left corner for SVG
-  const x = shape.position.x - width / 2;
-  const y = shape.position.y - height / 2;
+  // Shape position is the TOP-LEFT corner (React Flow node position, same as canvas)
+  const x = shape.position.x;
+  const y = shape.position.y;
   const cornerRadius = shape.cornerRadius ?? 0;
   const rotation = shape.rotation ?? 0;
-  // Center point for rotation
-  const cx = shape.position.x;
-  const cy = shape.position.y;
+  // Canvas rotates around the shape center
+  const cx = x + width / 2;
+  const cy = y + height / 2;
 
   let svg = `<g class="annotation-shape" data-id="${escapeXml(shape.id)}"`;
   if (rotation !== 0) svg += ` transform="rotate(${rotation}, ${cx}, ${cy})"`;
@@ -250,10 +297,9 @@ function buildCircleSvg(shape: FreeShapeAnnotation): string {
   const style = getShapeStyle(shape);
   const width = shape.width ?? 50;
   const height = shape.height ?? 50;
-  // Shape position is CENTER-based on canvas (uses translate(-50%, -50%))
-  // For ellipse, cx/cy are the center coordinates, which is exactly the position
-  const cx = shape.position.x;
-  const cy = shape.position.y;
+  // Shape position is the TOP-LEFT corner (React Flow node position, same as canvas)
+  const cx = shape.position.x + width / 2;
+  const cy = shape.position.y + height / 2;
   const rx = width / 2;
   const ry = height / 2;
   const rotation = shape.rotation ?? 0;
@@ -286,13 +332,14 @@ function buildLineSvg(shape: FreeShapeAnnotation): string {
   if (length > 0) {
     const ux = dx / length;
     const uy = dy / length;
+    // Canvas (FreeShapeNode LineShape) shortens by the full arrow size
     if (shape.lineStartArrow === true) {
-      lineStartX += ux * arrowSize * 0.7;
-      lineStartY += uy * arrowSize * 0.7;
+      lineStartX += ux * arrowSize;
+      lineStartY += uy * arrowSize;
     }
     if (shape.lineEndArrow === true) {
-      lineEndX -= ux * arrowSize * 0.7;
-      lineEndY -= uy * arrowSize * 0.7;
+      lineEndX -= ux * arrowSize;
+      lineEndY -= uy * arrowSize;
     }
   }
 
@@ -340,11 +387,30 @@ interface TextStyle {
   fontFamily: string;
   backgroundColor: string;
   borderRadius: number;
-  padding: number;
+  padding: string;
+}
+
+function isNoFillBackground(backgroundColor: string | undefined): boolean {
+  if (backgroundColor === undefined) return true;
+  const normalized = backgroundColor.trim().toLowerCase();
+  return normalized.length === 0 || normalized === "transparent";
+}
+
+/** Resolve the app font used by the canvas for `fontFamily: inherit` texts. */
+function resolveInheritedFontFamily(): string {
+  if (typeof document === "undefined" || document.body === null) return DEFAULT_FONT_FAMILY;
+  const fontFamily = getComputedStyle(document.body).fontFamily;
+  return fontFamily.length > 0 ? fontFamily : DEFAULT_FONT_FAMILY;
 }
 
 function getTextStyle(text: FreeTextAnnotation): TextStyle {
   // Match FreeTextNode.tsx buildTextStyle() defaults
+  const backgroundColor = isNoFillBackground(text.backgroundColor)
+    ? "transparent"
+    : (text.backgroundColor as string);
+  const hasBackground = backgroundColor !== "transparent";
+  const roundedBackground = text.roundedBackground ?? true;
+  const fontFamily = text.fontFamily ?? "inherit";
   return {
     fontSize: text.fontSize ?? 14,
     fontColor: text.fontColor ?? "#333", // Match FreeTextNode default
@@ -352,22 +418,24 @@ function getTextStyle(text: FreeTextAnnotation): TextStyle {
     fontStyle: text.fontStyle ?? "normal",
     textDecoration: text.textDecoration ?? "none",
     textAlign: text.textAlign ?? "left",
-    fontFamily: text.fontFamily ?? "inherit", // Match FreeTextNode default
-    backgroundColor: text.backgroundColor ?? "transparent",
-    borderRadius: text.roundedBackground === true ? 4 : 0,
-    padding: 4 // Base padding; increases to 8px horizontal when backgroundColor set
+    fontFamily: fontFamily === "inherit" ? resolveInheritedFontFamily() : fontFamily,
+    backgroundColor,
+    borderRadius: roundedBackground && hasBackground ? 4 : 0,
+    // Matches FreeTextNode.tsx getTextPadding(): "4px 8px" with background, "4px" without
+    padding: hasBackground ? "4px 8px" : "4px"
   };
 }
 
 function buildTextStyleString(style: TextStyle): string {
   let css = `width: 100%; height: 100%; overflow: hidden; `;
-  css += `font-size: ${style.fontSize}px; color: ${style.fontColor}; `;
+  // Match TEXT_LINE_HEIGHT in FreeTextNode.tsx so exports lay out like the canvas.
+  css += `font-size: ${style.fontSize}px; line-height: 1.5; color: ${style.fontColor}; `;
   css += `font-weight: ${style.fontWeight}; font-style: ${style.fontStyle}; `;
   css += `text-decoration: ${style.textDecoration}; text-align: ${style.textAlign}; `;
   css += `font-family: ${style.fontFamily}; `;
   css += `background-color: ${style.backgroundColor}; `;
   if (style.borderRadius > 0) css += `border-radius: ${style.borderRadius}px; `;
-  css += `box-sizing: border-box; padding: ${style.padding}px;`;
+  css += `box-sizing: border-box; padding: ${style.padding};`;
   return css;
 }
 
@@ -379,7 +447,8 @@ function estimateTextDimensions(
   textContent: string,
   fontSize: number,
   fontFamily: string,
-  fontWeight: string
+  fontWeight: string,
+  marginResetActive = true
 ): { width: number; height: number } {
   // Split into lines for multi-line text
   const lines = textContent.split("\n");
@@ -398,14 +467,44 @@ function estimateTextDimensions(
 
   // Calculate dimensions
   const charWidth = fontSize * charWidthRatio * boldMultiplier;
-  const lineHeight = fontSize * 1.4; // Standard line height
+  const lineHeight = fontSize * 1.5; // Match TEXT_LINE_HEIGHT in FreeTextNode.tsx
 
-  // Add padding (8px on each side = 16px total)
-  const padding = 16;
+  // Add padding (4px on each side, matching the canvas no-background padding);
+  // without the paragraph-margin reset, default <p> margins add ~1em above and below
+  const padding = 8;
+  const marginAllowance = marginResetActive ? 0 : fontSize * 2;
   const width = Math.max(50, longestLine.length * charWidth + padding);
-  const height = Math.max(fontSize + padding, lineCount * lineHeight + padding);
+  const height = Math.max(fontSize + padding, lineCount * lineHeight + padding + marginAllowance);
 
   return { width, height };
+}
+
+/**
+ * Markdown layout rules matching FreeTextNode.css so exported text lays out
+ * like the canvas (default <p> margins would otherwise push content out of
+ * the fixed-height, overflow-hidden box).
+ */
+const EXPORT_TEXT_MARKDOWN_CSS =
+  ".export-free-text>:first-child{margin-top:0}" +
+  ".export-free-text>:last-child{margin-bottom:0}" +
+  ".export-free-text p{margin-block:0}" +
+  ".export-free-text p+p{margin-block-start:1.5em;margin-block-start:1lh}" +
+  ".export-free-text img{display:block;max-width:100%}" +
+  ".export-free-text--fixed img{width:100%;height:100%;max-height:100%;object-fit:contain}" +
+  ".export-free-text--auto img{width:100%;height:auto;object-fit:contain}";
+
+/**
+ * Whether the canvas actually applies the FreeTextNode.css paragraph-margin
+ * reset. Some hosts load clab-ui without that stylesheet; there the canvas
+ * renders free text with browser-default <p> margins (one line lower), and
+ * the export must reproduce that instead of forcing the reset. Sampling a
+ * live paragraph keeps the export true to whatever is on screen.
+ */
+function isFreeTextMarginResetActive(): boolean {
+  if (typeof document === "undefined") return true;
+  const paragraph = document.querySelector(".free-text-markdown p:first-child");
+  if (!paragraph) return true;
+  return Number.parseFloat(getComputedStyle(paragraph).marginBlockStart) === 0;
 }
 
 /**
@@ -414,7 +513,7 @@ function estimateTextDimensions(
  * NOTE: Uses MODEL coordinates - the parent transform handles scaling.
  * Text position represents the TOP-LEFT of the annotation (React Flow convention).
  */
-function textToSvgString(text: FreeTextAnnotation): string {
+function textToSvgString(text: FreeTextAnnotation, marginResetActive: boolean): string {
   // Use explicit dimensions if provided, otherwise estimate from content
   let width: number;
   let height: number;
@@ -427,7 +526,8 @@ function textToSvgString(text: FreeTextAnnotation): string {
       text.text || "",
       text.fontSize ?? 14,
       text.fontFamily ?? "inherit",
-      text.fontWeight ?? "normal"
+      text.fontWeight ?? "normal",
+      marginResetActive
     );
     width = text.width ?? estimated.width;
     height = text.height ?? estimated.height;
@@ -447,12 +547,22 @@ function textToSvgString(text: FreeTextAnnotation): string {
   const styleStr = buildTextStyleString(style);
   const htmlContent = renderMarkdown(text.text || "");
 
+  const sizeClass =
+    text.width !== undefined && text.height !== undefined
+      ? "export-free-text--fixed"
+      : "export-free-text--auto";
+
   let svg = `<g class="annotation-text" data-id="${escapeXml(text.id)}"`;
   if (rotation !== 0) svg += ` transform="rotate(${rotation}, ${cx}, ${cy})"`;
   svg += `>`;
 
   svg += `<foreignObject x="${x}" y="${y}" width="${width}" height="${height}">`;
-  svg += `<div xmlns="${XHTML_NS}" style="${styleStr}">`;
+  // Only force the margin reset when the live canvas applies it; otherwise the
+  // exported markdown keeps browser-default margins, matching the screen.
+  if (marginResetActive) {
+    svg += `<style xmlns="${XHTML_NS}">${EXPORT_TEXT_MARKDOWN_CSS}</style>`;
+  }
+  svg += `<div xmlns="${XHTML_NS}" class="export-free-text ${sizeClass}" style="${styleStr}">`;
   svg += htmlContent;
   svg += `</div>`;
   svg += `</foreignObject>`;
@@ -565,7 +675,10 @@ function extractScaleFromTransform(transform: string): number {
  * Parse transform to extract the total translate values for bounds calculation.
  * Sums all translate operations in the transform string.
  */
-function extractTranslateFromTransform(transform: string): { tx: number; ty: number } {
+function extractTranslateFromTransform(transform: string): {
+  tx: number;
+  ty: number;
+} {
   let totalTx = 0;
   let totalTy = 0;
 
@@ -594,22 +707,10 @@ function mergeBounds(bounds: BoundingBox, x1: number, y1: number, x2: number, y2
   bounds.maxY = Math.max(bounds.maxY, y2);
 }
 
-/** Calculate bounds for a center-based rect (in model coordinates) */
-function getCenterBasedBounds(cx: number, cy: number, w: number, h: number) {
-  const halfW = w / 2;
-  const halfH = h / 2;
-  return {
-    x1: cx - halfW,
-    y1: cy - halfH,
-    x2: cx + halfW,
-    y2: cy + halfH
-  };
-}
-
 function addGroupBounds(bounds: BoundingBox, groups: GroupStyleAnnotation[]): void {
   for (const group of groups) {
-    const b = getCenterBasedBounds(group.position.x, group.position.y, group.width, group.height);
-    mergeBounds(bounds, b.x1, b.y1, b.x2, b.y2);
+    const { x, y } = group.position;
+    mergeBounds(bounds, x, y, x + group.width, y + group.height);
   }
 }
 
@@ -622,13 +723,9 @@ function addShapeBounds(bounds: BoundingBox, shapes: FreeShapeAnnotation[]): voi
       const y2 = shape.endPosition?.y ?? shape.position.y;
       mergeBounds(bounds, Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2));
     } else {
-      const b = getCenterBasedBounds(
-        shape.position.x,
-        shape.position.y,
-        shape.width ?? 50,
-        shape.height ?? 50
-      );
-      mergeBounds(bounds, b.x1, b.y1, b.x2, b.y2);
+      // Rect/circle positions are TOP-LEFT based (React Flow convention)
+      const { x, y } = shape.position;
+      mergeBounds(bounds, x, y, x + (shape.width ?? 50), y + (shape.height ?? 50));
     }
   }
 }
@@ -643,7 +740,10 @@ function getTextDimensions(text: FreeTextAnnotation): { w: number; h: number } {
     text.fontFamily ?? "sans-serif",
     text.fontWeight ?? "normal"
   );
-  return { w: text.width ?? estimated.width, h: text.height ?? estimated.height };
+  return {
+    w: text.width ?? estimated.width,
+    h: text.height ?? estimated.height
+  };
 }
 
 function addTextBounds(bounds: BoundingBox, texts: FreeTextAnnotation[]): void {
@@ -660,10 +760,15 @@ function addTextBounds(bounds: BoundingBox, texts: FreeTextAnnotation[]): void {
 
 /**
  * Calculate bounding box for all annotations (in MODEL coordinates).
- * NOTE: All annotation positions are CENTER-based on canvas.
+ * NOTE: All annotation positions are TOP-LEFT based (React Flow convention).
  */
 function calculateAnnotationsBounds(annotations: AnnotationData): BoundingBox {
-  const bounds: BoundingBox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  const bounds: BoundingBox = {
+    minX: Infinity,
+    minY: Infinity,
+    maxX: -Infinity,
+    maxY: -Infinity
+  };
   addGroupBounds(bounds, annotations.groups);
   addShapeBounds(bounds, annotations.shapeAnnotations);
   addTextBounds(bounds, annotations.textAnnotations);
@@ -775,22 +880,22 @@ export function compositeAnnotationsIntoSvg(
   // This ensures annotations use the exact same coordinate system as graph nodes
   const transform = extractGraphTransform(svgEl);
 
+  const makeLayer = (className: string): Element => {
+    const layer = doc.createElementNS(SVG_NS, "g");
+    layer.setAttribute("class", className);
+    layer.setAttribute("transform", transform);
+    return layer;
+  };
+
   // Create annotation layer groups with the SAME transform as graph content
-  const groupsLayer = doc.createElementNS(SVG_NS, "g");
-  groupsLayer.setAttribute("class", ANNOTATION_GROUPS_LAYER);
-  groupsLayer.setAttribute("transform", transform);
+  const groupsLayer = makeLayer(ANNOTATION_GROUPS_LAYER);
+  const backgroundShapesLayer = makeLayer(ANNOTATION_SHAPES_LAYER);
+  const foregroundShapesLayer = makeLayer(ANNOTATION_SHAPES_LAYER);
+  const textLayer = makeLayer(ANNOTATION_TEXT_LAYER);
 
-  const shapesLayer = doc.createElementNS(SVG_NS, "g");
-  shapesLayer.setAttribute("class", ANNOTATION_SHAPES_LAYER);
-  shapesLayer.setAttribute("transform", transform);
-
-  const textLayer = doc.createElementNS(SVG_NS, "g");
-  textLayer.setAttribute("class", ANNOTATION_TEXT_LAYER);
-  textLayer.setAttribute("transform", transform);
-
-  // Sort by zIndex
-  const sortedGroups = [...groups].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
-  const sortedShapes = [...shapeAnnotations].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+  // Sort by zIndex (canvas default zIndex is -1 for groups and shapes)
+  const sortedGroups = [...groups].sort((a, b) => (a.zIndex ?? -1) - (b.zIndex ?? -1));
+  const sortedShapes = [...shapeAnnotations].sort((a, b) => (a.zIndex ?? -1) - (b.zIndex ?? -1));
   const sortedText = [...textAnnotations].sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
 
   // Render groups (in model coordinates - the transform handles scaling)
@@ -799,23 +904,26 @@ export function compositeAnnotationsIntoSvg(
     if (element) groupsLayer.appendChild(element);
   }
 
-  // Render shapes
+  // Render shapes; negative zIndex renders behind topology nodes on the canvas
   for (const shape of sortedShapes) {
     const element = parseAndImportElement(doc, parser, shapeToSvgString(shape));
-    if (element) shapesLayer.appendChild(element);
+    if (!element) continue;
+    const layer = (shape.zIndex ?? -1) < 0 ? backgroundShapesLayer : foregroundShapesLayer;
+    layer.appendChild(element);
   }
 
-  // Render text annotations
+  // Render text annotations, matching the live canvas paragraph-margin behavior
+  const marginResetActive = isFreeTextMarginResetActive();
   for (const text of sortedText) {
-    const element = parseAndImportElement(doc, parser, textToSvgString(text));
+    const element = parseAndImportElement(doc, parser, textToSvgString(text, marginResetActive));
     if (element) textLayer.appendChild(element);
   }
 
-  // Insert layers in z-order
-  // Groups go at the beginning (behind graph content)
-  svgEl.insertBefore(groupsLayer, svgEl.firstChild);
-  // Shapes and text go at the end (in front of graph content)
-  svgEl.appendChild(shapesLayer);
+  // Insert layers in z-order matching the canvas:
+  // groups and negative-zIndex shapes behind graph content, the rest in front
+  svgEl.insertBefore(backgroundShapesLayer, svgEl.firstChild);
+  svgEl.insertBefore(groupsLayer, backgroundShapesLayer);
+  svgEl.appendChild(foregroundShapesLayer);
   svgEl.appendChild(textLayer);
 
   // Calculate annotation bounds (in model coordinates) and expand SVG if needed

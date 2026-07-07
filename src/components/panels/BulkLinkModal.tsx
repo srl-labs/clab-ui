@@ -1,20 +1,17 @@
+/* eslint-disable import-x/max-dependencies */
 // Bulk link creation dialog.
 import React from "react";
-import {
-  Alert,
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  IconButton,
-  TextField,
-  Typography
-} from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import Divider from "@mui/material/Divider";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 
+import { DialogTitleWithClose } from "../ui/dialog/DialogChrome";
 import { useTopologySessionClient } from "../../host";
 import { useGraphActions, useGraphStore } from "../../stores/graphStore";
 import { isTopoEdgeLike, isTopoNodeLike } from "../../utils/graphQueryUtils";
@@ -180,14 +177,11 @@ export const BulkLinkModal: React.FC<BulkLinkModalProps> = ({
         fullWidth
         data-testid="bulk-link-modal"
       >
-        <DialogTitle
-          sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", py: 1.5 }}
-        >
-          Bulk Link Devices
-          <IconButton size="small" onClick={handleCancel} data-testid="bulk-link-close-btn">
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </DialogTitle>
+        <DialogTitleWithClose
+          title="Bulk Link Devices"
+          onClose={handleCancel}
+          closeButtonTestId="bulk-link-close-btn"
+        />
         <DialogContent dividers>
           <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
             <Typography variant="body2" color="text.secondary">

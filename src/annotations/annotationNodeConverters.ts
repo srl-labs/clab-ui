@@ -30,7 +30,8 @@ import {
   isNonEmptyString,
   normalizePosition,
   parseLegacyGroupIdentity,
-  toFiniteNumber
+  toFiniteNumber,
+  toLatLng
 } from "./valueParsers";
 
 // ============================================================================
@@ -99,10 +100,6 @@ function normalizeTrafficRateTextMetric(
   return undefined;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function toOptionalString(value: unknown): string | undefined {
   return isNonEmptyString(value) ? value : undefined;
 }
@@ -125,14 +122,6 @@ function setFiniteNumberIfPresent(
   if (parsed !== undefined) {
     target[key] = parsed;
   }
-}
-
-function toLatLng(value: unknown): { lat: number; lng: number } | undefined {
-  if (!isRecord(value)) return undefined;
-  const lat = toFiniteNumber(value.lat);
-  const lng = toFiniteNumber(value.lng);
-  if (lat === undefined || lng === undefined) return undefined;
-  return { lat, lng };
 }
 
 function resolveTrafficRateDimensions(

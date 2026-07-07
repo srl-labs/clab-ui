@@ -1,9 +1,34 @@
 import React from "react";
 
 import type { TopologySessionClient } from "../session/client";
-import type { ClabUiHost } from "./contracts";
+import type { ClabUiHost, CustomPaletteTab } from "./contracts";
+import type { TabConfig } from "../components/ui/editor/EditorPanel";
+import type { TabProps as NodeEditorTabProps } from "../components/panels/node-editor/types";
 
-export interface ClabUiRuntime {
+/**
+ * Optional UI customizations a host app injects into clab-ui's chrome (navbar,
+ * palette, node editor). clab-ui's own components read these from the runtime
+ * context. Defined once and shared by {@link ClabUiRuntime} and the runtime
+ * factory's options so the extension surface never drifts across the two.
+ */
+export interface ClabUiExtensions {
+  nodeEditorTabs?: Array<TabConfig<NodeEditorTabProps>>;
+  customPaletteTabs?: CustomPaletteTab[];
+  yamlSchema?: object;
+  /** Extra items injected into the navbar deploy/destroy split-button menu. */
+  renderDeployMenuItems?: (context: {
+    isViewerMode: boolean;
+    closeMenu: () => void;
+  }) => React.ReactNode;
+  /** Replace the built-in About dialog (navbar info button) with a custom one. */
+  renderAboutModal?: (context: { isOpen: boolean; onClose: () => void }) => React.ReactNode;
+  /** Palette tab ids to hide (e.g. "json"). */
+  disabledTabIds?: string[];
+  /** Override built-in palette tab labels by id (e.g. { nodes: "Templates" }). */
+  paletteTabLabels?: Record<string, string>;
+}
+
+export interface ClabUiRuntime extends ClabUiExtensions {
   host: ClabUiHost;
   session: TopologySessionClient;
 }

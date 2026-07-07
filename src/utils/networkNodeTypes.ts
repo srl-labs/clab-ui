@@ -1,18 +1,12 @@
 /**
  * Shared helpers for network node classification.
  */
+import { BRIDGE_TYPES, SINGLE_ENDPOINT_NETWORK_TYPES } from "../core/types/editors";
 import { getRecordUnknown } from "../core/utilities/typeHelpers";
 
-export const SPECIAL_NETWORK_TYPES = new Set([
-  "host",
-  "mgmt-net",
-  "macvlan",
-  "vxlan",
-  "vxlan-stitch",
-  "dummy"
-]);
+export const SPECIAL_NETWORK_TYPES = new Set<string>(SINGLE_ENDPOINT_NETWORK_TYPES);
 
-export const BRIDGE_NETWORK_TYPES = new Set(["bridge", "ovs-bridge"]);
+export const BRIDGE_NETWORK_TYPES = new Set<string>(BRIDGE_TYPES);
 
 export function getNetworkType(data: Record<string, unknown>): string | undefined {
   const kind = data.kind;

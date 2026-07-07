@@ -23,6 +23,7 @@ import {
   TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE
 } from "../../annotations/annotationNodeConverters";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 /** Version string for clipboard format compatibility */
 const CLIPBOARD_VERSION = "1.0";
@@ -80,12 +81,17 @@ type PasteCallbacks = {
 type PasteTimeRef = { current: number };
 
 /** Clipboard data structure */
-interface ClipboardData {
+export interface ClipboardData {
   version: string;
   origin: { x: number; y: number };
   nodes: SerializedNode[];
   edges: SerializedEdge[];
   timestamp: number;
+}
+
+export interface ClipboardPasteOptions {
+  preferMemory?: boolean;
+  annotationsOnly?: boolean;
 }
 
 /** Options for useClipboard hook */
@@ -105,7 +111,7 @@ export interface UseClipboardReturn {
   /** Paste clipboard contents at position */
   paste: (
     position?: { x: number; y: number },
-    options?: { preferMemory?: boolean }
+    options?: ClipboardPasteOptions
   ) => Promise<boolean>;
   /** Check if browser clipboard has compatible data */
   hasClipboardData: () => Promise<boolean>;
@@ -134,10 +140,6 @@ const ANNOTATION_TYPES = new Set<string>([
   FREE_SHAPE_NODE_TYPE,
   TRAFFIC_RATE_NODE_TYPE
 ]);
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function readString(value: unknown): string | undefined {
   return typeof value === "string" ? value : undefined;
@@ -194,6 +196,19 @@ function resolveNodeType(type: string | undefined): TopoNode["type"] {
     default:
       return "topology-node";
   }
+}
+
+export function filterClipboardDataForPaste(
+  clipboardData: ClipboardData,
+  options: Pick<ClipboardPasteOptions, "annotationsOnly"> = {}
+): ClipboardData {
+  if (options.annotationsOnly !== true) return clipboardData;
+
+  return {
+    ...clipboardData,
+    nodes: clipboardData.nodes.filter((node) => ANNOTATION_TYPES.has(node.type ?? "")),
+    edges: []
+  };
 }
 
 // ============================================================================
@@ -574,6 +589,7 @@ function finalizePaste(
 interface PerformPasteParams extends PasteCallbacks {
   position?: { x: number; y: number };
   preferMemory?: boolean;
+  annotationsOnly?: boolean;
   useMemoryOnInvalidBrowserData?: boolean;
   memoryClipboardData: ClipboardData | null;
   rfInstance?: ReactFlowInstance | null;
@@ -584,12 +600,24 @@ interface PerformPasteParams extends PasteCallbacks {
 }
 
 async function performPaste(params: PerformPasteParams): Promise<boolean> {
-  const clipboardData = await readClipboardData(params.memoryClipboardData, {
+  const sourceClipboardData = await readClipboardData(params.memoryClipboardData, {
     preferFallback: params.preferMemory === true,
     useFallbackOnInvalidData: params.useMemoryOnInvalidBrowserData === true
   });
+  const clipboardData =
+    sourceClipboardData == null
+      ? null
+      : filterClipboardDataForPaste(sourceClipboardData, {
+          annotationsOnly: params.annotationsOnly
+        });
   if (!clipboardData || clipboardData.nodes.length === 0) {
-    if (clipboardData?.nodes.length === 0) log.info("[Clipboard] No nodes to paste");
+    if (clipboardData?.nodes.length === 0) {
+      log.info(
+        params.annotationsOnly === true
+          ? "[Clipboard] No annotation nodes to paste"
+          : "[Clipboard] No nodes to paste"
+      );
+    }
     return false;
   }
 
@@ -754,7 +782,7 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
   const paste = useCallback(
     async (
       position?: { x: number; y: number },
-      pasteOptions?: { preferMemory?: boolean }
+      pasteOptions?: ClipboardPasteOptions
     ): Promise<boolean> => {
       if (shouldThrottlePaste(Date.now(), lastPasteTimeRef)) return false;
       const shouldUseMemoryOnInvalidBrowserData =
@@ -765,6 +793,7 @@ export function useClipboard(options: UseClipboardOptions = {}): UseClipboardRet
       return performPaste({
         position,
         preferMemory: pasteOptions?.preferMemory,
+        annotationsOnly: pasteOptions?.annotationsOnly,
         useMemoryOnInvalidBrowserData: shouldUseMemoryOnInvalidBrowserData,
         memoryClipboardData: memoryClipboardDataRef.current,
         rfInstance,

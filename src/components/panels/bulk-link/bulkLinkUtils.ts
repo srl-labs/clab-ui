@@ -5,7 +5,6 @@
 import { FilterUtils } from "../../../utils/filterUtils";
 import { isSpecialEndpointId } from "../../../core/utilities/LinkTypes";
 import type { TopoNode, TopoEdge } from "../../../core/types/graph";
-import { hasEdgeBetween as hasEdgeBetweenUtil } from "../../../utils/graphQueryUtils";
 import { allocateEndpoint, type EndpointAllocator } from "../../../utils/endpointAllocator";
 
 export type LinkCandidate = { sourceId: string; targetId: string };
@@ -64,42 +63,57 @@ function getSourceMatch(
   return fallbackFilter(name) ? null : undefined;
 }
 
-/** Check if target name matches filter with backreference support */
-function matchTargetWithBackrefs(
-  targetName: string,
+/** Build target name matcher with backreference support (resolved once per source match) */
+function buildTargetMatcher(
   targetFilterText: string,
   targetRegex: RegExp | null,
+  targetFallbackFilter: (value: string) => boolean,
   sourceMatch: RegExpMatchArray | null
-): boolean {
+): (targetName: string) => boolean {
   if (targetRegex && sourceMatch) {
     // Apply backreferences from source match
     const expandedPattern = applyBackreferences(targetFilterText, sourceMatch);
     const expandedRegex = FilterUtils.tryCreateRegExp(expandedPattern);
     if (expandedRegex) {
-      return expandedRegex.test(targetName);
+      return (targetName: string) => expandedRegex.test(targetName);
     }
-    return false;
+    return () => false;
   }
-  const targetFilter = FilterUtils.createFilter(targetFilterText);
-  return targetFilter(targetName);
+  return targetFallbackFilter;
+}
+
+/** Index existing edges by node id for O(1) pair lookups (both directions) */
+function buildEdgeAdjacency(edges: TopoEdge[]): Map<string, Set<string>> {
+  const adjacency = new Map<string, Set<string>>();
+  const add = (from: string, to: string): void => {
+    let neighbors = adjacency.get(from);
+    if (!neighbors) {
+      neighbors = new Set<string>();
+      adjacency.set(from, neighbors);
+    }
+    neighbors.add(to);
+  };
+  for (const edge of edges) {
+    add(edge.source, edge.target);
+    add(edge.target, edge.source);
+  }
+  return adjacency;
 }
 
 /** Process a single target node for potential link candidate */
 function processTargetNode(
   sourceId: string,
   targetNode: TopoNode,
-  targetFilterText: string,
-  targetRegex: RegExp | null,
-  sourceMatch: RegExpMatchArray | null,
-  edges: TopoEdge[],
+  targetName: string,
+  matchesTarget: (targetName: string) => boolean,
+  edgeAdjacency: Map<string, Set<string>>,
   candidates: LinkCandidate[]
 ): void {
   const targetId = targetNode.id;
   if (sourceId === targetId) return; // Skip self-loops
 
-  const targetName = getNodeLabel(targetNode);
-  if (!matchTargetWithBackrefs(targetName, targetFilterText, targetRegex, sourceMatch)) return;
-  if (hasEdgeBetweenUtil(edges, sourceId, targetId)) return;
+  if (!matchesTarget(targetName)) return;
+  if (edgeAdjacency.get(sourceId)?.has(targetId) === true) return;
 
   candidates.push({ sourceId, targetId });
 }
@@ -122,27 +136,39 @@ export function computeCandidates(
 
   // Build target filter (with backreference support)
   const targetRegex = FilterUtils.tryCreateRegExp(targetFilterText);
+  const targetFallbackFilter = FilterUtils.createFilter(targetFilterText);
 
-  // Filter topology nodes (exclude network nodes)
+  // Index existing edges once instead of rescanning them per node pair
+  const edgeAdjacency = buildEdgeAdjacency(edges);
+
+  // Filter topology nodes (exclude network nodes) and cache their labels
   const topologyNodes = nodes.filter((node) => node.type === "topology-node");
+  const nodeLabels = topologyNodes.map((node) => getNodeLabel(node));
 
-  for (const sourceNode of topologyNodes) {
-    const sourceId = sourceNode.id;
-    const sourceName = getNodeLabel(sourceNode);
+  for (let i = 0; i < topologyNodes.length; i++) {
+    const sourceId = topologyNodes[i].id;
+    const sourceName = nodeLabels[i];
 
     // Check if source matches filter
     const sourceMatch = getSourceMatch(sourceName, sourceRegex, sourceFallbackFilter);
     if (sourceMatch === undefined) continue; // No match
 
+    // Resolve the target matcher once per source (backreferences depend on the source match)
+    const matchesTarget = buildTargetMatcher(
+      targetFilterText,
+      targetRegex,
+      targetFallbackFilter,
+      sourceMatch
+    );
+
     // Process all potential target nodes
-    for (const targetNode of topologyNodes) {
+    for (let j = 0; j < topologyNodes.length; j++) {
       processTargetNode(
         sourceId,
-        targetNode,
-        targetFilterText,
-        targetRegex,
-        sourceMatch,
-        edges,
+        topologyNodes[j],
+        nodeLabels[j],
+        matchesTarget,
+        edgeAdjacency,
         candidates
       );
     }

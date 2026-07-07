@@ -1,7 +1,7 @@
 /**
  * NetworkNodeLite - Lightweight renderer for network endpoint nodes
  */
-import React, { memo, useMemo } from "react";
+import React, { memo } from "react";
 import type { NodeProps } from "@xyflow/react";
 
 import { SELECTION_COLOR } from "../types";
@@ -14,10 +14,8 @@ import { getNetworkNodeTypeColor, toNetworkNodeData } from "./networkNodeShared"
 
 const NetworkNodeLiteComponent: React.FC<NodeProps> = ({ data, selected }) => {
   const nodeData = toNetworkNodeData(data);
-  const telemetryNodeSizePx = useTopoViewerStore((state) => state.telemetryNodeSizePx);
-  const iconSize = useMemo(
-    () => clampTelemetryNodeSizePx(telemetryNodeSizePx),
-    [telemetryNodeSizePx]
+  const iconSize = useTopoViewerStore((state) =>
+    clampTelemetryNodeSizePx(state.telemetryNodeSizePx)
   );
   const color = getNetworkNodeTypeColor(nodeData.nodeType);
   const rotation = getNodeDirectionRotation(nodeData.direction);

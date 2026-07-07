@@ -530,6 +530,157 @@ function includeEdgePathBounds(doc: XMLDocument, bounds: Bounds, transform: Grap
   }
 }
 
+const ROTATE_TRANSFORM_REGEX =
+  /rotate\(\s*([-\d.]+)(?:\s*[, ]\s*([-\d.]+)\s*[, ]\s*([-\d.]+))?\s*\)/;
+
+function parseRotation(element: Element | null): { angle: number; cx: number; cy: number } | null {
+  const transformAttr = element?.getAttribute("transform") ?? "";
+  const match = ROTATE_TRANSFORM_REGEX.exec(transformAttr);
+  if (!match) return null;
+  const angle = Number.parseFloat(match[1]);
+  if (!Number.isFinite(angle) || angle === 0) return null;
+  return {
+    angle,
+    cx: Number.parseFloat(match[2] ?? "0") || 0,
+    cy: Number.parseFloat(match[3] ?? "0") || 0
+  };
+}
+
+/** Include a model-space rect (optionally rotated around a center) in bounds. */
+function includeModelRectBounds(
+  bounds: Bounds,
+  transform: GraphTransform,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rotation: { angle: number; cx: number; cy: number } | null
+): void {
+  const corners: Array<[number, number]> = [
+    [x, y],
+    [x + width, y],
+    [x, y + height],
+    [x + width, y + height]
+  ];
+  const radians = rotation ? (rotation.angle * Math.PI) / 180 : 0;
+  const cos = Math.cos(radians);
+  const sin = Math.sin(radians);
+  for (const [cornerX, cornerY] of corners) {
+    let modelX = cornerX;
+    let modelY = cornerY;
+    if (rotation) {
+      const dx = cornerX - rotation.cx;
+      const dy = cornerY - rotation.cy;
+      modelX = rotation.cx + dx * cos - dy * sin;
+      modelY = rotation.cy + dx * sin + dy * cos;
+    }
+    const p = applyGraphTransform(transform, modelX, modelY);
+    includeBoundsPoint(bounds, p.x, p.y);
+  }
+}
+
+/** Parse a rect-like element's model box from four numeric attributes. */
+function parseModelBox(
+  element: Element,
+  attrNames: [string, string, string, string]
+): { x: number; y: number; width: number; height: number } | null {
+  const values = attrNames.map((name) => parseNumericAttr(element, name));
+  if (values.some((value) => value === null)) return null;
+  const [a, b, c, d] = values as [number, number, number, number];
+  return attrNames[0] === "cx"
+    ? { x: a - c, y: b - d, width: c * 2, height: d * 2 }
+    : { x: a, y: b, width: c, height: d };
+}
+
+function includeAnnotationBoxBounds(
+  doc: XMLDocument,
+  bounds: Bounds,
+  transform: GraphTransform,
+  selector: string,
+  attrNames: [string, string, string, string]
+): void {
+  for (const element of Array.from(doc.querySelectorAll(selector))) {
+    const box = parseModelBox(element, attrNames);
+    if (!box) continue;
+    includeModelRectBounds(
+      bounds,
+      transform,
+      box.x,
+      box.y,
+      box.width,
+      box.height,
+      parseRotation(element.parentElement)
+    );
+  }
+}
+
+function includeAnnotationLineBounds(
+  doc: XMLDocument,
+  bounds: Bounds,
+  transform: GraphTransform
+): void {
+  for (const line of Array.from(doc.querySelectorAll("g.annotation-shape line"))) {
+    const x1 = parseNumericAttr(line, "x1");
+    const y1 = parseNumericAttr(line, "y1");
+    const x2 = parseNumericAttr(line, "x2");
+    const y2 = parseNumericAttr(line, "y2");
+    if (x1 === null || y1 === null || x2 === null || y2 === null) continue;
+    const p1 = applyGraphTransform(transform, x1, y1);
+    const p2 = applyGraphTransform(transform, x2, y2);
+    includeBoundsPoint(bounds, p1.x, p1.y);
+    includeBoundsPoint(bounds, p2.x, p2.y);
+  }
+}
+
+function includeGroupLabelBounds(
+  doc: XMLDocument,
+  bounds: Bounds,
+  transform: GraphTransform
+): void {
+  // Group labels can sit outside the group rectangle (e.g. top: -20)
+  for (const label of Array.from(doc.querySelectorAll("g.annotation-group text"))) {
+    const x = parseNumericAttr(label, "x");
+    const y = parseNumericAttr(label, "y");
+    if (x === null || y === null) continue;
+    const fontSize = parseNumericAttr(label, "font-size") ?? 12;
+    const p = applyGraphTransform(transform, x, y - fontSize);
+    includeBoundsPoint(bounds, p.x, p.y);
+  }
+}
+
+/**
+ * Include annotation layers (group/shape rectangles, ellipses, lines, free
+ * text) in bounds so trimming never crops them. Annotation layers share the
+ * graph layer's transform, so the same mapping applies.
+ */
+function includeAnnotationBounds(
+  doc: XMLDocument,
+  bounds: Bounds,
+  transform: GraphTransform
+): void {
+  includeAnnotationBoxBounds(
+    doc,
+    bounds,
+    transform,
+    "g.annotation-group rect, g.annotation-shape rect",
+    ["x", "y", "width", "height"]
+  );
+  includeAnnotationBoxBounds(doc, bounds, transform, "g.annotation-shape ellipse", [
+    "cx",
+    "cy",
+    "rx",
+    "ry"
+  ]);
+  includeAnnotationBoxBounds(doc, bounds, transform, "g.annotation-text foreignObject", [
+    "x",
+    "y",
+    "width",
+    "height"
+  ]);
+  includeAnnotationLineBounds(doc, bounds, transform);
+  includeGroupLabelBounds(doc, bounds, transform);
+}
+
 export function trimGrafanaSvgToTopologyContent(svgContent: string, padding = 12): string {
   if (typeof DOMParser === "undefined" || typeof XMLSerializer === "undefined") {
     return svgContent;
@@ -545,6 +696,7 @@ export function trimGrafanaSvgToTopologyContent(svgContent: string, padding = 12
   includeNodeRectBounds(doc, bounds, transform);
   includeEdgeCircleBounds(doc, bounds, transform);
   includeEdgePathBounds(doc, bounds, transform);
+  includeAnnotationBounds(doc, bounds, transform);
 
   if (!hasBounds(bounds)) return svgContent;
 
@@ -646,6 +798,113 @@ function parseViewBox(svgEl: Element): {
   };
 }
 
+interface LegendBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function rectsIntersect(a: LegendBox, b: LegendBox): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+/**
+ * Rects (in viewBox coordinates) the legend must not cover: node icons and
+ * their label pills, plus free-text annotations.
+ */
+function collectLegendObstacles(doc: XMLDocument, transform: GraphTransform): LegendBox[] {
+  const obstacles: LegendBox[] = [];
+
+  for (const rect of Array.from(doc.querySelectorAll("g.export-node rect[x][y][width][height]"))) {
+    const x = parseNumericAttr(rect, "x");
+    const y = parseNumericAttr(rect, "y");
+    const width = parseNumericAttr(rect, "width");
+    const height = parseNumericAttr(rect, "height");
+    if (x === null || y === null || width === null || height === null) continue;
+    const p = applyGraphTransform(transform, x, y);
+    obstacles.push({
+      x: p.x,
+      y: p.y,
+      width: width * transform.scale,
+      height: height * transform.scale
+    });
+  }
+
+  for (const foreignObject of Array.from(doc.querySelectorAll("g.annotation-text foreignObject"))) {
+    const x = parseNumericAttr(foreignObject, "x");
+    const y = parseNumericAttr(foreignObject, "y");
+    const width = parseNumericAttr(foreignObject, "width");
+    const height = parseNumericAttr(foreignObject, "height");
+    if (x === null || y === null || width === null || height === null) continue;
+    const p = applyGraphTransform(transform, x, y);
+    obstacles.push({
+      x: p.x,
+      y: p.y,
+      width: width * transform.scale,
+      height: height * transform.scale
+    });
+  }
+
+  return obstacles;
+}
+
+/**
+ * Pick a legend origin that does not cover any obstacle: try the four viewBox
+ * corners (top-left preferred); when everything is occupied, expand the
+ * viewBox upward and place the legend in the newly created empty strip.
+ */
+function resolveLegendPlacement(
+  svgEl: Element,
+  viewBox: { x: number; y: number; width: number; height: number },
+  legendSize: { width: number; height: number },
+  obstacles: LegendBox[],
+  margin: number
+): { x: number; y: number } {
+  const corners = [
+    { x: viewBox.x + margin, y: viewBox.y + margin },
+    { x: viewBox.x + viewBox.width - margin - legendSize.width, y: viewBox.y + margin },
+    { x: viewBox.x + margin, y: viewBox.y + viewBox.height - margin - legendSize.height },
+    {
+      x: viewBox.x + viewBox.width - margin - legendSize.width,
+      y: viewBox.y + viewBox.height - margin - legendSize.height
+    }
+  ];
+
+  for (const corner of corners) {
+    const candidate: LegendBox = { ...corner, ...legendSize };
+    if (
+      candidate.x < viewBox.x ||
+      candidate.y < viewBox.y ||
+      candidate.x + candidate.width > viewBox.x + viewBox.width ||
+      candidate.y + candidate.height > viewBox.y + viewBox.height
+    ) {
+      continue;
+    }
+    if (!obstacles.some((obstacle) => rectsIntersect(candidate, obstacle))) {
+      return corner;
+    }
+  }
+
+  // No free corner: grow the viewBox upward and use the new empty strip.
+  const expansion = legendSize.height + margin * 2;
+  const newY = viewBox.y - expansion;
+  const newHeight = viewBox.height + expansion;
+  svgEl.setAttribute(
+    "viewBox",
+    `${fmt(viewBox.x)} ${fmt(newY)} ${fmt(viewBox.width)} ${fmt(newHeight)}`
+  );
+  const heightAttr = Number.parseFloat(svgEl.getAttribute("height") ?? "");
+  const widthAttr = Number.parseFloat(svgEl.getAttribute("width") ?? "");
+  if (Number.isFinite(heightAttr) && Number.isFinite(widthAttr) && viewBox.height > 0) {
+    svgEl.setAttribute(
+      "height",
+      Number((heightAttr * (newHeight / viewBox.height)).toFixed(3)).toString()
+    );
+  }
+  return { x: viewBox.x + margin, y: newY + margin };
+}
+
 export function addGrafanaTrafficLegend(
   svgContent: string,
   trafficThresholds: GrafanaTrafficThresholds,
@@ -667,21 +926,21 @@ export function addGrafanaTrafficLegend(
   legendGroup.setAttribute("class", "grafana-traffic-legend");
   legendGroup.setAttribute("opacity", "0.95");
 
-  const startX = viewBox.x + 12 * legendScale;
-  let topNodeY = Number.POSITIVE_INFINITY;
-  for (const rect of Array.from(
-    doc.querySelectorAll("g.export-node > g > rect[x][y][width][height]")
-  )) {
-    const x = parseNumericAttr(rect, "x");
-    const y = parseNumericAttr(rect, "y");
-    if (x === null || y === null) continue;
-    const transformed = applyGraphTransform(transform, x, y);
-    topNodeY = Math.min(topNodeY, transformed.y);
-  }
-  const startY = Number.isFinite(topNodeY)
-    ? topNodeY + 4 * legendScale
-    : viewBox.y + 18 * legendScale;
   const rowHeight = 16 * legendScale;
+  const fontSize = 11 * legendScale;
+  const bulletRadius = 4 * legendScale;
+  const maxTextChars = Math.max(...legendRows.map((row) => row.text.length));
+  const legendSize = {
+    width: bulletRadius + 10 * legendScale + maxTextChars * fontSize * 0.62,
+    height: legendRows.length * rowHeight
+  };
+  const margin = 10 * legendScale;
+  const obstacles = collectLegendObstacles(doc, transform);
+  const origin = resolveLegendPlacement(svgEl, viewBox, legendSize, obstacles, margin);
+
+  // Rows are drawn around the bullet center: offset from the legend box origin
+  const startX = origin.x + bulletRadius;
+  const startY = origin.y + rowHeight / 2;
 
   for (let i = 0; i < legendRows.length; i++) {
     const row = legendRows[i];
@@ -822,10 +1081,6 @@ function resolveTrafficCellElement(edgeGroup: Element): Element {
 interface Point {
   x: number;
   y: number;
-}
-
-interface TrafficLabelPlacement {
-  point: Point;
 }
 
 function lerp(a: Point, b: Point, t = 0.5): Point {
@@ -1209,124 +1464,178 @@ function buildTrafficLabelOffsetPairs(maxStep: number): Array<{ along: number; n
   return pairs;
 }
 
-function isLabelCollision(
-  point: Point,
-  occupiedPoints: Point[],
-  minDx: number,
-  minDy: number
-): boolean {
-  return occupiedPoints.some((other) => {
-    const dx = point.x - other.x;
-    const dy = point.y - other.y;
-    return Math.abs(dx) < minDx && Math.abs(dy) < minDy;
-  });
-}
+/**
+ * Uniform-grid index for "any point within a dx/dy box" collision probes.
+ * The label placement search tests thousands of candidate points against
+ * hundreds of placed labels; linear scans froze the webview on large
+ * topologies (100+ links), so probes must stay near O(1).
+ */
+class LabelPointIndex {
+  private readonly cellSize: number;
+  private readonly buckets = new Map<string, Point[]>();
 
-function isTrafficLabelCollision(
-  point: Point,
-  placements: TrafficLabelPlacement[],
-  minDx: number,
-  minDy: number
-): boolean {
-  return placements.some((placement) => {
-    const dx = point.x - placement.point.x;
-    const dy = point.y - placement.point.y;
-    return Math.abs(dx) < minDx && Math.abs(dy) < minDy;
-  });
-}
+  constructor(cellSize: number) {
+    this.cellSize = Math.max(1e-6, cellSize);
+  }
 
-function nearestPlacementDistance(point: Point, placements: TrafficLabelPlacement[]): number {
-  if (placements.length === 0) return Number.POSITIVE_INFINITY;
-  let minDistance = Number.POSITIVE_INFINITY;
-  for (const placement of placements) {
-    const distance = Math.hypot(point.x - placement.point.x, point.y - placement.point.y);
-    if (distance < minDistance) {
-      minDistance = distance;
+  add(point: Point): void {
+    const key = this.keyFor(point.x, point.y);
+    const bucket = this.buckets.get(key);
+    if (bucket) {
+      bucket.push(point);
+    } else {
+      this.buckets.set(key, [point]);
     }
   }
-  return minDistance;
-}
 
-function nearestPointDistance(point: Point, points: Point[]): number {
-  if (points.length === 0) return Number.POSITIVE_INFINITY;
-  let minDistance = Number.POSITIVE_INFINITY;
-  for (const other of points) {
-    const distance = Math.hypot(point.x - other.x, point.y - other.y);
-    if (distance < minDistance) {
-      minDistance = distance;
+  /** True when any indexed point satisfies |dx| < maxDx and |dy| < maxDy. */
+  anyWithinBox(probe: Point, maxDx: number, maxDy: number): boolean {
+    const ringX = Math.ceil(maxDx / this.cellSize);
+    const ringY = Math.ceil(maxDy / this.cellSize);
+    const col = Math.floor(probe.x / this.cellSize);
+    const row = Math.floor(probe.y / this.cellSize);
+    for (let dc = -ringX; dc <= ringX; dc++) {
+      for (let dr = -ringY; dr <= ringY; dr++) {
+        const bucket = this.buckets.get(`${col + dc}:${row + dr}`);
+        if (!bucket) continue;
+        for (const other of bucket) {
+          if (Math.abs(probe.x - other.x) < maxDx && Math.abs(probe.y - other.y) < maxDy) {
+            return true;
+          }
+        }
+      }
     }
+    return false;
   }
-  return minDistance;
+
+  private keyFor(x: number, y: number): string {
+    return `${Math.floor(x / this.cellSize)}:${Math.floor(y / this.cellSize)}`;
+  }
 }
 
-function resolveTrafficLabelPoint(
-  halfPathData: string,
-  occupiedPlacements: TrafficLabelPlacement[],
+/** Shared state for placing traffic labels across all edges of one export. */
+interface TrafficLabelSearchContext {
+  graphScale: number;
+  interfaceLabelPoints: Point[];
+  occupiedPoints: Point[];
+  interfaceIndex: LabelPointIndex;
+  occupiedIndex: LabelPointIndex;
+  interfaceMinDx: number;
+  interfaceMinDy: number;
+  trafficMinDx: number;
+  trafficMinDy: number;
+  addOccupied(point: Point): void;
+}
+
+function createTrafficLabelSearchContext(
   interfaceLabelPoints: Point[],
-  interfaceSide: "start" | "end",
   graphScale: number
-): Point {
+): TrafficLabelSearchContext {
   const safeScale = Math.max(0.05, Math.abs(graphScale));
   const trafficThresholds = getTrafficLabelCollisionThresholds(graphScale);
-  const minimumInterfaceDx = 38 / safeScale;
-  const minimumInterfaceDy = 14 / safeScale;
-  const alongStep = 1 / safeScale;
-  const normalStep = 1 / safeScale;
-  const offsetPairs = buildTrafficLabelOffsetPairs(10);
-  const parsed = parsePathCommand(halfPathData);
-  const preferredT = interfaceSide === "start" ? 0.38 : 0.62;
-  const base = parsed
-    ? pointOnParsedPathAtT(parsed, preferredT)
-    : (parsePathStart(halfPathData) ?? { x: 0, y: 0 });
+  const interfaceMinDx = 38 / safeScale;
+  const interfaceMinDy = 14 / safeScale;
 
-  const canPlaceAt = (candidate: Point): boolean => {
-    const intersectsInterface = isLabelCollision(
-      candidate,
-      interfaceLabelPoints,
-      minimumInterfaceDx,
-      minimumInterfaceDy
-    );
-    if (intersectsInterface) return false;
-    return !isTrafficLabelCollision(
-      candidate,
-      occupiedPlacements,
-      trafficThresholds.minDx,
-      trafficThresholds.minDy
-    );
-  };
-
-  let fallback = base;
-  let bestScore = Number.NEGATIVE_INFINITY;
-  const scoreCandidate = (candidate: Point) => {
-    const distanceToTrafficLabels = nearestPlacementDistance(candidate, occupiedPlacements);
-    const distanceToInterfaceLabels = nearestPointDistance(candidate, interfaceLabelPoints);
-    const score = Math.min(distanceToTrafficLabels, distanceToInterfaceLabels);
-    if (score > bestScore) {
-      bestScore = score;
-      fallback = candidate;
-    }
-  };
-
-  if (!parsed) {
-    if (!canPlaceAt(base)) {
-      occupiedPlacements.push({ point: base });
-      return base;
-    }
-    occupiedPlacements.push({ point: base });
-    return base;
+  const interfaceIndex = new LabelPointIndex(Math.max(interfaceMinDx, interfaceMinDy));
+  for (const point of interfaceLabelPoints) {
+    interfaceIndex.add(point);
   }
 
-  const candidateTs = buildTrafficLabelCandidateTs(
-    interfaceSide,
-    estimateParsedPathLength(parsed),
-    graphScale
+  const occupiedPoints: Point[] = [];
+  const occupiedIndex = new LabelPointIndex(
+    Math.max(trafficThresholds.minDx, trafficThresholds.minDy)
   );
-  const allCandidateTs = [...candidateTs, ...buildExpandedTrafficLabelCandidateTs(interfaceSide)];
-  const seenCandidateTs = new Set<string>();
-  const candidatePoints: Array<{ point: Point; distanceFromPreferred: number }> = [];
-  const seenCandidatePoints = new Set<string>();
 
-  for (const candidateT of allCandidateTs) {
+  return {
+    graphScale,
+    interfaceLabelPoints,
+    occupiedPoints,
+    interfaceIndex,
+    occupiedIndex,
+    interfaceMinDx,
+    interfaceMinDy,
+    trafficMinDx: trafficThresholds.minDx,
+    trafficMinDy: trafficThresholds.minDy,
+    addOccupied(point: Point): void {
+      occupiedPoints.push(point);
+      occupiedIndex.add(point);
+    }
+  };
+}
+
+/**
+ * Squared distance from `point` to the nearest occupied/interface label.
+ * Abandons early once the running minimum cannot beat `abandonAtOrBelowSq`
+ * (the returned value is then only guaranteed to be <= that bound).
+ */
+function nearestLabelDistanceSquared(
+  point: Point,
+  context: TrafficLabelSearchContext,
+  abandonAtOrBelowSq: number
+): number {
+  let minSq = Number.POSITIVE_INFINITY;
+  for (const other of context.occupiedPoints) {
+    const dx = point.x - other.x;
+    const dy = point.y - other.y;
+    const distanceSq = dx * dx + dy * dy;
+    if (distanceSq < minSq) {
+      minSq = distanceSq;
+      if (minSq <= abandonAtOrBelowSq) return minSq;
+    }
+  }
+  for (const other of context.interfaceLabelPoints) {
+    const dx = point.x - other.x;
+    const dy = point.y - other.y;
+    const distanceSq = dx * dx + dy * dy;
+    if (distanceSq < minSq) {
+      minSq = distanceSq;
+      if (minSq <= abandonAtOrBelowSq) return minSq;
+    }
+  }
+  return minSq;
+}
+
+function canPlaceTrafficLabelAt(point: Point, context: TrafficLabelSearchContext): boolean {
+  if (context.interfaceIndex.anyWithinBox(point, context.interfaceMinDx, context.interfaceMinDy)) {
+    return false;
+  }
+  return !context.occupiedIndex.anyWithinBox(point, context.trafficMinDx, context.trafficMinDy);
+}
+
+/** Offset search pattern is scale-independent; compute it once. */
+const TRAFFIC_LABEL_OFFSET_PAIRS = buildTrafficLabelOffsetPairs(10);
+
+/**
+ * Sparse offsets for the whole-path rescue sweep. When the dense search near
+ * the preferred point is fully blocked, the path corridor is saturated —
+ * probing every offset again for all 81 sweep samples costs tens of millions
+ * of collision checks on large fanouts (this froze the webview).
+ */
+const TRAFFIC_LABEL_SWEEP_OFFSET_PAIRS: Array<{ along: number; normal: number }> = [
+  { along: 0, normal: 0 },
+  { along: 0, normal: 3 },
+  { along: 0, normal: -3 },
+  { along: 0, normal: 6 },
+  { along: 0, normal: -6 },
+  { along: 0, normal: 10 },
+  { along: 0, normal: -10 }
+];
+
+interface TrafficLabelCandidate {
+  point: Point;
+  distanceFromPreferred: number;
+}
+
+function buildTrafficLabelCandidates(
+  parsed: ParsedPathCommand,
+  candidateTs: number[],
+  seenCandidateTs: Set<string>,
+  base: Point,
+  stepSize: number,
+  offsetPairs: Array<{ along: number; normal: number }>
+): TrafficLabelCandidate[] {
+  const candidates: TrafficLabelCandidate[] = [];
+  for (const candidateT of candidateTs) {
     const candidateKey = candidateT.toFixed(3);
     if (seenCandidateTs.has(candidateKey)) continue;
     seenCandidateTs.add(candidateKey);
@@ -1336,28 +1645,82 @@ function resolveTrafficLabelPoint(
 
     for (const offset of offsetPairs) {
       const candidate = {
-        x: anchor.x + tangent.x * offset.along * alongStep + normal.x * offset.normal * normalStep,
-        y: anchor.y + tangent.y * offset.along * alongStep + normal.y * offset.normal * normalStep
+        x: anchor.x + tangent.x * offset.along * stepSize + normal.x * offset.normal * stepSize,
+        y: anchor.y + tangent.y * offset.along * stepSize + normal.y * offset.normal * stepSize
       };
-      scoreCandidate(candidate);
-      const pointKey = `${candidate.x.toFixed(2)}:${candidate.y.toFixed(2)}`;
-      if (seenCandidatePoints.has(pointKey)) continue;
-      seenCandidatePoints.add(pointKey);
-      candidatePoints.push({
+      candidates.push({
         point: candidate,
         distanceFromPreferred: Math.hypot(candidate.x - base.x, candidate.y - base.y)
       });
     }
   }
+  candidates.sort((a, b) => a.distanceFromPreferred - b.distanceFromPreferred);
+  return candidates;
+}
 
-  candidatePoints.sort((a, b) => a.distanceFromPreferred - b.distanceFromPreferred);
-  for (const candidate of candidatePoints) {
-    if (!canPlaceAt(candidate.point)) continue;
-    occupiedPlacements.push({ point: candidate.point });
-    return candidate.point;
+function resolveTrafficLabelPoint(
+  halfPathData: string,
+  context: TrafficLabelSearchContext,
+  interfaceSide: "start" | "end"
+): Point {
+  const safeScale = Math.max(0.05, Math.abs(context.graphScale));
+  const stepSize = 1 / safeScale;
+  const parsed = parsePathCommand(halfPathData);
+  const preferredT = interfaceSide === "start" ? 0.38 : 0.62;
+  const base = parsed
+    ? pointOnParsedPathAtT(parsed, preferredT)
+    : (parsePathStart(halfPathData) ?? { x: 0, y: 0 });
+
+  if (!parsed) {
+    context.addOccupied(base);
+    return base;
   }
 
-  occupiedPlacements.push({ point: fallback });
+  // Search in two stages: a dense set near the preferred point first, then a
+  // sparse sweep along the whole path only when the dense set is fully blocked.
+  const seenCandidateTs = new Set<string>();
+  const candidateStages = [
+    buildTrafficLabelCandidates(
+      parsed,
+      buildTrafficLabelCandidateTs(interfaceSide, estimateParsedPathLength(parsed), safeScale),
+      seenCandidateTs,
+      base,
+      stepSize,
+      TRAFFIC_LABEL_OFFSET_PAIRS
+    ),
+    () =>
+      buildTrafficLabelCandidates(
+        parsed,
+        buildExpandedTrafficLabelCandidateTs(interfaceSide),
+        seenCandidateTs,
+        base,
+        stepSize,
+        TRAFFIC_LABEL_SWEEP_OFFSET_PAIRS
+      )
+  ] as const;
+
+  let fallback = base;
+  let bestScoreSq = -1;
+  const considerFallback = (candidate: Point): void => {
+    const scoreSq = nearestLabelDistanceSquared(candidate, context, bestScoreSq);
+    if (scoreSq > bestScoreSq) {
+      bestScoreSq = scoreSq;
+      fallback = candidate;
+    }
+  };
+
+  for (const stage of candidateStages) {
+    const candidates = typeof stage === "function" ? stage() : stage;
+    for (const candidate of candidates) {
+      if (canPlaceTrafficLabelAt(candidate.point, context)) {
+        context.addOccupied(candidate.point);
+        return candidate.point;
+      }
+      considerFallback(candidate.point);
+    }
+  }
+
+  context.addOccupied(fallback);
   return fallback;
 }
 
@@ -1385,10 +1748,8 @@ function createTrafficHalfCell(
   sourcePath: Element,
   halfPathData: string,
   shortCellId: string,
-  occupiedLabelPoints: TrafficLabelPlacement[],
-  interfaceLabelPoints: Point[],
+  labelSearchContext: TrafficLabelSearchContext,
   interfaceSide: "start" | "end",
-  graphScale: number,
   trafficRateLabelPlacementsByCellId: Map<string, GrafanaTrafficRateLabelPlacement>,
   trafficRatesOnHoverOnly: boolean
 ): Element {
@@ -1421,15 +1782,9 @@ function createTrafficHalfCell(
   const mid =
     placement !== undefined
       ? { x: placement.x, y: placement.y }
-      : resolveTrafficLabelPoint(
-          halfPathData,
-          occupiedLabelPoints,
-          interfaceLabelPoints,
-          interfaceSide,
-          graphScale
-        );
+      : resolveTrafficLabelPoint(halfPathData, labelSearchContext, interfaceSide);
   if (placement !== undefined) {
-    occupiedLabelPoints.push({ point: mid });
+    labelSearchContext.addOccupied(mid);
   }
   const text = doc.createElementNS(SVG_NS, "text");
   text.setAttribute("x", fmt(mid.x));
@@ -1504,9 +1859,7 @@ function replaceTrafficPathWithHalfCells(
   doc: XMLDocument,
   trafficPath: Element,
   mapping: GrafanaEdgeCellMapping,
-  occupiedTrafficLabelPoints: TrafficLabelPlacement[],
-  interfaceLabelPoints: Point[],
-  graphScale: number,
+  labelSearchContext: TrafficLabelSearchContext,
   trafficRateLabelPlacementsByCellId: Map<string, GrafanaTrafficRateLabelPlacement>,
   trafficRatesOnHoverOnly: boolean
 ): void {
@@ -1523,10 +1876,8 @@ function replaceTrafficPathWithHalfCells(
     trafficPath,
     firstHalfData,
     mapping.trafficCellId,
-    occupiedTrafficLabelPoints,
-    interfaceLabelPoints,
+    labelSearchContext,
     "start",
-    graphScale,
     trafficRateLabelPlacementsByCellId,
     trafficRatesOnHoverOnly
   );
@@ -1535,10 +1886,8 @@ function replaceTrafficPathWithHalfCells(
     trafficPath,
     secondHalfData,
     mapping.reverseTrafficCellId,
-    occupiedTrafficLabelPoints,
-    interfaceLabelPoints,
+    labelSearchContext,
     "end",
-    graphScale,
     trafficRateLabelPlacementsByCellId,
     trafficRatesOnHoverOnly
   );
@@ -1551,9 +1900,7 @@ function applyTrafficCellsToEdgeGroup(
   doc: XMLDocument,
   mapping: GrafanaEdgeCellMapping,
   trafficGroup: Element,
-  occupiedTrafficLabelPoints: TrafficLabelPlacement[],
-  interfaceLabelPoints: Point[],
-  graphScale: number,
+  labelSearchContext: TrafficLabelSearchContext,
   trafficRateLabelPlacementsByCellId: Map<string, GrafanaTrafficRateLabelPlacement>,
   trafficRatesOnHoverOnly: boolean
 ): void {
@@ -1568,9 +1915,7 @@ function applyTrafficCellsToEdgeGroup(
     doc,
     trafficCellEl,
     mapping,
-    occupiedTrafficLabelPoints,
-    interfaceLabelPoints,
-    graphScale,
+    labelSearchContext,
     trafficRateLabelPlacementsByCellId,
     trafficRatesOnHoverOnly
   );
@@ -1608,8 +1953,10 @@ export function applyGrafanaCellIdsToSvg(
   const graphTransform = parseGraphTransform(doc.documentElement);
   const graphScale = Math.max(0.05, Math.abs(graphTransform.scale));
   const edgeGroupByDataId = buildEdgeGroupByDataId(doc);
-  const occupiedTrafficLabelPoints: TrafficLabelPlacement[] = [];
-  const interfaceLabelPoints = collectInterfaceLabelPoints(doc);
+  const labelSearchContext = createTrafficLabelSearchContext(
+    collectInterfaceLabelPoints(doc),
+    graphScale
+  );
   const trafficRateLabelPlacementsByCellId = buildTrafficRateLabelPlacementMap(
     options.trafficRateLabelPlacements
   );
@@ -1621,9 +1968,7 @@ export function applyGrafanaCellIdsToSvg(
       doc,
       mapping,
       trafficGroup,
-      occupiedTrafficLabelPoints,
-      interfaceLabelPoints,
-      graphScale,
+      labelSearchContext,
       trafficRateLabelPlacementsByCellId,
       trafficRatesOnHoverOnly
     );
@@ -1780,7 +2125,8 @@ export function buildGrafanaPanelYaml(
     const reverseTrafficDataRef = `${mapping.target}:${mapping.targetEndpoint}:out`;
     const trafficLabelCellId = getTrafficLabelCellId(mapping.trafficCellId);
     const reverseTrafficLabelCellId = getTrafficLabelCellId(mapping.reverseTrafficCellId);
-    const trafficLabelDataRef = trafficRateLabelDataRefByCellId.get(trafficLabelCellId) ?? trafficDataRef;
+    const trafficLabelDataRef =
+      trafficRateLabelDataRefByCellId.get(trafficLabelCellId) ?? trafficDataRef;
     const reverseTrafficLabelDataRef =
       trafficRateLabelDataRefByCellId.get(reverseTrafficLabelCellId) ?? reverseTrafficDataRef;
     lines.push(`  ${quoteYaml(mapping.operstateCellId)}:`);

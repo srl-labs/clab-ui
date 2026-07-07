@@ -7,18 +7,21 @@ import { full as markdownItEmoji } from "markdown-it-emoji";
 import hljs from "highlight.js";
 import DOMPurify from "dompurify";
 
+const ESCAPE_MAP: Record<string, string> = {
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;"
+};
+
+const ESCAPE_REGEX = /[&<>"']/g;
+
 /**
  * Escape HTML entities for safe display
  */
 function escapeHtml(text: string): string {
-  const escapeMap: Record<string, string> = {
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  };
-  return text.replace(/[&<>"']/g, (char) => escapeMap[char] || char);
+  return text.replace(ESCAPE_REGEX, (char) => ESCAPE_MAP[char] || char);
 }
 
 /**
@@ -31,7 +34,10 @@ const markdownRenderer = new MarkdownIt({
   html: false, // Disable raw HTML for security
   linkify: true, // Auto-convert URLs to links
   typographer: true, // Smart quotes and dashes
-  breaks: false, // Don't convert \n to <br> (like GitHub)
+  // Annotations are edited in a plain textarea, so a typed newline must stay a
+  // line break after rendering (GitHub-comment style), or the committed result
+  // won't match what the editor showed.
+  breaks: true,
   langPrefix: "hljs language-",
   highlight(code: string, lang: string): string {
     try {
@@ -45,6 +51,14 @@ const markdownRenderer = new MarkdownIt({
   }
 }).use(markdownItEmoji);
 
+// Match: </a></p> + any whitespace + <p><a (with or without space before href)
+const BADGE_PARAGRAPH_REGEX = /<\/a><\/p>\s*<p><a(?=\s|>)/g;
+// <li><p>content</p></li> -> <li>content</li>
+const LIST_ITEM_OPEN_REGEX = /<li>\s*<p>/g;
+const LIST_ITEM_CLOSE_REGEX = /<\/p>\s*<\/li>/g;
+const LIST_ITEM_REGEX = /<li>([\s\S]*?)<\/li>/g;
+const PARAGRAPH_BREAK_REGEX = /<\/p>\s*<p>/g;
+
 /**
  * Post-process HTML to fix common markdown rendering issues
  * - Merges consecutive badge/image paragraphs into single line (like GitHub)
@@ -54,17 +68,15 @@ function postProcessHtml(html: string): string {
   let result = html;
 
   // 1. Merge consecutive paragraphs containing only image links (badges)
-  // Match: </a></p> + any whitespace + <p><a (with or without space before href)
-  result = result.replace(/<\/a><\/p>\s*<p><a(?=\s|>)/g, "</a> <a");
+  result = result.replace(BADGE_PARAGRAPH_REGEX, "</a> <a");
 
   // 2. Remove <p> tags wrapping list item content to fix bullet alignment
-  // <li><p>content</p></li> -> <li>content</li>
-  result = result.replace(/<li>\s*<p>/g, "<li>");
-  result = result.replace(/<\/p>\s*<\/li>/g, "</li>");
+  result = result.replace(LIST_ITEM_OPEN_REGEX, "<li>");
+  result = result.replace(LIST_ITEM_CLOSE_REGEX, "</li>");
 
   // 3. For list items with multiple paragraphs, replace intermediate </p><p> with <br>
-  result = result.replace(/<li>([\s\S]*?)<\/li>/g, (match) => {
-    return match.replace(/<\/p>\s*<p>/g, "<br>");
+  result = result.replace(LIST_ITEM_REGEX, (match) => {
+    return match.replace(PARAGRAPH_BREAK_REGEX, "<br>");
   });
 
   return result;

@@ -89,6 +89,7 @@ const COMMAND_LABELS: Record<string, string> = {
   "containerlab.lab.toggleFavorite": "Toggle Favorite",
   "containerlab.lab.deploy": "Deploy",
   "containerlab.lab.deploy.cleanup": "Deploy (Cleanup)",
+  "containerlab.lab.apply": "Apply Topology",
   "containerlab.lab.destroy": "Destroy",
   "containerlab.lab.destroy.cleanup": "Destroy (Cleanup)",
   "containerlab.lab.redeploy": "Redeploy",
@@ -183,6 +184,7 @@ const DESTRUCTIVE_COMMANDS = new Set<string>([
 ]);
 const SECTION_BUILD_TIMEOUT_MS = 4000;
 const TREE_ITEM_COLLAPSIBLE_NONE = 0;
+const LAB_LABEL_LINK_PREFIX_REGEX = /^🔗\s*/u;
 const BUILTIN_CONTAINER_ACTION_COMMANDS: readonly string[] = [
   "containerlab.node.showLogs",
   "containerlab.node.attachShell",
@@ -370,9 +372,36 @@ function getStatusIndicator(item: ExplorerTreeItemLike): ExplorerNode["statusInd
   return undefined;
 }
 
+function stableActionValue(value: unknown, seen = new WeakSet<object>()): unknown {
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+  if (seen.has(value)) {
+    return "[Circular]";
+  }
+  seen.add(value);
+  if (Array.isArray(value)) {
+    return value.map((entry) => stableActionValue(entry, seen));
+  }
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, stableActionValue(entry, seen)])
+  );
+}
+
+function hashActionRef(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 class ExplorerActionRegistry {
-  private counter = 0;
   private readonly bindings = new Map<string, ExplorerActionInvocation>();
+  private readonly actionRefCounts = new Map<string, number>();
 
   public createAction(
     commandId: string,
@@ -382,7 +411,11 @@ class ExplorerActionRegistry {
     iconId?: string,
     disabled = false
   ): ExplorerAction {
-    const actionRef = `action:${this.counter++}`;
+    const stablePayload = JSON.stringify(stableActionValue({ commandId, label, args, destructive, iconId }));
+    const baseActionRef = `action:${hashActionRef(stablePayload)}`;
+    const count = this.actionRefCounts.get(baseActionRef) ?? 0;
+    this.actionRefCounts.set(baseActionRef, count + 1);
+    const actionRef = count === 0 ? baseActionRef : `${baseActionRef}:${count}`;
     this.bindings.set(actionRef, { commandId, args, disabled });
     return {
       id: `${commandId}:${label}:${actionRef}`,
@@ -577,12 +610,14 @@ function appendLabActions(
   );
 
   if (isUndeployed) {
+    pushAction(actions, seen, registry, "containerlab.lab.apply", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.deploy", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.deploy.cleanup", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.delete", [item], undefined, true);
   }
 
   if (isDeployed) {
+    pushAction(actions, seen, registry, "containerlab.lab.apply", [item]);
     pushAction(actions, seen, registry, "containerlab.lab.destroy", [item], undefined, true);
     pushAction(actions, seen, registry, "containerlab.lab.destroy.cleanup", [item], undefined, true);
     pushAction(actions, seen, registry, "containerlab.lab.redeploy", [item]);
@@ -940,7 +975,7 @@ function shouldResolveNodeChildren(
   if (sectionId !== "fileExplorer") {
     return true;
   }
-  return new Set(options.expandedBySection?.fileExplorer ?? []).has(nodeId);
+  return (options.expandedBySection?.fileExplorer ?? []).includes(nodeId);
 }
 
 function resolveNodeStatusIndicator(
@@ -968,7 +1003,7 @@ async function buildNode(
   const contextValue = item.contextValue;
   const nodeId = item.id || pathId;
   const rawLabel = labelToText(item.label);
-  const label = isLabContext(contextValue) ? rawLabel.replace(/^🔗\s*/u, "") : rawLabel;
+  const label = isLabContext(contextValue) ? rawLabel.replace(LAB_LABEL_LINK_PREFIX_REGEX, "") : rawLabel;
   const description = shouldHideNodeDescription(contextValue)
     ? undefined
     : descriptionToText(item.description);

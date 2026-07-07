@@ -1,21 +1,20 @@
+/* eslint-disable import-x/max-dependencies */
 import React, { useEffect, useMemo, useState } from "react";
 import type { Edge } from "@xyflow/react";
 import CheckIcon from "@mui/icons-material/Check";
 import RestartAltIcon from "@mui/icons-material/RestartAlt";
-import {
-  Box,
-  Button,
-  MenuItem,
-  Paper,
-  Slider,
-  Switch,
-  Tab,
-  Tabs,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import MenuItem from "@mui/material/MenuItem";
+import Paper from "@mui/material/Paper";
+import Slider from "@mui/material/Slider";
+import Switch from "@mui/material/Switch";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
+import TextField from "@mui/material/TextField";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import Typography from "@mui/material/Typography";
 
 import { useEdges } from "../../../stores/graphStore";
 import { useTopoViewerStore } from "../../../stores/topoViewerStore";

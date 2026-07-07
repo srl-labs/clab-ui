@@ -45,7 +45,7 @@ export interface SimLink extends SimulationLinkDatum<SimNode> {
 /**
  * Node types that participate in layout algorithms
  */
-export const LAYOUTABLE_NODE_TYPES = ["topology-node", "network-node"];
+const LAYOUTABLE_NODE_TYPES = ["topology-node", "network-node"];
 
 /**
  * Check if a node should be included in layout

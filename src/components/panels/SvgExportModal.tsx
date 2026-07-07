@@ -1,31 +1,30 @@
+/* eslint-disable import-x/max-dependencies */
 // SVG export dialog.
 import React, { useState, useCallback, useMemo } from "react";
-import type { ReactFlowInstance } from "@xyflow/react";
+import type { Edge, ReactFlowInstance } from "@xyflow/react";
 import AccountTreeIcon from "@mui/icons-material/AccountTree";
 import DownloadIcon from "@mui/icons-material/Download";
 import LightbulbIcon from "@mui/icons-material/Lightbulb";
 import SettingsIcon from "@mui/icons-material/Settings";
-import {
-  Alert,
-  Box,
-  Button,
-  Checkbox,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  Divider,
-  FormControlLabel,
-  InputAdornment,
-  MenuItem,
-  Paper,
-  Radio,
-  RadioGroup,
-  Tab,
-  Tabs,
-  TextField,
-  Typography
-} from "@mui/material";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Checkbox from "@mui/material/Checkbox";
+import CircularProgress from "@mui/material/CircularProgress";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import Divider from "@mui/material/Divider";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import InputAdornment from "@mui/material/InputAdornment";
+import MenuItem from "@mui/material/MenuItem";
+import Paper from "@mui/material/Paper";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
 
 import type {
   FreeTextAnnotation,
@@ -38,8 +37,13 @@ import {
   TRAFFIC_RATE_NODE_TYPE,
   GROUP_NODE_TYPE
 } from "../../annotations/annotationNodeConverters";
-import { useExtensionMessaging } from "../../messaging/extensionMessaging";
 import { type ClabUiHost, useClabUiHost } from "../../host";
+import { useEdges } from "../../stores/graphStore";
+import { useTelemetryLabelSettings, useTopoViewerStore } from "../../stores/topoViewerStore";
+import {
+  clampTelemetryInterfaceSizePercent,
+  clampTelemetryNodeSizePx
+} from "../../utils/telemetryInterfaceLabels";
 import { log } from "../../utils/logger";
 import { ColorField, PREVIEW_GRID_BG_SX } from "../ui/form";
 import { DialogTitleWithClose } from "../ui/dialog/DialogChrome";
@@ -69,6 +73,7 @@ import type {
   GraphSvgResult,
   GraphSvgRenderOptions
 } from "./svg-export";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 export interface SvgExportModalProps {
   isOpen: boolean;
@@ -113,6 +118,8 @@ interface EdgeInterfaceRow {
   targetEndpoint: string;
 }
 
+const NO_INTERFACE_ROWS: EdgeInterfaceRow[] = [];
+
 const INTERFACE_SELECT_AUTO = "__auto__";
 const INTERFACE_SELECT_FULL = "__full__";
 const INTERFACE_SELECT_TOKEN_PREFIX = "__token__:";
@@ -138,10 +145,6 @@ interface PreparedSvgExport {
   baseName: string;
   finalSvg: string;
   graphSvg: GraphSvgResult;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function createRequestId(): string {
@@ -204,10 +207,12 @@ function resolveDefaultExportBaseName(labName?: string): string {
   return trimmed !== undefined && trimmed.length > 0 ? trimmed : "topology";
 }
 
-function extractEdgeInterfaceRows(rfInstance: ReactFlowInstance | null): EdgeInterfaceRow[] {
-  if (!rfInstance) return [];
+/** DOM read gated on dialog visibility so closed modals skip layout queries. */
+function computeIsExportAvailable(rfInstance: ReactFlowInstance | null, isOpen: boolean): boolean {
+  return isOpen && rfInstance !== null && Boolean(getViewportSize());
+}
 
-  const edges = rfInstance.getEdges();
+function extractEdgeInterfaceRows(edges: Edge[]): EdgeInterfaceRow[] {
   const rows: EdgeInterfaceRow[] = [];
 
   for (const edge of edges) {
@@ -228,9 +233,12 @@ function extractEdgeInterfaceRows(rfInstance: ReactFlowInstance | null): EdgeInt
   return rows;
 }
 
+const INTERFACE_PART_SEPARATOR_RE = /[^A-Za-z0-9]+/g;
+const INTERFACE_NUMERIC_SEGMENT_RE = /\d+/g;
+
 function splitInterfaceParts(endpoint: string): string[] {
   const baseParts = endpoint
-    .split(/[^A-Za-z0-9]+/g)
+    .split(INTERFACE_PART_SEPARATOR_RE)
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
 
@@ -245,7 +253,7 @@ function splitInterfaceParts(endpoint: string): string[] {
   for (const part of baseParts) {
     addUnique(part);
 
-    const numericSegments = part.match(/\d+/g);
+    const numericSegments = part.match(INTERFACE_NUMERIC_SEGMENT_RE);
     if (!numericSegments) continue;
     for (const numeric of numericSegments) {
       addUnique(numeric);
@@ -332,8 +340,7 @@ function hasStrictlyAscendingThresholds(thresholds: GrafanaTrafficThresholds): b
 
 function requestGrafanaBundleExport(
   host: ClabUiHost,
-  payload: GrafanaBundlePayload,
-  sendGrafanaBundleExport: (payload: GrafanaBundlePayload) => void
+  payload: GrafanaBundlePayload
 ): Promise<string[]> {
   return new Promise((resolve, reject) => {
     let unsubscribe = () => {
@@ -363,7 +370,7 @@ function requestGrafanaBundleExport(
       resolve(files);
     });
 
-    sendGrafanaBundleExport({
+    host.topoViewer.exportGrafanaBundle({
       requestId: payload.requestId,
       baseName: payload.baseName,
       svgContent: payload.svgContent,
@@ -384,7 +391,8 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   customIcons
 }) => {
   const host = useClabUiHost();
-  const { sendGrafanaBundleExport } = useExtensionMessaging();
+  const linkLabelMode = useTopoViewerStore((state) => state.linkLabelMode);
+  const telemetryLabelSettings = useTelemetryLabelSettings();
   const [borderZoom, setBorderZoom] = useState(100);
   const [borderPadding, setBorderPadding] = useState(0);
   const [isExporting, setIsExporting] = useState(false);
@@ -394,7 +402,10 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   } | null>(null);
   const [grafanaSettingsTab, setGrafanaSettingsTab] = useState<GrafanaSettingsTab>("general");
   const [includeAnnotations, setIncludeAnnotations] = useState(true);
-  const [includeEdgeLabels, setIncludeEdgeLabels] = useState(true);
+  // Default to what the canvas currently shows: no labels in "hide"/"on-select" modes
+  const [includeEdgeLabels, setIncludeEdgeLabels] = useState(
+    () => linkLabelMode !== "hide" && linkLabelMode !== "on-select"
+  );
   const [exportGrafanaBundle, setExportGrafanaBundle] = useState(false);
   const [isGrafanaSettingsOpen, setIsGrafanaSettingsOpen] = useState(false);
   const [excludeNodesWithoutLinks, setExcludeNodesWithoutLinks] = useState(true);
@@ -407,9 +418,12 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   const [trafficThresholdUnit, setTrafficThresholdUnit] = useState<TrafficThresholdUnit>(
     DEFAULT_TRAFFIC_THRESHOLD_UNIT
   );
-  const [grafanaNodeSizePx, setGrafanaNodeSizePx] = useState(DEFAULT_GRAFANA_NODE_SIZE_PX);
-  const [grafanaInterfaceSizePercent, setGrafanaInterfaceSizePercent] = useState(
-    DEFAULT_GRAFANA_INTERFACE_SIZE_PERCENT
+  // Start from the live canvas sizing so Grafana bundles match the screen too
+  const [grafanaNodeSizePx, setGrafanaNodeSizePx] = useState(() =>
+    clampTelemetryNodeSizePx(telemetryLabelSettings.nodeSizePx)
+  );
+  const [grafanaInterfaceSizePercent, setGrafanaInterfaceSizePercent] = useState(() =>
+    clampTelemetryInterfaceSizePercent(telemetryLabelSettings.interfaceSizePercent)
   );
   const [globalInterfaceOverrideSelection, setGlobalInterfaceOverrideSelection] =
     useState(INTERFACE_SELECT_AUTO);
@@ -422,9 +436,16 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
   const defaultBaseName = useMemo(() => resolveDefaultExportBaseName(labName), [labName]);
   const [filename, setFilename] = useState(defaultBaseName);
 
-  const isExportAvailable = rfInstance ? Boolean(getViewportSize()) : false;
+  const isExportAvailable = computeIsExportAvailable(rfInstance, isOpen);
   const totalAnnotations = groups.length + textAnnotations.length + shapeAnnotations.length;
-  const interfaceRows = extractEdgeInterfaceRows(rfInstance);
+  const edges = useEdges();
+  // Rows derived from the edges store subscription so they stay fresh on external
+  // edge changes; memoized on the edges array so keystrokes in the dialog don't
+  // recompute them. Still gated on dialog visibility so closed modals skip the scan.
+  const interfaceRows = useMemo(() => {
+    if (!isOpen && !isGrafanaSettingsOpen) return NO_INTERFACE_ROWS;
+    return extractEdgeInterfaceRows(edges);
+  }, [edges, isOpen, isGrafanaSettingsOpen]);
   const filteredInterfaceRows = useMemo(() => {
     const filterValue = interfaceLinkFilter.trim().toLowerCase();
     if (!filterValue) return interfaceRows;
@@ -505,21 +526,29 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
       throw new Error("SVG export is not yet available");
     }
 
-    const grafanaRenderOptions: GraphSvgRenderOptions | undefined = exportGrafanaBundle
+    const renderOptions: GraphSvgRenderOptions = exportGrafanaBundle
       ? {
           nodeIconSize: grafanaNodeSizePx,
           interfaceScale: grafanaInterfaceSizePercent / 100,
-          interfaceLabelOverrides: effectiveInterfaceLabelOverrides
+          interfaceLabelOverrides: effectiveInterfaceLabelOverrides,
+          telemetryStyleLabels: true
         }
-      : undefined;
+      : {
+          // Mirror the live canvas settings so the export matches the screen 1:1
+          nodeIconSize: clampTelemetryNodeSizePx(telemetryLabelSettings.nodeSizePx),
+          interfaceScale:
+            clampTelemetryInterfaceSizePercent(telemetryLabelSettings.interfaceSizePercent) / 100,
+          interfaceLabelOverrides: telemetryLabelSettings.interfaceLabelOverrides,
+          globalInterfaceOverrideSelection: telemetryLabelSettings.globalInterfaceOverrideSelection,
+          telemetryStyleLabels: linkLabelMode === "telemetry-style"
+        };
     const graphSvg = buildGraphSvg(
       rfInstance,
       borderZoom,
       customIcons,
       includeEdgeLabels,
       ANNOTATION_NODE_TYPES,
-      exportGrafanaBundle,
-      grafanaRenderOptions
+      renderOptions
     );
     if (!graphSvg) {
       throw new Error("Unable to capture viewport for SVG export");
@@ -545,6 +574,8 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
     grafanaNodeSizePx,
     grafanaInterfaceSizePercent,
     effectiveInterfaceLabelOverrides,
+    linkLabelMode,
+    telemetryLabelSettings,
     rfInstance,
     borderZoom,
     customIcons,
@@ -576,7 +607,6 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
           "Traffic thresholds must be strictly ascending (green < yellow < orange < red)"
         );
       }
-
       const mappings = collectGrafanaEdgeCellMappings(
         prepared.graphSvg.edges,
         prepared.graphSvg.nodes,
@@ -599,7 +629,6 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
           Math.max(6, borderPadding)
         );
       }
-
       let grafanaSvg = applyGrafanaCellIdsToSvg(grafanaBaseSvg, mappings, {
         trafficRatesOnHoverOnly,
         trafficRateLabelPlacements
@@ -622,7 +651,7 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
         svgContent: grafanaSvg,
         dashboardJson,
         panelYaml
-      }, sendGrafanaBundleExport);
+      });
       const suffix =
         files.length > 0 ? ` (${files.map((file) => file.split("/").pop()).join(", ")})` : "";
       setExportStatus({
@@ -637,7 +666,8 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
       includeGrafanaLegend,
       trafficRatesOnHoverOnly,
       includeHideRatesLegendToggle,
-      trafficThresholdUnit
+      trafficThresholdUnit,
+      host
     ]
   );
 
@@ -662,7 +692,10 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       log.error(`[SvgExport] Export failed: ${errorMessage}`);
-      setExportStatus({ type: "error", message: `Export failed: ${errorMessage}` });
+      setExportStatus({
+        type: "error",
+        message: `Export failed: ${errorMessage}`
+      });
     } finally {
       setIsExporting(false);
     }
@@ -990,7 +1023,13 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
               <Typography variant="body2" color="text.secondary">
                 Configure thresholds and topology sizing used in the exported Grafana panel.
               </Typography>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 1.5
+                }}
+              >
                 <TextField
                   label="Node size"
                   type="number"
@@ -1046,7 +1085,13 @@ export const SvgExportModal: React.FC<SvgExportModalProps> = ({
                 <MenuItem value="mbit">Mbit/s</MenuItem>
                 <MenuItem value="gbit">Gbit/s</MenuItem>
               </TextField>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1.5 }}>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 1.5
+                }}
+              >
                 <TextField
                   label="Green threshold"
                   type="number"

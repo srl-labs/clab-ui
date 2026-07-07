@@ -1,5 +1,4 @@
-import React from "react";
-import Box from "@mui/material/Box";
+import type React from "react";
 
 /** Shared style that resets browser fieldset chrome while preserving the disabled state. */
 export const FIELDSET_RESET_STYLE: React.CSSProperties = {
@@ -8,19 +7,3 @@ export const FIELDSET_RESET_STYLE: React.CSSProperties = {
   padding: 0,
   minInlineSize: 0
 };
-
-export const ContextPanelScrollArea: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Box sx={{ p: 2, overflow: "auto", flex: 1 }}>{children}</Box>
-);
-
-/** Scroll area with a reset fieldset that disables inputs when readOnly. */
-export const EditorFieldset: React.FC<{ readOnly: boolean; children: React.ReactNode }> = ({
-  readOnly,
-  children
-}) => (
-  <ContextPanelScrollArea>
-    <fieldset disabled={readOnly} style={FIELDSET_RESET_STYLE}>
-      {children}
-    </fieldset>
-  </ContextPanelScrollArea>
-);

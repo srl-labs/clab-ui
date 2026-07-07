@@ -10,7 +10,7 @@ import type { ClabUiHost } from "../host";
  * Base webview message structure from the extension.
  * All messages have a type field, and may have additional data.
  */
-export interface WebviewMessageBase {
+interface WebviewMessageBase {
   type: string;
   [key: string]: unknown;
 }

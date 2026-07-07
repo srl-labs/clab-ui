@@ -123,7 +123,7 @@ export function computeLongname(
  * @param annotations - The topology annotations
  * @returns Map from node ID to annotation
  */
-export function createNodeAnnotationsMap(
+function createNodeAnnotationsMap(
   annotations?: TopologyAnnotations
 ): Map<string, NodeAnnotation> {
   const map = new Map<string, NodeAnnotation>();

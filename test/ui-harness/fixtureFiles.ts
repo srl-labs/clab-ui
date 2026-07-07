@@ -1,3 +1,5 @@
+import aiFabricYaml from "../fixtures/topologies/ai-fabric.clab.yml?raw";
+import aiFabricAnnotations from "../fixtures/topologies/ai-fabric.clab.yml.annotations.json?raw";
 import datacenterYaml from "../fixtures/topologies/datacenter.clab.yml?raw";
 import datacenterAnnotations from "../fixtures/topologies/datacenter.clab.yml.annotations.json?raw";
 import emptyYaml from "../fixtures/topologies/empty.clab.yml?raw";
@@ -11,6 +13,8 @@ import spineLeafAnnotations from "../fixtures/topologies/spine-leaf.clab.yml.ann
 export const TOPOLOGY_ROOT = "/topologies";
 
 export const fixtureFiles: Record<string, string> = {
+  [`${TOPOLOGY_ROOT}/ai-fabric.clab.yml`]: aiFabricYaml,
+  [`${TOPOLOGY_ROOT}/ai-fabric.clab.yml.annotations.json`]: aiFabricAnnotations,
   [`${TOPOLOGY_ROOT}/datacenter.clab.yml`]: datacenterYaml,
   [`${TOPOLOGY_ROOT}/datacenter.clab.yml.annotations.json`]: datacenterAnnotations,
   [`${TOPOLOGY_ROOT}/empty.clab.yml`]: emptyYaml,

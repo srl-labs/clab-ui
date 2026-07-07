@@ -1,25 +1,23 @@
+/* eslint-disable import-x/max-dependencies */
 // About dialog.
 import React from "react";
-import {
-  Avatar,
-  Box,
-  Card,
-  CardActionArea,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  IconButton,
-  Link,
-  Typography
-} from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
+import Avatar from "@mui/material/Avatar";
+import Box from "@mui/material/Box";
+import Card from "@mui/material/Card";
+import CardActionArea from "@mui/material/CardActionArea";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import Divider from "@mui/material/Divider";
+import Link from "@mui/material/Link";
+import Typography from "@mui/material/Typography";
 import ExtensionIcon from "@mui/icons-material/Extension";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import GroupsIcon from "@mui/icons-material/Groups";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+
+import { DialogTitleWithClose } from "../ui/dialog/DialogChrome";
 
 interface AboutModalProps {
   isOpen: boolean;
@@ -262,17 +260,18 @@ export const AboutModal: React.FC<AboutModalProps> = ({ isOpen, onClose }) => {
         }
       }}
     >
-      <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-          <AnimatedContainerlabLogo />
-          <Typography variant="h5" fontWeight={600}>
-            TopoViewer
-          </Typography>
-        </Box>
-        <IconButton size="small" onClick={onClose}>
-          <CloseIcon fontSize="small" />
-        </IconButton>
-      </DialogTitle>
+      <DialogTitleWithClose
+        sx={{ py: 2 }}
+        title={
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+            <AnimatedContainerlabLogo />
+            <Typography variant="h5" fontWeight={600}>
+              TopoViewer
+            </Typography>
+          </Box>
+        }
+        onClose={onClose}
+      />
       <DialogContent dividers sx={{ p: 0 }}>
         {/* Description */}
         <Box sx={{ p: 2 }}>

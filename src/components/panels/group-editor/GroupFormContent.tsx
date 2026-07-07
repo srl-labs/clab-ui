@@ -20,6 +20,15 @@ function isBorderStyle(value: string): value is NonNullable<GroupStyleAnnotation
   return value === "solid" || value === "dashed" || value === "dotted" || value === "double";
 }
 
+// Static options, hoisted so they are not rebuilt on every render
+const LABEL_POSITION_OPTIONS = GROUP_LABEL_POSITIONS.map((pos) => ({
+  value: pos,
+  label: pos
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ")
+}));
+
 // Main component
 export const GroupFormContent: React.FC<Props> = ({ formData, updateField, updateStyle }) => {
   const style = formData.style;
@@ -40,13 +49,7 @@ export const GroupFormContent: React.FC<Props> = ({ formData, updateField, updat
             label="Label Position"
             value={formData.style.labelPosition ?? "top-center"}
             onChange={(v) => updateField("style", { ...formData.style, labelPosition: v })}
-            options={GROUP_LABEL_POSITIONS.map((pos) => ({
-              value: pos,
-              label: pos
-                .split("-")
-                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                .join(" ")
-            }))}
+            options={LABEL_POSITION_OPTIONS}
           />
           <InputField
             id="group-level"

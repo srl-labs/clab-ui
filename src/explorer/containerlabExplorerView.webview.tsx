@@ -43,20 +43,17 @@ import TuneIcon from "@mui/icons-material/Tune";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import type { SvgIconComponent } from "@mui/icons-material";
-import {
-  Alert,
-  Box,
-  IconButton,
-  InputAdornment,
-  Paper,
-  Snackbar,
-  Stack,
-  TextField,
-  Tooltip,
-  Typography
-} from "@mui/material";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import Paper from "@mui/material/Paper";
+import Snackbar from "@mui/material/Snackbar";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 import type { Theme } from "@mui/material/styles";
-import { createRoot } from "react-dom/client";
 import {
   type Dispatch,
   type DragEvent,
@@ -70,12 +67,7 @@ import {
   useState
 } from "react";
 
-import {
-  ClabUiRuntimeProvider,
-  useClabUiHost,
-  type ClabUiRuntime
-} from "../host";
-import { MuiThemeProvider } from "../theme/index";
+import { useClabUiHost } from "../host";
 import {
   ContextMenu,
   type ContextMenuItem
@@ -795,42 +787,51 @@ function actionGroupId(action: ExplorerAction): ActionGroupId {
   return "other";
 }
 
+const ACTION_GROUP_LABELS: Record<ActionGroupId, string> = {
+  topology: "Topology",
+  graph: "Graph",
+  lifecycle: "Lifecycle",
+  save: "Save",
+  access: "Access",
+  sharing: "Sharing",
+  network: "Network",
+  inspect: "Inspect",
+  copy: "Copy",
+  tools: "Tools",
+  view: "View",
+  danger: "Danger",
+  other: "Other"
+};
+
+const ACTION_GROUP_ICONS: Record<ActionGroupId, SvgIconComponent> = {
+  topology: FolderOpenIcon,
+  graph: AccountTreeIcon,
+  lifecycle: PlayArrowIcon,
+  save: SaveOutlinedIcon,
+  access: TerminalIcon,
+  sharing: LinkIcon,
+  network: SettingsEthernetIcon,
+  inspect: ManageSearchIcon,
+  copy: ContentCopyIcon,
+  tools: BuildIcon,
+  view: FilterAltIcon,
+  danger: DeleteOutlineIcon,
+  other: BuildIcon
+};
+
+const GRAPH_COMMAND_ORDER = new Map<string, number>([
+  ["containerlab.lab.graph.topoviewer", 1],
+  ["containerlab.lab.graph.drawio.interactive", 2],
+  ["containerlab.lab.graph.drawio.horizontal", 3],
+  ["containerlab.lab.graph.drawio.vertical", 4]
+]);
+
 function actionGroupLabel(groupId: ActionGroupId): string {
-  const labels: Record<ActionGroupId, string> = {
-    topology: "Topology",
-    graph: "Graph",
-    lifecycle: "Lifecycle",
-    save: "Save",
-    access: "Access",
-    sharing: "Sharing",
-    network: "Network",
-    inspect: "Inspect",
-    copy: "Copy",
-    tools: "Tools",
-    view: "View",
-    danger: "Danger",
-    other: "Other"
-  };
-  return labels[groupId];
+  return ACTION_GROUP_LABELS[groupId];
 }
 
 function actionGroupIcon(groupId: ActionGroupId): SvgIconComponent {
-  const icons: Record<ActionGroupId, SvgIconComponent> = {
-    topology: FolderOpenIcon,
-    graph: AccountTreeIcon,
-    lifecycle: PlayArrowIcon,
-    save: SaveOutlinedIcon,
-    access: TerminalIcon,
-    sharing: LinkIcon,
-    network: SettingsEthernetIcon,
-    inspect: ManageSearchIcon,
-    copy: ContentCopyIcon,
-    tools: BuildIcon,
-    view: FilterAltIcon,
-    danger: DeleteOutlineIcon,
-    other: BuildIcon
-  };
-  return icons[groupId];
+  return ACTION_GROUP_ICONS[groupId];
 }
 
 function sortGroupActions(groupId: ActionGroupId, actions: ExplorerAction[]): ExplorerAction[] {
@@ -838,16 +839,9 @@ function sortGroupActions(groupId: ActionGroupId, actions: ExplorerAction[]): Ex
     return actions;
   }
 
-  const graphCommandOrder = new Map<string, number>([
-    ["containerlab.lab.graph.topoviewer", 1],
-    ["containerlab.lab.graph.drawio.interactive", 2],
-    ["containerlab.lab.graph.drawio.horizontal", 3],
-    ["containerlab.lab.graph.drawio.vertical", 4]
-  ]);
-
   return [...actions].sort((a, b) => {
-    const aOrder = graphCommandOrder.get(a.commandId.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
-    const bOrder = graphCommandOrder.get(b.commandId.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+    const aOrder = GRAPH_COMMAND_ORDER.get(a.commandId.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = GRAPH_COMMAND_ORDER.get(b.commandId.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
     if (aOrder !== bOrder) {
       return aOrder - bOrder;
     }
@@ -961,6 +955,8 @@ interface FileIconRule {
 const FILE_ICON_DEFAULT_COLOR = "#90a4ae";
 const FILE_ICON_FOLDER_COLOR = "#dcb67a";
 const FILE_ICON_ENDPOINT_COLOR = "#42a5f5";
+const DOCKERFILE_NAME_REGEX = /^dockerfile(?:\..*)?$/i;
+const DOCKERFILE_EXTENSION_REGEX = /\.dockerfile$/i;
 
 const FILE_ICON_RULES: FileIconRule[] = [
   { match: /\.clab\.ya?ml$/i, icon: AccountTreeIcon, color: "#519aba" },
@@ -994,7 +990,7 @@ const FILE_ICON_RULES: FileIconRule[] = [
 
 function fileIconForNode(node: ExplorerNode): ExplorerLeadingIcon {
   const fileName = node.label.toLowerCase();
-  if (/^dockerfile(?:\..*)?$/i.test(fileName) || /\.dockerfile$/i.test(fileName)) {
+  if (DOCKERFILE_NAME_REGEX.test(fileName) || DOCKERFILE_EXTENSION_REGEX.test(fileName)) {
     return { Icon: HubOutlinedIcon, color: "#2496ed" };
   }
 
@@ -1433,7 +1429,6 @@ function ExplorerNodeMarker({
     </Box>
   );
 }
-
 interface ExplorerNodePrimaryLabelProps {
   label: string;
   isEndpointRoot: boolean;
@@ -1902,7 +1897,7 @@ interface SectionTreeNodeProps {
   node: ExplorerNode;
   sectionId: ExplorerSectionId;
   depth: number;
-  expandedItems: string[];
+  expandedIds: ReadonlySet<string>;
   onToggleExpanded: (nodeId: string) => void;
   onInvokeAction: (action: ExplorerAction) => void;
 }
@@ -1911,12 +1906,12 @@ function SectionTreeNode({
   node,
   sectionId,
   depth,
-  expandedItems,
+  expandedIds,
   onToggleExpanded,
   onInvokeAction
 }: Readonly<SectionTreeNodeProps>) {
   const hasChildren = node.hasChildren || node.children.length > 0;
-  const isExpanded = expandedItems.includes(node.id);
+  const isExpanded = expandedIds.has(node.id);
   const isEndpointRoot = isEndpointNode(node.contextValue);
   const isEndpointSection = isEndpointSectionNode(node.contextValue);
   const toggleOnRowClick =
@@ -1984,7 +1979,7 @@ function SectionTreeNode({
               node={child}
               sectionId={sectionId}
               depth={depth + 1}
-              expandedItems={expandedItems}
+              expandedIds={expandedIds}
               onToggleExpanded={onToggleExpanded}
               onInvokeAction={onInvokeAction}
             />
@@ -2023,6 +2018,8 @@ function SectionTree({
     return map;
   }, [nodeById]);
 
+  const expandedIds = useMemo(() => new Set(expandedItems), [expandedItems]);
+
   const toggleExpanded = useCallback(
     (nodeId: string) => {
       const node = nodeById.get(nodeId);
@@ -2059,7 +2056,7 @@ function SectionTree({
           node={node}
           sectionId={section.id}
           depth={0}
-          expandedItems={expandedItems}
+          expandedIds={expandedIds}
           onToggleExpanded={toggleExpanded}
           onInvokeAction={onInvokeAction}
         />
@@ -2297,7 +2294,11 @@ function ExplorerSectionCard({
   );
 
   const allExpanded = useMemo(() => {
-    return expandableIds.length > 0 && expandableIds.every((id) => expandedItems.includes(id));
+    if (expandableIds.length === 0) {
+      return false;
+    }
+    const expandedIds = new Set(expandedItems);
+    return expandableIds.every((id) => expandedIds.has(id));
   }, [expandableIds, expandedItems]);
 
   const showExpandAllControl = section.id !== "helpFeedback" && expandableIds.length > 0;
@@ -2946,21 +2947,5 @@ export function ContainerlabExplorerView() {
         })}
       </Box>
     </Box>
-  );
-}
-
-export function bootstrapContainerlabExplorerView(runtime: ClabUiRuntime): void {
-  const container = document.getElementById("root");
-  if (!container) {
-    throw new Error("Explorer root element not found");
-  }
-
-  const root = createRoot(container);
-  root.render(
-    <ClabUiRuntimeProvider runtime={runtime}>
-      <MuiThemeProvider>
-        <ContainerlabExplorerView />
-      </MuiThemeProvider>
-    </ClabUiRuntimeProvider>
   );
 }

@@ -2,6 +2,7 @@ import type { Edge } from "@xyflow/react";
 
 import type { TopologyEdgeData } from "../core/types/graph";
 import type { InterfaceStatsPayload } from "../core/types/topology";
+import { isRecord } from "../core/utilities/typeHelpers";
 
 const TRAFFIC_STAT_KEYS: Array<keyof InterfaceStatsPayload> = [
   "rxBps",
@@ -22,10 +23,6 @@ interface EdgeDataWithStats extends Partial<TopologyEdgeData> {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function toStatsPayload(value: unknown): InterfaceStatsPayload | undefined {
@@ -174,29 +171,6 @@ export function resolveTrafficRateStats(
   };
 }
 
-function formatMetric(value: number | undefined, units: string[]): string {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-    return "--";
-  }
-
-  let scaled = value;
-  let unitIndex = 0;
-  while (scaled >= 1000 && unitIndex < units.length - 1) {
-    scaled /= 1000;
-    unitIndex += 1;
-  }
-
-  const digits = scaled >= 100 ? 0 : 1;
-  return `${scaled.toFixed(digits)} ${units[unitIndex]}`;
-}
-
-/**
- * Format a bits-per-second metric with adaptive units.
- */
-export function formatBitsPerSecond(value: number | undefined): string {
-  return formatMetric(value, ["bps", "Kbps", "Mbps", "Gbps", "Tbps"]);
-}
-
 /**
  * Format bits-per-second as Mbit/s (fixed unit).
  */
@@ -213,11 +187,4 @@ export function formatMegabitsPerSecond(value: number | undefined): string {
     digits = 1;
   }
   return `${valueInMbit.toFixed(digits)} Mbit/s`;
-}
-
-/**
- * Format a packets-per-second metric with adaptive units.
- */
-export function formatPacketsPerSecond(value: number | undefined): string {
-  return formatMetric(value, ["pps", "Kpps", "Mpps", "Gpps"]);
 }

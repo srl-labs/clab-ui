@@ -5,16 +5,12 @@
  */
 
 import type {
-  ClabTopology,
   ParsedElement,
   TopologyAnnotations,
-  NodeAnnotation,
   InterfaceStatsPayload
 } from "../types/topology";
 import type { TopologyData } from "../types/graph";
-
-// Re-export commonly used types for convenience
-export type { ClabTopology, ParsedElement, TopologyAnnotations, NodeAnnotation, TopologyData };
+import type { InterfacePatternMigration } from "../utilities/annotationMigrations";
 
 // ============================================================================
 // Parser Options and Results
@@ -220,13 +216,10 @@ export const nullLogger: ParserLogger = {
 
 /**
  * Represents an interface pattern that needs to be migrated to annotations.
+ * Defined next to applyInterfacePatternMigrations; re-exported here for
+ * parser consumers that import from "./types".
  */
-export interface InterfacePatternMigration {
-  /** Node ID in the topology */
-  nodeId: string;
-  /** Interface pattern to save (e.g., "eth{port}") */
-  interfacePattern: string;
-}
+export type { InterfacePatternMigration };
 
 /**
  * Represents a graph-* label migration from YAML to annotations.
@@ -251,44 +244,6 @@ export interface GraphLabelMigration {
 // ============================================================================
 // Build Context Types
 // ============================================================================
-
-/**
- * Context for building node elements.
- */
-export interface NodeBuildContext {
-  /** Parsed topology object */
-  topology: ClabTopology;
-  /** Container name prefix */
-  fullPrefix: string;
-  /** Lab name */
-  labName: string;
-  /** Node annotations map (nodeId -> annotation) */
-  nodeAnnotationsMap: Map<string, NodeAnnotation>;
-  /** Container data provider (optional) */
-  containerDataProvider?: ContainerDataProvider;
-  /** Logger (optional) */
-  logger?: ParserLogger;
-}
-
-/**
- * Context for building edge elements.
- */
-export interface EdgeBuildContext {
-  /** Parsed topology object */
-  topology: ClabTopology;
-  /** Container name prefix */
-  fullPrefix: string;
-  /** Lab name */
-  labName: string;
-  /** Node annotations map (nodeId -> annotation) */
-  nodeAnnotationsMap: Map<string, NodeAnnotation>;
-  /** Container data provider (optional) */
-  containerDataProvider?: ContainerDataProvider;
-  /** Logger (optional) */
-  logger?: ParserLogger;
-  /** Set of node IDs that exist in the topology */
-  nodeIds: Set<string>;
-}
 
 /**
  * Context for tracking special nodes (dummy, vxlan, etc.) across link processing.
@@ -338,53 +293,4 @@ export interface SpecialNodeInfo {
   group?: string;
   /** Level within group */
   level?: string;
-}
-
-// ============================================================================
-// Role Detection
-// ============================================================================
-
-/**
- * Node role for visual styling.
- */
-export type NodeRole = "router" | "client" | "default" | "cloud";
-
-/**
- * Kinds that are considered routers.
- */
-export const ROUTER_KINDS = new Set([
-  "nokia_srlinux",
-  "nokia_sros",
-  "nokia_srsim",
-  "arista_ceos",
-  "arista_veos",
-  "cisco_xrd",
-  "cisco_xrv",
-  "cisco_xrv9k",
-  "juniper_crpd",
-  "juniper_vjunos_router",
-  "juniper_vjunos_switch",
-  "juniper_vmx",
-  "juniper_vqfx",
-  "juniper_vsrx",
-  "frr",
-  "gobgp",
-  "bird",
-  "openbgpd"
-]);
-
-/**
- * Kinds that are considered clients.
- */
-export const CLIENT_KINDS = new Set(["linux", "alpine", "debian", "ubuntu", "centos", "rocky"]);
-
-/**
- * Detect the role of a node based on its kind.
- */
-export function detectRole(kind: string | undefined): NodeRole {
-  if (kind === undefined || kind.length === 0) return "default";
-  const k = kind.toLowerCase();
-  if (ROUTER_KINDS.has(k)) return "router";
-  if (CLIENT_KINDS.has(k)) return "client";
-  return "default";
 }

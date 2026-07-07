@@ -1,3 +1,4 @@
+/* eslint-disable import-x/max-dependencies */
 // Context-sensitive panel with palette, info, and editor tabs.
 import React, { useCallback, useRef, useState } from "react";
 import type { ReactFlowInstance } from "@xyflow/react";
@@ -6,7 +7,12 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import LockIcon from "@mui/icons-material/Lock";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
-import { Box, Button, Divider, Drawer, Tooltip, Typography } from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
+import Drawer from "@mui/material/Drawer";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 
 import { useIsLocked } from "../../../stores/topoViewerStore";
 import type { NodeData, LinkData } from "../../../hooks/ui";
@@ -66,7 +72,7 @@ function getSideConfig(side: "left" | "right"): SideConfig {
   };
 }
 
-export interface ContextPanelPaletteProps {
+interface ContextPanelPaletteProps {
   mode?: "edit" | "view";
   requestedTab?: { tabId: string };
   onEditCustomNode: (name: string) => void;
@@ -74,12 +80,12 @@ export interface ContextPanelPaletteProps {
   onSetDefaultCustomNode: (name: string) => void;
 }
 
-export interface ContextPanelViewProps {
+interface ContextPanelViewProps {
   selectedNodeData: NodeData | null;
   selectedLinkData: (LinkData & { extraData?: Record<string, unknown> }) | null;
 }
 
-export interface ContextPanelEditorProps extends ContextPanelEditorState {}
+interface ContextPanelEditorProps extends ContextPanelEditorState {}
 
 function renderContextPanelContent(
   palette: ContextPanelPaletteProps,

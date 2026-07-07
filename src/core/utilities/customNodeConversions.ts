@@ -17,7 +17,15 @@ export interface SaveCustomNodeData extends Omit<CustomNodeTemplate, "name"> {
   oldName?: string;
 }
 
-function buildCommonTemplateFields(data: NodeEditorData) {
+/**
+ * Source shapes that carry the shared template fields.
+ * All three interfaces extend SharedTemplateFields and declare the same
+ * basic-tab fields (type, image, icon, ...), so the mapping below works
+ * uniformly for each of them.
+ */
+type TemplateFieldSource = NodeEditorData | CustomTemplateEditorData | CustomNodeTemplate;
+
+function buildCommonTemplateFields(data: TemplateFieldSource) {
   return {
     // Basic tab fields
     type: data.type,
@@ -97,64 +105,8 @@ function buildTemplateEditorFields(
   const isDefaultCustomNode = fromEditorData ?? fromTemplateData;
 
   return {
-    // Basic tab fields
-    type: template.type,
-    image: template.image,
-    icon: template.icon,
-    iconColor: template.iconColor,
-    iconCornerRadius: template.iconCornerRadius,
-
-    // Custom template specific
-    baseName: template.baseName,
-    interfacePattern: template.interfacePattern,
-    isDefaultCustomNode,
-
-    // Configuration tab fields
-    license: template.license,
-    startupConfig: template.startupConfig,
-    enforceStartupConfig: template.enforceStartupConfig,
-    suppressStartupConfig: template.suppressStartupConfig,
-    binds: template.binds,
-    env: template.env,
-    envFiles: template.envFiles,
-    labels: template.labels,
-
-    // Runtime tab fields
-    user: template.user,
-    entrypoint: template.entrypoint,
-    cmd: template.cmd,
-    exec: template.exec,
-    restartPolicy: template.restartPolicy,
-    autoRemove: template.autoRemove,
-    startupDelay: template.startupDelay,
-
-    // Network tab fields
-    mgmtIpv4: template.mgmtIpv4,
-    mgmtIpv6: template.mgmtIpv6,
-    networkMode: template.networkMode,
-    ports: template.ports,
-    dnsServers: template.dnsServers,
-    aliases: template.aliases,
-
-    // Advanced tab fields
-    cpu: template.cpu,
-    cpuSet: template.cpuSet,
-    memory: template.memory,
-    shmSize: template.shmSize,
-    capAdd: template.capAdd,
-    sysctls: template.sysctls,
-    devices: template.devices,
-    certIssue: template.certIssue,
-    certKeySize: template.certKeySize,
-    certValidity: template.certValidity,
-    sans: template.sans,
-    healthCheck: template.healthCheck,
-    imagePullPolicy: template.imagePullPolicy,
-    runtime: template.runtime,
-
-    // Components tab fields (SROS)
-    isDistributed: template.isDistributed,
-    components: template.components
+    ...buildCommonTemplateFields(template),
+    isDefaultCustomNode
   };
 }
 

@@ -23,17 +23,15 @@ import SpeedIcon from "@mui/icons-material/Speed";
 import StarIcon from "@mui/icons-material/Star";
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import TextFieldsIcon from "@mui/icons-material/TextFields";
-import {
-  Box,
-  Button,
-  Card,
-  Divider,
-  IconButton,
-  InputAdornment,
-  TextField,
-  Tooltip,
-  Typography
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Card from "@mui/material/Card";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
+import InputAdornment from "@mui/material/InputAdornment";
+import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 
 import type { CustomNodeTemplate } from "../../../core/types/editors";
 import {
@@ -49,9 +47,10 @@ import {
   useCustomNodes,
   useTopoViewerStore
 } from "../../../stores/topoViewerStore";
-import { useTopologySessionClient } from "../../../host";
-import { useExtensionMessaging } from "../../../messaging/extensionMessaging";
+import { useClabUiHost, useTopologySessionClient, useClabUiRuntime } from "../../../host";
 import { buildCustomIconMap } from "../../../utils/iconUtils";
+import { getNetworkNodeTypeColor } from "../../canvas/nodes/networkNodeShared";
+import { applyPaletteDragPreview } from "./paletteDragPreview";
 import type { TabDefinition } from "../../ui/editor";
 import { TabNavigation } from "../../ui/editor/TabNavigation";
 import { IconPreview } from "../../ui/form";
@@ -70,6 +69,7 @@ interface PaletteSectionProps {
   showEditTab?: boolean;
   editTabTitle?: string;
   onEditDelete?: () => void;
+  onEditTabOpen?: () => void;
   onEditTabLeave?: () => void;
   infoTabContent?: React.ReactNode;
   showInfoTab?: boolean;
@@ -269,7 +269,6 @@ type AnnotationPayload = {
 function setCanvasDragPayload(event: React.DragEvent, payload: CanvasDragPayload): void {
   const serialized = JSON.stringify(payload);
   event.dataTransfer.setData(REACTFLOW_NODE_MIME_TYPE, serialized);
-  event.dataTransfer.setData("text/plain", serialized);
   event.dataTransfer.effectAllowed = "move";
   (window as CanvasDragWindow)[CANVAS_DRAG_FALLBACK_KEY] = {
     payload,
@@ -299,19 +298,24 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({
   onSetDefault
 }) => {
   const isDefaultNode = isDefault === true;
+  const iconUrl = useMemo(
+    () => getTemplateIconUrl(template, customIconMap),
+    [template, customIconMap]
+  );
+
   const onDragStart = useCallback(
     (event: React.DragEvent) => {
       setCanvasDragPayload(event, {
         type: "node",
         templateName: template.name
       });
+      applyPaletteDragPreview(event, {
+        label: template.name,
+        iconUrl,
+        iconCornerRadius: template.iconCornerRadius
+      });
     },
-    [template.name]
-  );
-
-  const iconUrl = useMemo(
-    () => getTemplateIconUrl(template, customIconMap),
-    [template, customIconMap]
+    [template.name, template.iconCornerRadius, iconUrl]
   );
 
   return (
@@ -384,19 +388,26 @@ interface PaletteSimpleDraggableProps {
   icon: React.ReactNode;
   label: string;
   subtitle: string;
+  previewIconUrl?: string;
 }
 
 const PaletteSimpleDraggable: React.FC<PaletteSimpleDraggableProps> = ({
   dragPayload,
   icon,
   label,
-  subtitle
+  subtitle,
+  previewIconUrl
 }) => {
   const onDragStart = useCallback(
     (event: React.DragEvent) => {
       setCanvasDragPayload(event, dragPayload);
+      applyPaletteDragPreview(event, {
+        label,
+        iconUrl: previewIconUrl,
+        iconElement: event.currentTarget.querySelector("svg")
+      });
     },
-    [dragPayload]
+    [dragPayload, label, previewIconUrl]
   );
 
   return (
@@ -424,6 +435,7 @@ const DraggableNetwork: React.FC<{ network: NetworkTypeDefinition }> = ({ networ
     icon={network.icon}
     label={network.label}
     subtitle={network.type}
+    previewIconUrl={generateEncodedSVG("cloud", getNetworkNodeTypeColor(network.type))}
   />
 );
 
@@ -441,7 +453,7 @@ const DraggableAnnotation: React.FC<DraggableAnnotationProps> = ({
   />
 );
 
-export const PALETTE_TABS: TabDefinition[] = [
+const PALETTE_TABS: TabDefinition[] = [
   { id: "info", label: "Info" },
   { id: "edit", label: "Edit" },
   { id: "nodes", label: "Nodes" },
@@ -462,12 +474,14 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
   showEditTab = false,
   editTabTitle,
   onEditDelete,
+  onEditTabOpen,
   onEditTabLeave,
   infoTabContent,
   showInfoTab = false,
   infoTabTitle
 }) => {
   const sessionClient = useTopologySessionClient();
+  const { customPaletteTabs, disabledTabIds, yamlSchema, paletteTabLabels } = useClabUiRuntime();
   const customNodes = useCustomNodes();
   const customIcons = useCustomIcons();
   const defaultNode = useTopoViewerStore((state) => state.defaultNode);
@@ -479,13 +493,19 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
   const isViewMode = mode === "view";
 
   const visibleTabs = useMemo(
-    () =>
-      PALETTE_TABS.filter((t) => {
+    () => {
+      const base = PALETTE_TABS.filter((t) => {
         if (t.id === "info" && !showInfoTab) return false;
         if (t.id === "edit" && !showEditTab) return false;
+        if (disabledTabIds?.includes(t.id)) return false;
         return true;
-      }),
-    [showInfoTab, showEditTab]
+      }).map((t) => ({ id: t.id, label: paletteTabLabels?.[t.id] ?? t.label }));
+      const custom = (customPaletteTabs ?? [])
+        .map((t) => ({ id: t.id, label: t.label }))
+        .filter((t) => !disabledTabIds?.includes(t.id));
+      return [...base, ...custom];
+    },
+    [showInfoTab, showEditTab, customPaletteTabs, disabledTabIds, paletteTabLabels]
   );
 
   const [userTab, setUserTab] = useState("nodes");
@@ -501,28 +521,23 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     }
   }, [requestedTab, visibleTabs]);
 
-  // Auto-switch when edit/info tab appears (one-time, not forced)
+  // Auto-switch when edit/info tab appears (one-time, not forced). Info wins
+  // while a selection resolves to an info view (deployed labs, read-only view
+  // mode); active editors clear showInfoTab because editing states take
+  // priority in useContextPanelContent, so they land on the edit tab.
   useEffect(() => {
-    if (showEditTab && !(isViewMode && showInfoTab)) setUserTab("edit");
-  }, [showEditTab, isViewMode, showInfoTab]);
+    if (showEditTab && !showInfoTab) setUserTab("edit");
+  }, [showEditTab, showInfoTab]);
 
   useEffect(() => {
-    if (showInfoTab && (isViewMode || !showEditTab)) setUserTab("info");
-  }, [showInfoTab, showEditTab, isViewMode]);
+    if (showInfoTab) setUserTab("info");
+  }, [showInfoTab]);
 
-  // Fall back to "nodes" when current tab is no longer visible
+  // Fall back to the first visible tab when current tab is no longer visible.
   useEffect(() => {
     if (visibleTabs.some((t) => t.id === userTab)) return;
-    if (showEditTab) {
-      setUserTab("edit");
-      return;
-    }
-    if (showInfoTab) {
-      setUserTab("info");
-      return;
-    }
-    setUserTab("nodes");
-  }, [visibleTabs, userTab, showEditTab, showInfoTab]);
+    setUserTab(visibleTabs[0]?.id ?? "");
+  }, [visibleTabs, userTab]);
 
   const activeTab = userTab;
 
@@ -623,11 +638,11 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     onEditCustomNode?.("__new__");
   }, [onEditCustomNode]);
 
-  const { sendImportCustomNodes } = useExtensionMessaging();
+  const { topoViewer } = useClabUiHost();
 
   const handleImportTemplates = useCallback(() => {
-    sendImportCustomNodes();
-  }, [sendImportCustomNodes]);
+    topoViewer.importCustomNodes();
+  }, [topoViewer]);
 
   const handleExportTemplates = useCallback(() => {
     downloadNodeTemplates(customNodes, customIcons);
@@ -639,8 +654,10 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
     if (activeTab === "nodes" || activeTab === "annotations") return "Palette";
     if (activeTab === "yaml") return yamlFileName || "Topology";
     if (activeTab === "json") return annotationsFileName || "Annotations";
+    const custom = customPaletteTabs?.find((t) => t.id === activeTab);
+    if (custom) return custom.label;
     return "";
-  }, [activeTab, yamlFileName, annotationsFileName, editTabTitle, infoTabTitle]);
+  }, [activeTab, yamlFileName, annotationsFileName, editTabTitle, infoTabTitle, customPaletteTabs]);
 
   const handleSaveYaml = useCallback(async () => {
     try {
@@ -736,6 +753,9 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
             }
             if (activeTab === "edit" && id !== "edit") {
               onEditTabLeave?.();
+            }
+            if (id === "edit" && activeTab !== "edit") {
+              onEditTabOpen?.();
             }
             setUserTab(id);
           }}
@@ -912,7 +932,7 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
           error={yamlError}
           language="yaml"
           value={yamlDraft}
-          jsonSchema={clabSchema}
+          jsonSchema={yamlSchema ?? clabSchema}
           onChange={(next) => {
             setYamlDraft(next);
             setYamlDirty(true);
@@ -940,6 +960,18 @@ export const PaletteSection: React.FC<PaletteSectionProps> = ({
       {activeTab === "edit" && (
         <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>{editTabContent}</Box>
       )}
+
+      {(() => {
+        const custom = customPaletteTabs?.find((t) => t.id === activeTab);
+        if (custom) {
+          return (
+            <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+              {custom.render()}
+            </Box>
+          );
+        }
+        return null;
+      })()}
     </Box>
   );
 };

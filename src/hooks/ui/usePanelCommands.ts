@@ -8,9 +8,10 @@
  */
 import { useCallback, useState } from "react";
 
-import { useExtensionMessaging } from "../../messaging/extensionMessaging";
+import { useClabUiHost } from "../../host";
 
 export interface DeploymentCommands {
+  onApply: () => void;
   onDeploy: () => void;
   onDeployCleanup: () => void;
   onDestroy: () => void;
@@ -24,27 +25,25 @@ export interface DeploymentCommands {
 
 // Keep deployment commands - they need extension to run containerlab CLI
 export function useDeploymentCommands(): DeploymentCommands {
-  const { sendLifecycleCommand } = useExtensionMessaging();
+  const { topoViewer } = useClabUiHost();
 
   return {
-    onDeploy: useCallback(() => sendLifecycleCommand("deployLab"), [sendLifecycleCommand]),
-    onDeployCleanup: useCallback(
-      () => sendLifecycleCommand("deployLabCleanup"),
-      [sendLifecycleCommand]
-    ),
-    onDestroy: useCallback(() => sendLifecycleCommand("destroyLab"), [sendLifecycleCommand]),
+    onApply: useCallback(() => topoViewer.runLifecycle("applyLab"), [topoViewer]),
+    onDeploy: useCallback(() => topoViewer.runLifecycle("deployLab"), [topoViewer]),
+    onDeployCleanup: useCallback(() => topoViewer.runLifecycle("deployLabCleanup"), [topoViewer]),
+    onDestroy: useCallback(() => topoViewer.runLifecycle("destroyLab"), [topoViewer]),
     onDestroyCleanup: useCallback(
-      () => sendLifecycleCommand("destroyLabCleanup"),
-      [sendLifecycleCommand]
+      () => topoViewer.runLifecycle("destroyLabCleanup"),
+      [topoViewer]
     ),
-    onRedeploy: useCallback(() => sendLifecycleCommand("redeployLab"), [sendLifecycleCommand]),
+    onRedeploy: useCallback(() => topoViewer.runLifecycle("redeployLab"), [topoViewer]),
     onRedeployCleanup: useCallback(
-      () => sendLifecycleCommand("redeployLabCleanup"),
-      [sendLifecycleCommand]
+      () => topoViewer.runLifecycle("redeployLabCleanup"),
+      [topoViewer]
     ),
-    onStartLab: useCallback(() => sendLifecycleCommand("startLab"), [sendLifecycleCommand]),
-    onStopLab: useCallback(() => sendLifecycleCommand("stopLab"), [sendLifecycleCommand]),
-    onRestartLab: useCallback(() => sendLifecycleCommand("restartLab"), [sendLifecycleCommand])
+    onStartLab: useCallback(() => topoViewer.runLifecycle("startLab"), [topoViewer]),
+    onStopLab: useCallback(() => topoViewer.runLifecycle("stopLab"), [topoViewer]),
+    onRestartLab: useCallback(() => topoViewer.runLifecycle("restartLab"), [topoViewer])
   };
 }
 

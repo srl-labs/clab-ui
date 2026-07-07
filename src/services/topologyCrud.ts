@@ -12,7 +12,6 @@ import type { TopologySessionClient } from "../session";
 import type { TopologyHostCommand } from "../core/types/messages";
 import { collectNodeGroupMemberships } from "../annotations/groupMembership";
 import { useGraphStore } from "../stores/graphStore";
-import { BRIDGE_NETWORK_TYPES } from "../utils/networkNodeTypes";
 import { buildNetworkNodeAnnotations } from "../utils/networkNodeAnnotations";
 
 import { buildAnnotationNodesPayload } from "./annotationPayloads";
@@ -48,17 +47,6 @@ export async function createNode(
   }
 }
 
-export async function editNode(
-  client: TopologySessionClient,
-  nodeData: NodeSaveData
-): Promise<void> {
-  try {
-    await executeTopologyCommand({ command: "editNode", payload: nodeData }, {}, client);
-  } catch (err) {
-    console.error(`${WARN_COMMAND_FAILED}: editNode`, err);
-  }
-}
-
 export async function deleteNode(
   client: TopologySessionClient,
   nodeId: string
@@ -81,17 +69,6 @@ export async function createLink(
   }
 }
 
-export async function editLink(
-  client: TopologySessionClient,
-  linkData: LinkSaveData
-): Promise<void> {
-  try {
-    await executeTopologyCommand({ command: "editLink", payload: linkData }, {}, client);
-  } catch (err) {
-    console.error(`${WARN_COMMAND_FAILED}: editLink`, err);
-  }
-}
-
 export async function deleteLink(
   client: TopologySessionClient,
   linkData: LinkSaveData
@@ -101,23 +78,6 @@ export async function deleteLink(
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: deleteLink`, err);
   }
-}
-
-/** Data for network node creation (for non-bridge types) */
-export interface NetworkNodeData {
-  id: string;
-  label: string;
-  type:
-    | "host"
-    | "mgmt-net"
-    | "macvlan"
-    | "vxlan"
-    | "vxlan-stitch"
-    | "dummy"
-    | "bridge"
-    | "ovs-bridge";
-  position: { x: number; y: number };
-  geoCoordinates?: { lat: number; lng: number };
 }
 
 /**
@@ -138,21 +98,6 @@ export async function saveNetworkNodesFromGraph(
   } catch (err) {
     console.error(`${WARN_COMMAND_FAILED}: setAnnotations(networkNodeAnnotations)`, err);
   }
-}
-
-/**
- * Create a network node stored in annotations (non-bridge types).
- * Bridge types should be persisted via addNode/editNode instead.
- */
-export async function createNetworkNode(
-  client: TopologySessionClient,
-  data: NetworkNodeData
-): Promise<void> {
-  if (BRIDGE_NETWORK_TYPES.has(data.type)) {
-    console.warn(`[Host] Bridge network nodes should be created via addNode: ${data.type}`);
-    return;
-  }
-  await saveNetworkNodesFromGraph(client);
 }
 
 /**

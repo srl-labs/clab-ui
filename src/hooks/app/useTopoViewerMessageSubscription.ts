@@ -8,10 +8,7 @@ import type { CustomIconInfo } from "../../core/types/icons";
 import { type ClabUiTopoViewerEvent, useClabUiHost } from "../../host";
 import { useCanvasStore } from "../../stores/canvasStore";
 import { useTopoViewerStore, type DeploymentState } from "../../stores/topoViewerStore";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
@@ -38,10 +35,13 @@ function isCustomIconInfo(value: unknown): value is CustomIconInfo {
 function handleTopoModeChanged(
   event: Extract<ClabUiTopoViewerEvent, { type: "modeChanged" }>
 ): void {
-  const { setMode, setDeploymentState } = useTopoViewerStore.getState();
+  const { setMode, setDeploymentState, setDirty } = useTopoViewerStore.getState();
   setMode(event.mode === "viewer" ? "view" : "edit");
   if (isDeploymentState(event.deploymentState)) {
     setDeploymentState(event.deploymentState);
+  }
+  if (typeof event.dirty === "boolean") {
+    setDirty(event.dirty);
   }
 }
 
@@ -111,7 +111,8 @@ function handleLifecycleLog(
 function handleLifecycleStatus(
   event: Extract<ClabUiTopoViewerEvent, { type: "lifecycleStatus" }>
 ): void {
-  const { appendLifecycleLog, setLifecycleStatus, setProcessing } = useTopoViewerStore.getState();
+  const { appendLifecycleLog, setLifecycleStatus, setProcessing, setDirty, processingMode } =
+    useTopoViewerStore.getState();
   if (event.status === "error" && isNonEmptyString(event.errorMessage)) {
     appendLifecycleLog(`[error] ${event.errorMessage}`, "stderr");
     setLifecycleStatus("error", event.errorMessage);
@@ -121,6 +122,11 @@ function handleLifecycleStatus(
   if (event.status === "success") {
     appendLifecycleLog("Command completed successfully.", "stdout");
     setLifecycleStatus("success");
+    // Deploying or applying the topology brings the runtime in sync with the
+    // on-disk YAML; hosts may still refine the flag afterwards.
+    if (processingMode === "deploy" || processingMode === "apply") {
+      setDirty(false);
+    }
   }
   setProcessing(false);
 }

@@ -29,7 +29,7 @@ interface EdgeData {
 type EdgeCreatedCallback = (sourceId: string, targetId: string, edgeData: EdgeData) => void;
 
 /** Callback type for node creation */
-export type NodeCreatedCallback = (
+type NodeCreatedCallback = (
   nodeId: string,
   nodeElement: TopoNode,
   position: Position
@@ -107,10 +107,10 @@ export function useGraphCreation(config: GraphCreationConfig): GraphCreationRetu
     rfInstance,
     onLockedAction,
     state,
-    onEdgeCreated,
     onNodeCreated,
-    // addNode is kept in interface for backwards compatibility but not used here
-    // Network nodes now use onNodeCreated for undo/redo support
+    // addNode and onEdgeCreated are kept in interface for backwards compatibility
+    // but not used here. Network nodes now use onNodeCreated for undo/redo support
+    // and edge creation is handled through ReactFlow's onConnect callback.
     onNewCustomNode
   } = config;
 
@@ -140,15 +140,12 @@ export function useGraphCreation(config: GraphCreationConfig): GraphCreationRetu
   // Edge creation - uses ReactFlow's connection API
   // Note: Edge creation is primarily handled through ReactFlow's onConnect callback
   // This function is kept for programmatic edge creation if needed
-  const startEdgeCreation = React.useCallback(
-    (_nodeId: string) => {
-      // Edge creation in ReactFlow is handled through the onConnect callback
-      // and the connection line feature. This function could be used to
-      // start an interactive edge creation mode if needed.
-      // onEdgeCreated callback is available for future programmatic use
-    },
-    [onEdgeCreated]
-  );
+  const startEdgeCreation = React.useCallback((_nodeId: string) => {
+    // Edge creation in ReactFlow is handled through the onConnect callback
+    // and the connection line feature. This function could be used to
+    // start an interactive edge creation mode if needed.
+    // config.onEdgeCreated is available for future programmatic use
+  }, []);
 
   const handleCreateLinkFromNode = React.useCallback((_nodeId: string) => {
     // Same as startEdgeCreation - edge creation handled through ReactFlow

@@ -12,6 +12,7 @@ import type {
   NetworkNodeData,
   TopologyEdgeData
 } from "../types/graph";
+import { NETWORK_TYPES } from "../types/editors";
 import { getNumber, getRecordUnknown, getString } from "./typeHelpers";
 
 // ============================================================================
@@ -21,16 +22,7 @@ import { getNumber, getRecordUnknown, getString } from "./typeHelpers";
 /**
  * Converts a ParsedElement node to a ReactFlow Node (TopoNode).
  */
-const NETWORK_NODE_ROLES = new Set([
-  "host",
-  "mgmt-net",
-  "macvlan",
-  "vxlan",
-  "vxlan-stitch",
-  "dummy",
-  "bridge",
-  "ovs-bridge"
-]);
+const NETWORK_NODE_ROLES = new Set<string>(NETWORK_TYPES);
 
 function getGeoCoordinates(
   data: Record<string, unknown>
@@ -51,7 +43,7 @@ function getNodeLabel(data: Record<string, unknown>): string {
   return getString(data.name) ?? getString(data.id) ?? "";
 }
 
-export function parsedElementToTopoNode(element: ParsedElement): TopoNode {
+function parsedElementToTopoNode(element: ParsedElement): TopoNode {
   if (element.group !== "nodes") {
     throw new Error("Cannot convert edge element to node");
   }
@@ -116,7 +108,7 @@ export function parsedElementToTopoNode(element: ParsedElement): TopoNode {
 /**
  * Converts a ParsedElement edge to a ReactFlow Edge (TopoEdge).
  */
-export function parsedElementToTopoEdge(element: ParsedElement): TopoEdge {
+function parsedElementToTopoEdge(element: ParsedElement): TopoEdge {
   if (element.group !== "edges") {
     throw new Error("Cannot convert node element to edge");
   }
@@ -170,101 +162,4 @@ export function convertElementsToTopologyData(elements: ParsedElement[]): Topolo
   }
 
   return { nodes, edges };
-}
-
-// ============================================================================
-// ReactFlow to ParsedElement Conversion (for backwards compatibility)
-// ============================================================================
-
-/**
- * Converts a TopoNode back to ParsedElement format.
- */
-export function topoNodeToParsedElement(node: TopoNode): ParsedElement {
-  const data = node.data;
-  const extraData = getRecordUnknown(data.extraData);
-  const geoRaw = data.geoCoordinates ?? extraData?.geoCoordinates;
-  const geo = getRecordUnknown(geoRaw);
-  const lat = typeof geo?.lat === "number" ? String(geo.lat) : "";
-  const lng = typeof geo?.lng === "number" ? String(geo.lng) : "";
-  const topoViewerRole = getString(data.role) ?? getString(data.nodeType) ?? "pe";
-
-  return {
-    group: "nodes",
-    data: {
-      id: node.id,
-      weight: "30",
-      name: data.label ?? node.id,
-      topoViewerRole,
-      iconColor: data.iconColor,
-      iconCornerRadius: data.iconCornerRadius,
-      labelPosition: data.labelPosition,
-      direction: data.direction,
-      labelBackgroundColor: data.labelBackgroundColor,
-      lat,
-      lng,
-      extraData: extraData ?? {}
-    },
-    position: node.position,
-    removed: false,
-    selected: false,
-    selectable: true,
-    locked: false,
-    grabbed: false,
-    grabbable: true,
-    classes: ""
-  };
-}
-
-/**
- * Converts a TopoEdge back to ParsedElement format.
- */
-export function topoEdgeToParsedElement(edge: TopoEdge): ParsedElement {
-  const data = edge.data;
-  const linkStatus = data?.linkStatus;
-  let classes = "";
-  if (linkStatus === "up") classes = "link-up";
-  else if (linkStatus === "down") classes = "link-down";
-
-  return {
-    group: "edges",
-    data: {
-      id: edge.id,
-      weight: "3",
-      name: edge.id,
-      parent: "",
-      topoViewerRole: "link",
-      sourceEndpoint: data?.sourceEndpoint ?? "",
-      targetEndpoint: data?.targetEndpoint ?? "",
-      lat: "",
-      lng: "",
-      source: edge.source,
-      target: edge.target,
-      extraData: data?.extraData ?? {}
-    },
-    position: { x: 0, y: 0 },
-    removed: false,
-    selected: false,
-    selectable: true,
-    locked: false,
-    grabbed: false,
-    grabbable: true,
-    classes
-  };
-}
-
-/**
- * Converts TopologyData back to ParsedElement array.
- */
-export function convertTopologyDataToElements(data: TopologyData): ParsedElement[] {
-  const elements: ParsedElement[] = [];
-
-  for (const node of data.nodes) {
-    elements.push(topoNodeToParsedElement(node));
-  }
-
-  for (const edge of data.edges) {
-    elements.push(topoEdgeToParsedElement(edge));
-  }
-
-  return elements;
 }

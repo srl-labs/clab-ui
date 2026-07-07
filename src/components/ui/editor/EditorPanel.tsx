@@ -17,7 +17,7 @@ export interface TabConfig<TProps extends object = Record<string, unknown>> {
   component: React.ComponentType<TProps>;
 }
 
-export interface EditorPanelFooterConfig {
+interface EditorPanelFooterConfig {
   onFooterRef?: (ref: FooterControlsRef | null) => void;
   hasChanges: boolean;
   onApply: () => void;
@@ -47,15 +47,18 @@ interface FooterControlConfig {
   onDiscard?: () => void;
 }
 
+// Stable disabled config so useFooterControlsRef effect deps don't change every render.
+const DISABLED_FOOTER_CONFIG: FooterControlConfig = {
+  isEnabled: false,
+  onApply: () => {},
+  onSave: () => {},
+  hasChanges: false,
+  onDiscard: undefined
+};
+
 function resolveFooterControlConfig(footer?: EditorPanelFooterConfig): FooterControlConfig {
   if (!footer) {
-    return {
-      isEnabled: false,
-      onApply: () => {},
-      onSave: () => {},
-      hasChanges: false,
-      onDiscard: undefined
-    };
+    return DISABLED_FOOTER_CONFIG;
   }
 
   return {

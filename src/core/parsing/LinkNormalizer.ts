@@ -7,26 +7,17 @@ import {
   STR_HOST,
   STR_MGMT_NET,
   PREFIX_MACVLAN,
-  PREFIX_VXLAN,
   PREFIX_VXLAN_STITCH,
   SINGLE_ENDPOINT_TYPES,
   HOSTY_TYPES,
-  splitEndpointLike,
-  isSpecialEndpointId
+  splitEndpointLike
 } from "../utilities/LinkTypes";
 
 // Re-export for convenience
-export {
-  STR_HOST,
-  STR_MGMT_NET,
-  PREFIX_MACVLAN,
-  PREFIX_VXLAN,
-  PREFIX_VXLAN_STITCH,
-  splitEndpointLike,
-  isSpecialEndpointId
-};
+export { PREFIX_MACVLAN, PREFIX_VXLAN_STITCH };
 
 import type { DummyContext } from "./types";
+import { isRecord } from "../utilities/typeHelpers";
 
 // ============================================================================
 // Constants
@@ -70,10 +61,6 @@ export interface NormalizedLink {
   endA: unknown;
   endB: unknown;
   type?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 // ============================================================================
@@ -142,7 +129,7 @@ function buildDummyId(linkObj: unknown, ctx: DummyContext): string {
 /**
  * Normalizes a single-endpoint type to a special node ID.
  */
-export function normalizeSingleTypeToSpecialId(
+function normalizeSingleTypeToSpecialId(
   t: string,
   linkObj: Record<string, unknown>,
   ctx: DummyContext

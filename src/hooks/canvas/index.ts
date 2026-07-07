@@ -5,7 +5,6 @@ export {
   useDeleteHandlers,
   useLinkCreation,
   useSourceNodePosition,
-  useKeyboardDeleteHandlers,
   useCanvasRefMethods
 } from "./useReactFlowCanvasHooks";
 
@@ -13,12 +12,11 @@ export {
 export { useCanvasHandlers } from "./useCanvasHandlers";
 export { useAnnotationCanvasHandlers } from "./useAnnotationCanvasHandlers";
 export { useGeoMapLayout } from "./useGeoMapLayout";
-export { useHelperLines, calculateAlignments } from "./useHelperLines";
-export type { HelperLinePositions, AlignmentResult } from "./useHelperLines";
+export { useHelperLines } from "./useHelperLines";
 
 // Annotation hooks
 export { useAnnotations } from "./useAnnotations";
-export type { AnnotationContextValue, AnnotationState, AnnotationActions } from "./annotationTypes";
+export type { AnnotationContextValue } from "./annotationTypes";
 export { useDerivedAnnotations } from "./useDerivedAnnotations";
 
 // Graph creation hooks
@@ -27,14 +25,5 @@ export { useNetworkCreation } from "./useNetworkCreation";
 export type { NetworkType } from "./useNetworkCreation";
 
 // Group helpers
-export type { GroupEditorData, UseGroupClipboardReturn, GroupStyle } from "./groupTypes";
-export { groupToEditorData, editorDataToGroup, GROUP_LABEL_POSITIONS } from "./groupTypes";
-export {
-  findDeepestGroupAtPosition,
-  findGroupForNodeAtPosition,
-  findParentGroupForBounds,
-  generateGroupId,
-  handleNodeMembershipChange,
-  isGroupInsideGroup,
-  isPositionInsideGroup
-} from "./groupUtils";
+export type { GroupEditorData } from "./groupTypes";
+export { GROUP_LABEL_POSITIONS } from "./groupTypes";

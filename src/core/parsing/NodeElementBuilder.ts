@@ -20,6 +20,7 @@ import type {
   InterfacePatternMigration,
   ParserLogger
 } from "./types";
+import { isRecord } from "../utilities/typeHelpers";
 
 // ============================================================================
 // Build Options
@@ -54,10 +55,6 @@ interface InterfacePatternResult {
   needsMigration: boolean;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function getNodeComponents(node: ClabNode): unknown[] {
   return Array.isArray(node.components) ? node.components : [];
 }
@@ -88,7 +85,7 @@ function resolveInterfacePattern(
 /**
  * Gets container data for a node using the provider.
  */
-export function getContainerData(
+function getContainerData(
   opts: {
     includeContainerData?: boolean;
     containerDataProvider?: ContainerDataProvider;
@@ -152,7 +149,7 @@ interface NodeExtraDataResult {
 /**
  * Creates the extraData object for a node element.
  */
-export function createNodeExtraData(params: {
+function createNodeExtraData(params: {
   mergedNode: ClabNode;
   inheritedProps: string[];
   nodeName: string;
@@ -315,7 +312,7 @@ function normalizeNodeObject(
 /**
  * Builds a single node element.
  */
-export function buildNodeElement(params: {
+function buildNodeElement(params: {
   parsed: ClabTopology;
   nodeName: string;
   nodeObj: ClabNode;

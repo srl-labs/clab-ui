@@ -27,7 +27,7 @@ export function getViewportSize(): ViewportSize | null {
   return { width: rect.width, height: rect.height };
 }
 
-export function buildViewportTransform(
+function buildViewportTransform(
   viewport: { x: number; y: number; zoom: number },
   size: ViewportSize,
   zoomPercent: number
@@ -45,7 +45,6 @@ export function buildGraphSvg(
   customIcons?: CustomIconMap,
   includeEdgeLabels = true,
   annotationNodeTypes?: Set<string>,
-  nodeProximateLabels = false,
   renderOptions?: GraphSvgRenderOptions
 ): GraphSvgResult | null {
   const viewport = rfInstance.getViewport();
@@ -60,7 +59,6 @@ export function buildGraphSvg(
     nodes,
     includeEdgeLabels,
     annotationNodeTypes,
-    nodeProximateLabels,
     renderOptions
   );
   const nodesSvg = renderNodesToSvg(nodes, customIcons, annotationNodeTypes, {

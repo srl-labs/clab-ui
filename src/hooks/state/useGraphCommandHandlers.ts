@@ -36,6 +36,7 @@ import {
 } from "../../utils/networkNodeTypes";
 import { buildNetworkNodeAnnotations } from "../../utils/networkNodeAnnotations";
 import { useGraphStore } from "../../stores/graphStore";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 // ============================================================================
 // Types
@@ -69,10 +70,6 @@ interface GraphHandlersResult {
 // ============================================================================
 
 type NodeElementData = Record<string, unknown> & { extraData?: Record<string, unknown> };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isTopoNode(node: Node): node is TopoNode {
   return (
@@ -256,7 +253,7 @@ export function useGraphHandlersWithContext(
         useGraphStore.getState().updateNodeData(detection.networkNodeId, nextExtra);
       }
     },
-    [addEdge, getNodes]
+    [addEdge, getNodes, sessionClient]
   );
 
   const handleNodeCreatedCallback = React.useCallback(
@@ -333,17 +330,7 @@ export function useGraphHandlersWithContext(
         sessionClient
       );
     },
-    [
-      buildNetworkNodeAnnotations,
-      executeTopologyCommand,
-      isAnnotationNodeType,
-      isBridgeNetworkNode,
-      isSpecialNetworkNode,
-      nodesToAnnotations,
-      toLinkSaveData,
-      toNodeSaveData,
-      sessionClient
-    ]
+    [sessionClient]
   );
 
   const handleDeleteNode = React.useCallback(

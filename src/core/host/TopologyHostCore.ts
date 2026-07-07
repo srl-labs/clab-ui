@@ -29,12 +29,19 @@ import { AnnotationsIO } from "../io/AnnotationsIO";
 import { TopologyIO, migrateGeneratedNetworkNodeAnnotations } from "../io/TopologyIO";
 import { TransactionalFileSystemAdapter } from "../io/TransactionalFileSystemAdapter";
 import { createEmptyAnnotations } from "../annotations/types";
+import { isNonEmptyString, toFiniteNumber, toPosition } from "../../annotations/valueParsers";
 
 interface TopologyHostCoreOptions {
   fs: FileSystemAdapter;
   yamlFilePath: string;
   mode: "edit" | "view";
   deploymentState: DeploymentState;
+  /**
+   * Baseline sync state between the on-disk topology and the deployed runtime.
+   * `undefined` = unknown. The core flips this to `true` on its own whenever a
+   * command or external change mutates the YAML content.
+   */
+  dirty?: boolean;
   containerDataProvider?: ContainerDataProvider;
   setInternalUpdate?: (updating: boolean) => void;
   logger?: IOLogger;
@@ -80,6 +87,7 @@ export class TopologyHostCore implements TopologyHost {
   private yamlFilePath: string;
   private mode: "edit" | "view";
   private deploymentState: DeploymentState;
+  private dirty: boolean | undefined;
   private containerDataProvider?: ContainerDataProvider;
   private setInternalUpdate?: (updating: boolean) => void;
   private logger: IOLogger;
@@ -104,6 +112,7 @@ export class TopologyHostCore implements TopologyHost {
     this.yamlFilePath = options.yamlFilePath;
     this.mode = options.mode;
     this.deploymentState = options.deploymentState;
+    this.dirty = options.dirty;
     this.containerDataProvider = options.containerDataProvider;
     this.setInternalUpdate = options.setInternalUpdate;
     this.logger = options.logger ?? noopLogger;
@@ -128,15 +137,19 @@ export class TopologyHostCore implements TopologyHost {
 
   updateContext(
     context: Partial<
-      Pick<TopologyHostCoreOptions, "mode" | "deploymentState" | "containerDataProvider">
+      Pick<TopologyHostCoreOptions, "mode" | "deploymentState" | "dirty" | "containerDataProvider">
     >
   ): void {
     const modeChanged = context.mode !== undefined && context.mode !== this.mode;
     const deploymentChanged =
       context.deploymentState !== undefined && context.deploymentState !== this.deploymentState;
+    // `dirty` is tri-state: only a key present in the context object updates it,
+    // and an explicit `undefined` resets the sync state to "unknown".
+    const dirtyChanged = "dirty" in context && context.dirty !== this.dirty;
 
     if (context.mode) this.mode = context.mode;
     if (context.deploymentState) this.deploymentState = context.deploymentState;
+    if (dirtyChanged) this.dirty = context.dirty;
     if (context.containerDataProvider !== undefined) {
       this.containerDataProvider = context.containerDataProvider;
     }
@@ -145,6 +158,8 @@ export class TopologyHostCore implements TopologyHost {
     // Avoid forcing full YAML/annotations reloads on each runtime tick.
     if (modeChanged || deploymentChanged) {
       this.snapshot = null;
+    } else if (dirtyChanged && this.snapshot) {
+      this.snapshot = { ...this.snapshot, dirty: this.dirty };
     }
   }
 
@@ -226,6 +241,7 @@ export class TopologyHostCore implements TopologyHost {
     this.future = [];
     this.revision += 1;
     this.snapshot = await this.buildSnapshot();
+    this.markDirtyIfYamlChanged(beforeState.yamlContent, this.snapshot);
 
     return {
       type: TOPOLOGY_HOST_ACK,
@@ -237,6 +253,7 @@ export class TopologyHostCore implements TopologyHost {
   }
 
   async onExternalChange(): Promise<TopologySnapshot> {
+    const previousYamlContent = this.snapshot?.yamlContent;
     this.past = [];
     this.future = [];
     this.revision += 1;
@@ -244,10 +261,27 @@ export class TopologyHostCore implements TopologyHost {
       this.setInternalUpdate?.(true);
       await this.reloadFromDisk();
       this.snapshot = await this.buildSnapshot();
+      this.markDirtyIfYamlChanged(previousYamlContent, this.snapshot);
       return this.snapshot;
     } finally {
       this.setInternalUpdate?.(false);
     }
+  }
+
+  /**
+   * Flip the dirty flag once the persisted YAML no longer matches the content
+   * the runtime was told about. Annotation-only edits never reach this path
+   * with different YAML, so they keep the lab in sync.
+   */
+  private markDirtyIfYamlChanged(
+    previousYamlContent: string | undefined,
+    snapshot: TopologySnapshot
+  ): void {
+    if (previousYamlContent === undefined || previousYamlContent === snapshot.yamlContent) {
+      return;
+    }
+    this.dirty = true;
+    snapshot.dirty = true;
   }
 
   dispose(): void {
@@ -567,6 +601,7 @@ export class TopologyHostCore implements TopologyHost {
 
     this.revision += 1;
     this.snapshot = await this.buildSnapshot();
+    this.markDirtyIfYamlChanged(current.yamlContent, this.snapshot);
     return {
       type: TOPOLOGY_HOST_ACK,
       protocolVersion: TOPOLOGY_HOST_PROTOCOL_VERSION,
@@ -595,14 +630,18 @@ export class TopologyHostCore implements TopologyHost {
   }
 
   private async buildSnapshot(): Promise<TopologySnapshot> {
-    const yamlContent = await this.baseFs.readFile(this.yamlFilePath);
+    const [yamlContent, initialAnnotationsContent, loadedAnnotations] = await Promise.all([
+      this.baseFs.readFile(this.yamlFilePath),
+      this.readAnnotationsContent(),
+      this.annotationsIO.loadAnnotations(this.yamlFilePath, true)
+    ]);
     const yamlDoc = YAML.parseDocument(yamlContent);
     const parsed = normalizeParsedTopologyValue(yamlDoc.toJS());
     this.currentClabTopology = parsed;
 
-    let annotationsContent = await this.readAnnotationsContent();
+    let annotationsContent = initialAnnotationsContent;
 
-    let annotations = await this.annotationsIO.loadAnnotations(this.yamlFilePath, true);
+    let annotations = loadedAnnotations;
     if (migrateGeneratedNetworkNodeAnnotations(annotations)) {
       await this.annotationsIO.saveAnnotations(this.yamlFilePath, annotations);
       annotationsContent = await this.readAnnotationsContent();
@@ -660,6 +699,7 @@ export class TopologyHostCore implements TopologyHost {
       labName: labName ?? "",
       mode: this.mode,
       deploymentState: this.deploymentState,
+      dirty: this.dirty,
       labSettings: Object.keys(labSettings).length > 0 ? labSettings : undefined,
       canUndo: this.past.length > 0,
       canRedo: this.future.length > 0
@@ -677,7 +717,9 @@ export class TopologyHostCore implements TopologyHost {
     graphLabelMigrations: GraphLabelMigration[];
   } {
     const parserLabName = this.getParserLabName(parsed);
-    if (this.mode === "view") {
+    // Merge runtime container data whenever the host provides it (i.e. the lab
+    // is deployed), independent of whether the topology is editable.
+    if (this.containerDataProvider) {
       return parsed
         ? TopologyParser.parseToReactFlowFromParsed(parsed, {
             annotations,
@@ -761,7 +803,8 @@ export class TopologyHostCore implements TopologyHost {
     try {
       const annotations = await this.annotationsIO.loadAnnotations(this.yamlFilePath, true);
       const nodeAnnotations = annotations.nodeAnnotations ?? [];
-      const missingIds = [...yamlNodeIds].filter((id) => !nodeAnnotations.some((n) => n.id === id));
+      const annotationIds = new Set(nodeAnnotations.map((n) => n.id));
+      const missingIds = [...yamlNodeIds].filter((id) => !annotationIds.has(id));
       const orphanAnnotations = nodeAnnotations.filter((n) => !yamlNodeIds.has(n.id));
 
       if (missingIds.length === 1 && orphanAnnotations.length > 0) {
@@ -794,8 +837,10 @@ export class TopologyHostCore implements TopologyHost {
   }
 
   private async captureHistoryEntry(): Promise<HistoryEntry> {
-    const yamlContent = await this.baseFs.readFile(this.yamlFilePath);
-    const annotationsContent = await this.readAnnotationsContent();
+    const [yamlContent, annotationsContent] = await Promise.all([
+      this.baseFs.readFile(this.yamlFilePath),
+      this.readAnnotationsContent()
+    ]);
     return { yamlContent, annotationsContent };
   }
 
@@ -922,8 +967,10 @@ function shouldSkipHistory(command: TopologyHostCommand): boolean {
   return false;
 }
 
+const ID_PREFIX_REGEX = /^([a-zA-Z]+)/;
+
 function getIdPrefix(id: string): string {
-  const match = /^([a-zA-Z]+)/.exec(id);
+  const match = ID_PREFIX_REGEX.exec(id);
   return match ? match[1] : id;
 }
 
@@ -944,34 +991,12 @@ function normalizeAnnotations(
   };
 }
 
-function isNonEmptyString(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function toRecord(value: unknown): Record<string, unknown> | undefined {
   return isRecord(value) ? value : undefined;
-}
-
-function toFiniteNumber(value: unknown): number | undefined {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim().length > 0) {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return undefined;
-}
-
-function toPosition(value: unknown): { x: number; y: number } | undefined {
-  if (!isRecord(value)) return undefined;
-  const rec = value;
-  const x = toFiniteNumber(rec.x);
-  const y = toFiniteNumber(rec.y);
-  if (x === undefined || y === undefined) return undefined;
-  return { x, y };
 }
 
 function errorToMessage(error: unknown): string {
@@ -1330,7 +1355,8 @@ function applyNodeGroupMembershipsToAnnotations(
   for (const [nodeId, annotation] of existingMap) {
     if (!membershipMap.has(nodeId)) {
       const { group: _group, groupId: _groupId, ...rest } = annotation;
-      if (Object.keys(rest).length > 1 || (Object.keys(rest).length === 1 && rest.id)) {
+      const restKeyCount = Object.keys(rest).length;
+      if (restKeyCount > 1 || (restKeyCount === 1 && rest.id)) {
         result.push(rest);
       }
     }

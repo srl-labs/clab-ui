@@ -11,6 +11,8 @@ import type {
   TopologyAnnotations
 } from "../types/topology";
 
+import { HOSTY_TYPES } from "../utilities/LinkTypes";
+
 import type { SpecialNodeType } from "./LinkNormalizer";
 import {
   TYPES,
@@ -23,10 +25,7 @@ import {
   createDummyContext
 } from "./LinkNormalizer";
 import type { DummyContext, SpecialNodeInfo } from "./types";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+import { isRecord } from "../utilities/typeHelpers";
 
 function isEndpointInput(value: unknown): value is string | { node: string; interface?: string } {
   if (typeof value === "string") return true;
@@ -42,7 +41,7 @@ function isEndpointInput(value: unknown): value is string | { node: string; inte
 /**
  * Initializes special nodes from the topology nodes (bridges).
  */
-export function initSpecialNodes(nodes?: Record<string, ClabNode>): Map<string, SpecialNodeInfo> {
+function initSpecialNodes(nodes?: Record<string, ClabNode>): Map<string, SpecialNodeInfo> {
   const specialNodes = new Map<string, SpecialNodeInfo>();
   if (!nodes) return specialNodes;
   for (const [nodeName, nodeData] of Object.entries(nodes)) {
@@ -66,7 +65,7 @@ export function initSpecialNodes(nodes?: Record<string, ClabNode>): Map<string, 
 /**
  * Determines if a node is a special endpoint type.
  */
-export function determineSpecialNode(
+function determineSpecialNode(
   node: string,
   iface: string
 ): { id: string; type: SpecialNodeType; label: string } | null {
@@ -86,7 +85,7 @@ export function determineSpecialNode(
  * Registers an endpoint as a special node if applicable.
  * Bare endpoints (no interface) that aren't topology nodes are treated as implicit bridges.
  */
-export function registerEndpoint(
+function registerEndpoint(
   specialNodes: Map<string, SpecialNodeInfo>,
   end: unknown,
   topologyNodeNames?: Set<string>
@@ -113,7 +112,7 @@ export function registerEndpoint(
 /**
  * Gets the special ID for an endpoint.
  */
-export function getSpecialId(end: unknown): string | null {
+function getSpecialId(end: unknown): string | null {
   if (!isEndpointInput(end)) return null;
   const { node, iface } = splitEndpoint(end);
   if (node === "host") return `host:${iface}`;
@@ -143,7 +142,7 @@ function toStr(val: unknown): string {
  * Assigns common link properties to base props.
  * MTU is converted to string for consistent editor handling.
  */
-export function assignCommonLinkProps(
+function assignCommonLinkProps(
   linkObj: Record<string, unknown>,
   baseProps: Record<string, unknown>
 ): void {
@@ -155,12 +154,12 @@ export function assignCommonLinkProps(
 /**
  * Assigns host/mgmt-net specific properties.
  */
-export function assignHostMgmtProps(
+function assignHostMgmtProps(
   linkType: string,
   linkObj: Record<string, unknown>,
   baseProps: Record<string, unknown>
 ): void {
-  if (!["host", "mgmt-net", "macvlan"].includes(linkType)) return;
+  if (!HOSTY_TYPES.has(linkType)) return;
   if (linkObj["host-interface"] !== undefined)
     baseProps.extHostInterface = linkObj["host-interface"];
   if (linkType === "macvlan" && linkObj.mode !== undefined) baseProps.extMode = linkObj.mode;
@@ -170,7 +169,7 @@ export function assignHostMgmtProps(
  * Assigns vxlan/vxlan-stitch specific properties.
  * Converts all values to strings for consistent handling in the editor.
  */
-export function assignVxlanProps(
+function assignVxlanProps(
   linkType: string,
   linkObj: Record<string, unknown>,
   baseProps: Record<string, unknown>
@@ -185,7 +184,7 @@ export function assignVxlanProps(
 /**
  * Builds base properties for a special node.
  */
-export function buildBaseProps(
+function buildBaseProps(
   linkObj: Record<string, unknown>,
   linkType: string
 ): Record<string, unknown> {
@@ -202,7 +201,7 @@ export function buildBaseProps(
 /**
  * Merges special node properties from a link object.
  */
-export function mergeSpecialNodeProps(
+function mergeSpecialNodeProps(
   linkObj: Record<string, unknown>,
   endA: unknown,
   endB: unknown,
@@ -436,21 +435,4 @@ export function addNetworkNodes(
   addOrphanedNetworkNodes(result, annotations, specialNodes, specialNodeProps);
 
   return result;
-}
-
-/**
- * Checks if a node is a special node type (bridge, host, etc.).
- */
-export function isSpecialNode(
-  nodeId: string,
-  specialNodes?: Map<string, SpecialNodeInfo>
-): boolean {
-  if (specialNodes !== undefined && specialNodes.has(nodeId)) return true;
-  if (nodeId.startsWith("host:")) return true;
-  if (nodeId.startsWith("mgmt-net:")) return true;
-  if (nodeId.startsWith(PREFIX_MACVLAN)) return true;
-  if (nodeId.startsWith(PREFIX_VXLAN_STITCH)) return true;
-  if (nodeId.startsWith("vxlan:")) return true;
-  if (nodeId.startsWith("dummy")) return true;
-  return false;
 }

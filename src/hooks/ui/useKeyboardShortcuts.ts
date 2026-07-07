@@ -1,7 +1,7 @@
 /**
  * useKeyboardShortcuts - Hook for keyboard shortcuts
  */
-import { useEffect, useCallback, useRef } from "react";
+import { useEffect, useRef } from "react";
 
 import { log } from "../../utils/logger";
 import { useGraphStore } from "../../stores/graphStore";
@@ -33,17 +33,17 @@ interface KeyboardShortcutsOptions {
   /** Copy handler (Ctrl+C) */
   onCopy?: () => void;
   /** Paste handler (Ctrl+V) */
-  onPaste?: () => void;
+  onPaste?: ClipboardShortcutHandler;
   /** Duplicate handler (Ctrl+D) */
-  onDuplicate?: () => void;
+  onDuplicate?: ClipboardShortcutHandler;
   /** Selected annotation IDs */
   selectedAnnotationIds?: Set<string>;
   /** Copy annotations handler */
   onCopyAnnotations?: () => void;
   /** Paste annotations handler */
-  onPasteAnnotations?: () => void;
+  onPasteAnnotations?: ClipboardShortcutHandler;
   /** Duplicate annotations handler */
-  onDuplicateAnnotations?: () => void;
+  onDuplicateAnnotations?: ClipboardShortcutHandler;
   /** Delete selected annotations handler */
   onDeleteAnnotations?: () => void;
   /** Clear annotation selection */
@@ -71,6 +71,8 @@ const CANVAS_SELECTOR = ".react-flow-canvas, .react-flow";
 const PANEL_SELECTOR = "[data-testid='context-panel'], .MuiDrawer-root, .MuiDrawer-paper";
 
 type ShortcutInteractionArea = "canvas" | "panel" | "other";
+type ClipboardShortcutOptions = { annotationsOnly?: boolean };
+type ClipboardShortcutHandler = (options?: ClipboardShortcutOptions) => void;
 
 function isEditableElement(element: Element | null): boolean {
   if (element == null) return false;
@@ -307,15 +309,14 @@ function handlePaste(
   event: KeyboardEvent,
   mode: "edit" | "view",
   isLocked: boolean,
-  onPaste?: () => void,
-  onPasteAnnotations?: () => void
+  onPaste?: ClipboardShortcutHandler,
+  onPasteAnnotations?: ClipboardShortcutHandler
 ): boolean {
-  if (mode !== "edit") return false;
-  if (isLocked) return false;
   if (!(event.ctrlKey || event.metaKey)) return false;
   if (event.key.toLowerCase() !== "v") return false;
+  if (isLocked) return false;
 
-  if (onPaste) {
+  if (mode === "edit" && onPaste) {
     log.info("[Keyboard] Paste elements");
     event.preventDefault();
     event.stopPropagation();
@@ -327,7 +328,7 @@ function handlePaste(
     log.info("[Keyboard] Paste annotations");
     event.preventDefault();
     event.stopPropagation();
-    onPasteAnnotations();
+    onPasteAnnotations(mode === "view" ? { annotationsOnly: true } : undefined);
     return true;
   }
 
@@ -341,16 +342,15 @@ function handleDuplicate(
   event: KeyboardEvent,
   mode: "edit" | "view",
   isLocked: boolean,
-  onDuplicate?: () => void,
+  onDuplicate?: ClipboardShortcutHandler,
   selectedAnnotationIds?: Set<string>,
-  onDuplicateAnnotations?: () => void
+  onDuplicateAnnotations?: ClipboardShortcutHandler
 ): boolean {
-  if (mode !== "edit") return false;
-  if (isLocked) return false;
   if (!(event.ctrlKey || event.metaKey)) return false;
   if (event.key.toLowerCase() !== "d") return false;
+  if (isLocked) return false;
 
-  if (onDuplicate) {
+  if (mode === "edit" && onDuplicate) {
     log.info("[Keyboard] Duplicate selected elements");
     event.preventDefault();
     event.stopPropagation();
@@ -364,7 +364,64 @@ function handleDuplicate(
     event.preventDefault();
     event.stopPropagation();
     clearNativeSelection();
-    onDuplicateAnnotations();
+    onDuplicateAnnotations(mode === "view" ? { annotationsOnly: true } : undefined);
+    return true;
+  }
+
+  return false;
+}
+
+function preventClipboardEvent(event: ClipboardEvent, shouldClearSelection = false): void {
+  event.preventDefault();
+  event.stopPropagation();
+  if (shouldClearSelection) clearNativeSelection();
+}
+
+function handleCopyClipboardEvent(
+  event: ClipboardEvent,
+  shouldHandleTopology: boolean,
+  isPanelEvent: boolean,
+  onCopy?: () => void
+): boolean {
+  if (shouldHandleTopology && onCopy) {
+    preventClipboardEvent(event, true);
+    onCopy();
+    return true;
+  }
+
+  if (isPanelEvent) {
+    preventClipboardEvent(event, true);
+    return true;
+  }
+
+  return false;
+}
+
+function handlePasteClipboardEvent(
+  event: ClipboardEvent,
+  mode: "edit" | "view",
+  isLocked: boolean,
+  shouldHandleTopology: boolean,
+  isPanelEvent: boolean,
+  onPaste?: ClipboardShortcutHandler,
+  onPasteAnnotations?: ClipboardShortcutHandler
+): boolean {
+  if (isLocked) return false;
+
+  if (mode === "edit" && shouldHandleTopology && onPaste) {
+    preventClipboardEvent(event);
+    onPaste();
+    return true;
+  }
+
+  if (shouldHandleTopology && onPasteAnnotations) {
+    preventClipboardEvent(event);
+    onPasteAnnotations(mode === "view" ? { annotationsOnly: true } : undefined);
+    return true;
+  }
+
+  if (mode === "edit" && isPanelEvent) {
+    preventClipboardEvent(event);
     return true;
   }
 
@@ -681,158 +738,120 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
 
   const lastInteractionAreaRef = useRef<ShortcutInteractionArea>("other");
 
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (disabled) return;
-      if (isInputElement(event)) return;
+  const handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.defaultPrevented) return;
+    if (disabled) return;
+    if (isInputElement(event)) return;
 
-      if (
-        handleNonEditableSelectAll(
-          event,
-          lastInteractionAreaRef.current,
-          selectedNode,
-          selectedEdge,
-          selectedAnnotationIds
-        )
-      ) {
-        return;
-      }
-
-      if (
-        !shouldHandleTopologyShortcut(
-          event,
-          lastInteractionAreaRef.current,
-          selectedNode,
-          selectedEdge,
-          selectedAnnotationIds
-        )
-      ) {
-        return;
-      }
-
-      // Undo/Redo must be checked before other shortcuts
-      if (handleUndo(event, mode, canUndo, onUndo)) return;
-      if (handleRedo(event, mode, canRedo, onRedo)) return;
-      // Copy/Paste/Duplicate (with annotation support)
-      if (handleCopy(event, onCopy, selectedAnnotationIds, onCopyAnnotations)) return;
-      if (handlePaste(event, mode, isLocked, onPaste, onPasteAnnotations)) return;
-      if (
-        handleDuplicate(
-          event,
-          mode,
-          isLocked,
-          onDuplicate,
-          selectedAnnotationIds,
-          onDuplicateAnnotations
-        )
-      )
-        return;
-      // Group shortcut (Ctrl+G)
-      if (handleCreateGroup(event, mode, onCreateGroup)) return;
-      // Other shortcuts
-      if (handleSelectAll(event)) return;
-      if (
-        handleDelete(
-          event,
-          mode,
-          isLocked,
-          selectedNode,
-          selectedEdge,
-          onDeleteNode,
-          onDeleteEdge,
-          onDeleteSelection,
-          selectedAnnotationIds,
-          onDeleteAnnotations
-        )
-      )
-        return;
-      handleEscape(
-        event,
-        selectedNode,
-        selectedEdge,
-        onDeselectAll,
-        selectedAnnotationIds,
-        onClearAnnotationSelection
-      );
-    },
-    [
-      mode,
-      disabled,
-      isLocked,
-      selectedNode,
-      selectedEdge,
-      onDeleteNode,
-      onDeleteEdge,
-      onDeleteSelection,
-      onDeselectAll,
-      onUndo,
-      onRedo,
-      canUndo,
-      canRedo,
-      onCopy,
-      onPaste,
-      onDuplicate,
-      selectedAnnotationIds,
-      onCopyAnnotations,
-      onPasteAnnotations,
-      onDuplicateAnnotations,
-      onDeleteAnnotations,
-      onClearAnnotationSelection,
-      onCreateGroup
-    ]
-  );
-
-  const handleClipboardEvent = useCallback(
-    (event: ClipboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (disabled) return;
-      if (isClipboardEventInEditableContext(event)) return;
-
-      const shouldHandleTopology = shouldHandleTopologyShortcut(
+    if (
+      handleNonEditableSelectAll(
         event,
         lastInteractionAreaRef.current,
         selectedNode,
         selectedEdge,
         selectedAnnotationIds
-      );
-      const isPanelEvent =
-        lastInteractionAreaRef.current === "panel" || eventPathMatchesSelector(event, PANEL_SELECTOR);
+      )
+    ) {
+      return;
+    }
 
-      if (event.type === "copy") {
-        if (shouldHandleTopology && onCopy) {
-          event.preventDefault();
-          event.stopPropagation();
-          clearNativeSelection();
-          onCopy();
-          return;
-        }
+    if (
+      !shouldHandleTopologyShortcut(
+        event,
+        lastInteractionAreaRef.current,
+        selectedNode,
+        selectedEdge,
+        selectedAnnotationIds
+      )
+    ) {
+      return;
+    }
 
-        if (isPanelEvent) {
-          event.preventDefault();
-          event.stopPropagation();
-          clearNativeSelection();
-        }
-        return;
-      }
+    // Undo/Redo must be checked before other shortcuts
+    if (handleUndo(event, mode, canUndo, onUndo)) return;
+    if (handleRedo(event, mode, canRedo, onRedo)) return;
+    // Copy/Paste/Duplicate (with annotation support)
+    if (handleCopy(event, onCopy, selectedAnnotationIds, onCopyAnnotations)) return;
+    if (handlePaste(event, mode, isLocked, onPaste, onPasteAnnotations)) return;
+    if (
+      handleDuplicate(
+        event,
+        mode,
+        isLocked,
+        onDuplicate,
+        selectedAnnotationIds,
+        onDuplicateAnnotations
+      )
+    )
+      return;
+    // Group shortcut (Ctrl+G)
+    if (handleCreateGroup(event, mode, onCreateGroup)) return;
+    // Other shortcuts
+    if (handleSelectAll(event)) return;
+    if (
+      handleDelete(
+        event,
+        mode,
+        isLocked,
+        selectedNode,
+        selectedEdge,
+        onDeleteNode,
+        onDeleteEdge,
+        onDeleteSelection,
+        selectedAnnotationIds,
+        onDeleteAnnotations
+      )
+    )
+      return;
+    handleEscape(
+      event,
+      selectedNode,
+      selectedEdge,
+      onDeselectAll,
+      selectedAnnotationIds,
+      onClearAnnotationSelection
+    );
+  };
 
-      if (event.type !== "paste") return;
-      if (mode !== "edit" || isLocked) return;
+  const handleClipboardEvent = (event: ClipboardEvent): void => {
+    if (event.defaultPrevented) return;
+    if (disabled) return;
+    if (isClipboardEventInEditableContext(event)) return;
 
-      if (shouldHandleTopology && onPaste) {
-        event.preventDefault();
-        event.stopPropagation();
-        onPaste();
-        return;
-      }
+    const shouldHandleTopology = shouldHandleTopologyShortcut(
+      event,
+      lastInteractionAreaRef.current,
+      selectedNode,
+      selectedEdge,
+      selectedAnnotationIds
+    );
+    const isPanelEvent =
+      lastInteractionAreaRef.current === "panel" || eventPathMatchesSelector(event, PANEL_SELECTOR);
 
-      if (isPanelEvent) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    },
-    [mode, disabled, isLocked, selectedNode, selectedEdge, selectedAnnotationIds, onCopy, onPaste]
-  );
+    if (event.type === "copy") {
+      handleCopyClipboardEvent(event, shouldHandleTopology, isPanelEvent, onCopy);
+      return;
+    }
+
+    if (event.type !== "paste") return;
+    handlePasteClipboardEvent(
+      event,
+      mode,
+      isLocked,
+      shouldHandleTopology,
+      isPanelEvent,
+      onPaste,
+      onPasteAnnotations
+    );
+  };
+
+  // Keep the latest handlers in refs (updated every render) so the window
+  // listeners below can be attached once on mount instead of being detached
+  // and re-attached whenever a dependency (e.g. the selection) changes.
+  const handleKeyDownRef = useRef(handleKeyDown);
+  handleKeyDownRef.current = handleKeyDown;
+  const handleClipboardEventRef = useRef(handleClipboardEvent);
+  handleClipboardEventRef.current = handleClipboardEvent;
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -843,16 +862,18 @@ export function useKeyboardShortcuts(options: KeyboardShortcutsOptions): void {
   }, []);
 
   useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, [handleKeyDown]);
+    const onKeyDown = (event: KeyboardEvent) => handleKeyDownRef.current(event);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
 
   useEffect(() => {
-    window.addEventListener("copy", handleClipboardEvent, true);
-    window.addEventListener("paste", handleClipboardEvent, true);
+    const onClipboardEvent = (event: ClipboardEvent) => handleClipboardEventRef.current(event);
+    window.addEventListener("copy", onClipboardEvent, true);
+    window.addEventListener("paste", onClipboardEvent, true);
     return () => {
-      window.removeEventListener("copy", handleClipboardEvent, true);
-      window.removeEventListener("paste", handleClipboardEvent, true);
+      window.removeEventListener("copy", onClipboardEvent, true);
+      window.removeEventListener("paste", onClipboardEvent, true);
     };
-  }, [handleClipboardEvent]);
+  }, []);
 }

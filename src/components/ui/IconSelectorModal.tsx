@@ -1,26 +1,26 @@
+/* eslint-disable import-x/max-dependencies */
 // Icon selector modal.
 import React, { useCallback, useState, useEffect, useMemo, useRef } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import ResetIcon from "@mui/icons-material/Replay";
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogContent,
-  Divider,
-  IconButton as MuiIconButton,
-  Tab,
-  Tabs,
-  Tooltip,
-  Typography
-} from "@mui/material";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import Divider from "@mui/material/Divider";
+import MuiIconButton from "@mui/material/IconButton";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
+import Tooltip from "@mui/material/Tooltip";
+import Typography from "@mui/material/Typography";
 
 import type { NodeType } from "../../icons/SvgGenerator";
 import { generateEncodedSVG } from "../../icons/SvgGenerator";
 import { useEscapeKey } from "../../hooks/ui/useDomInteractions";
 import { useCustomIcons } from "../../stores/topoViewerStore";
-import { useExtensionMessaging } from "../../messaging/extensionMessaging";
+import { useClabUiHost } from "../../host";
 import { isBuiltInIcon } from "../../core/types/icons";
+import { DEFAULT_ICON_COLOR } from "../../core/types/graph";
 
 import { DialogCancelSaveActions, DialogTitleWithClose } from "./dialog/DialogChrome";
 import { ColorField, IconPreview, InputField } from "./form";
@@ -59,7 +59,7 @@ const ICON_LABELS: Record<string, string> = {
   client: "Client"
 };
 
-const DEFAULT_COLOR = "#1a73e8";
+const DEFAULT_COLOR = DEFAULT_ICON_COLOR;
 const MAX_RADIUS = 40;
 const COLOR_DEBOUNCE_MS = 50;
 const NODE_TYPE_SET: ReadonlySet<string> = new Set(AVAILABLE_ICONS);
@@ -297,7 +297,7 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
   initialCornerRadius = 0
 }) => {
   const customIcons = useCustomIcons();
-  const { sendDeleteIcon, sendUploadIcon } = useExtensionMessaging();
+  const { topoViewer } = useClabUiHost();
 
   const { icon, setIcon, color, setColor, radius, setRadius, resultColor } = useIconSelectorState(
     isOpen,
@@ -325,8 +325,9 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
     return sources;
   }, [debouncedGridColor]);
 
-  // Memoize click handlers to prevent IconButton re-renders
+  // Memoize click/delete handlers to prevent IconButton re-renders
   const iconClickHandlers = useRef<Record<string, () => void>>({});
+  const iconDeleteHandlers = useRef<Record<string, () => void>>({});
   useMemo(() => {
     for (const i of AVAILABLE_ICONS) {
       iconClickHandlers.current[i] = () => setIcon(i);
@@ -334,8 +335,9 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
     // Add handlers for custom icons
     for (const ci of customIcons) {
       iconClickHandlers.current[ci.name] = () => setIcon(ci.name);
+      iconDeleteHandlers.current[ci.name] = () => topoViewer.deleteIcon(ci.name);
     }
-  }, [setIcon, customIcons]);
+  }, [setIcon, topoViewer, customIcons]);
 
   const handleSave = useCallback(() => {
     onSave(icon, resultColor, radius);
@@ -343,12 +345,8 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
   }, [icon, resultColor, radius, onSave, onClose]);
 
   const handleUploadIcon = useCallback(() => {
-    sendUploadIcon();
-  }, [sendUploadIcon]);
-
-  const handleDeleteIcon = useCallback((iconName: string) => {
-    sendDeleteIcon(iconName);
-  }, [sendDeleteIcon]);
+    topoViewer.uploadIcon();
+  }, [topoViewer]);
 
   // Get preview icon source
   const previewIconSrc = useMemo(() => {
@@ -412,7 +410,7 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
                         iconSrc={ci.dataUri}
                         cornerRadius={radius}
                         onClick={iconClickHandlers.current[ci.name]}
-                        onDelete={() => handleDeleteIcon(ci.name)}
+                        onDelete={iconDeleteHandlers.current[ci.name]}
                         isCustom={true}
                         source={ci.source}
                       />
@@ -467,8 +465,8 @@ export const IconSelectorModal: React.FC<IconSelectorModalProps> = ({
                   <span>
                     <MuiIconButton
                       size="small"
-                      onClick={() => setColor(DEFAULT_COLOR)}
-                      disabled={!isBuiltInIcon(icon) || color === DEFAULT_COLOR}
+                      onClick={() => setColor(DEFAULT_ICON_COLOR)}
+                      disabled={!isBuiltInIcon(icon) || color === DEFAULT_ICON_COLOR}
                     >
                       <ResetIcon fontSize="small" />
                     </MuiIconButton>

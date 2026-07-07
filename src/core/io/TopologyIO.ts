@@ -37,12 +37,9 @@ import {
 } from "./NodePersistenceIO";
 import type { LinkSaveData } from "./LinkPersistenceIO";
 import { addLinkToDoc, editLinkInDoc, deleteLinkFromDoc } from "./LinkPersistenceIO";
+import { isRecord } from "../utilities/typeHelpers";
 
 // Types are available from ./NodePersistenceIO and ./LinkPersistenceIO directly
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function isRecordOfRecords(value: unknown): value is Record<string, Record<string, unknown>> {
   if (!isRecord(value)) return false;
@@ -691,9 +688,19 @@ export class TopologyIO {
         annotations.networkNodeAnnotations ??= [];
         migrateGeneratedNetworkNodeAnnotations(annotations);
 
+        // Index annotations by id (first occurrence wins, matching .find semantics)
+        const networkNodeById = new Map<string, NetworkNodeAnnotation>();
+        for (const annotation of annotations.networkNodeAnnotations) {
+          if (!networkNodeById.has(annotation.id)) networkNodeById.set(annotation.id, annotation);
+        }
+        const nodeById = new Map<string, NodeAnnotation>();
+        for (const annotation of annotations.nodeAnnotations) {
+          if (!nodeById.has(annotation.id)) nodeById.set(annotation.id, annotation);
+        }
+
         for (const { id, position, geoCoordinates } of positions) {
           // Check if this is a network node (exists in networkNodeAnnotations)
-          const networkNode = annotations.networkNodeAnnotations.find((n) => n.id === id);
+          const networkNode = networkNodeById.get(id);
           if (networkNode) {
             updateNodeAnnotationPosition(networkNode, position, geoCoordinates);
             continue;
@@ -701,28 +708,29 @@ export class TopologyIO {
 
           const generatedNetworkType = inferGeneratedNetworkAnnotationType(id);
           if (generatedNetworkType) {
-            const staleNodeAnnotation = annotations.nodeAnnotations.find((n) => n.id === id);
-            annotations.networkNodeAnnotations.push(
-              createNetworkNodeAnnotationWithPosition(
-                id,
-                generatedNetworkType,
-                staleNodeAnnotation,
-                position,
-                geoCoordinates
-              )
+            const staleNodeAnnotation = nodeById.get(id);
+            const networkAnnotation = createNetworkNodeAnnotationWithPosition(
+              id,
+              generatedNetworkType,
+              staleNodeAnnotation,
+              position,
+              geoCoordinates
             );
+            annotations.networkNodeAnnotations.push(networkAnnotation);
+            networkNodeById.set(id, networkAnnotation);
             annotations.nodeAnnotations = annotations.nodeAnnotations.filter((n) => n.id !== id);
+            nodeById.delete(id);
             continue;
           }
 
           // Update or add to nodeAnnotations
-          const existing = annotations.nodeAnnotations.find((n) => n.id === id);
+          const existing = nodeById.get(id);
           if (existing) {
             updateNodeAnnotationPosition(existing, position, geoCoordinates);
           } else {
-            annotations.nodeAnnotations.push(
-              createNodeAnnotationWithPosition(id, position, geoCoordinates)
-            );
+            const created = createNodeAnnotationWithPosition(id, position, geoCoordinates);
+            annotations.nodeAnnotations.push(created);
+            nodeById.set(id, created);
           }
         }
 

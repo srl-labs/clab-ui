@@ -8,6 +8,7 @@ export const LIFECYCLE_COMMANDS = {
   DEPLOY_LAB: "deployLab",
   DESTROY_LAB: "destroyLab",
   REDEPLOY_LAB: "redeployLab",
+  APPLY_LAB: "applyLab",
   DEPLOY_LAB_CLEANUP: "deployLabCleanup",
   DESTROY_LAB_CLEANUP: "destroyLabCleanup",
   REDEPLOY_LAB_CLEANUP: "redeployLabCleanup",

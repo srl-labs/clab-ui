@@ -112,7 +112,7 @@ type MidpointAlignmentResult = {
 function computeMidpointAlignments(
   draggingEdges: ReturnType<typeof getNodeEdges>,
   draggingDims: { width: number; height: number },
-  otherNodes: Node[],
+  otherEdges: Array<ReturnType<typeof getNodeEdges>>,
   threshold: number
 ): MidpointAlignmentResult {
   let closestMidpointXDist = threshold + 1;
@@ -122,10 +122,10 @@ function computeMidpointAlignments(
   let horizontalMidpoint: number | null = null;
   let verticalMidpoint: number | null = null;
 
-  for (let i = 0; i < otherNodes.length; i++) {
-    const edgesA = getNodeEdges(otherNodes[i]);
-    for (let j = i + 1; j < otherNodes.length; j++) {
-      const edgesB = getNodeEdges(otherNodes[j]);
+  for (let i = 0; i < otherEdges.length; i++) {
+    const edgesA = otherEdges[i];
+    for (let j = i + 1; j < otherEdges.length; j++) {
+      const edgesB = otherEdges[j];
       const midpointX = (edgesA.centerX + edgesB.centerX) / 2;
       const midpointY = (edgesA.centerY + edgesB.centerY) / 2;
 
@@ -156,6 +156,30 @@ function computeMidpointAlignments(
 }
 
 /**
+ * Compute each candidate node's edges once and collect axis targets in a single pass.
+ */
+function collectAlignmentTargets(
+  draggingNode: Node,
+  allNodes: Node[]
+): {
+  otherEdges: Array<ReturnType<typeof getNodeEdges>>;
+  targetYPositions: number[];
+  targetXPositions: number[];
+} {
+  const otherEdges: Array<ReturnType<typeof getNodeEdges>> = [];
+  const targetYPositions: number[] = [];
+  const targetXPositions: number[] = [];
+  for (const node of allNodes) {
+    if (node.id === draggingNode.id || node.hidden === true) continue;
+    const edges = getNodeEdges(node);
+    otherEdges.push(edges);
+    targetYPositions.push(edges.top, edges.centerY, edges.bottom);
+    targetXPositions.push(edges.left, edges.centerX, edges.right);
+  }
+  return { otherEdges, targetYPositions, targetXPositions };
+}
+
+/**
  * Calculate alignment helper lines and snap position for a dragged node
  *
  * @param draggingNode - The node being dragged (with current drag position)
@@ -163,7 +187,7 @@ function computeMidpointAlignments(
  * @param threshold - Pixel threshold for snapping
  * @returns Alignment result with helper line positions and optional snap position
  */
-export function calculateAlignments(
+function calculateAlignments(
   draggingNode: Node,
   allNodes: Node[],
   threshold: number = SNAP_THRESHOLD
@@ -177,8 +201,6 @@ export function calculateAlignments(
   const draggingEdges = getNodeEdges(draggingNode);
   const draggingDims = getNodeDimensions(draggingNode);
 
-  const otherNodes = allNodes.filter((n) => n.id !== draggingNode.id && n.hidden !== true);
-
   const dragYPositions = [
     { value: draggingEdges.top, snapOffset: 0 },
     { value: draggingEdges.centerY, snapOffset: -draggingDims.height / 2 },
@@ -190,14 +212,10 @@ export function calculateAlignments(
     { value: draggingEdges.right, snapOffset: -draggingDims.width }
   ];
 
-  const targetYPositions = otherNodes.flatMap((node) => {
-    const edges = getNodeEdges(node);
-    return [edges.top, edges.centerY, edges.bottom];
-  });
-  const targetXPositions = otherNodes.flatMap((node) => {
-    const edges = getNodeEdges(node);
-    return [edges.left, edges.centerX, edges.right];
-  });
+  const { otherEdges, targetYPositions, targetXPositions } = collectAlignmentTargets(
+    draggingNode,
+    allNodes
+  );
 
   const horizontalResult = findClosestAxisAlignment(dragYPositions, targetYPositions, threshold);
   const verticalResult = findClosestAxisAlignment(dragXPositions, targetXPositions, threshold);
@@ -208,11 +226,11 @@ export function calculateAlignments(
   let snapX = verticalResult.snap;
   let snapY = horizontalResult.snap;
 
-  if (otherNodes.length >= 2) {
+  if (otherEdges.length >= 2) {
     const midpointResult = computeMidpointAlignments(
       draggingEdges,
       draggingDims,
-      otherNodes,
+      otherEdges,
       threshold
     );
     result.lines.horizontalMidpoint = midpointResult.horizontalMidpoint;

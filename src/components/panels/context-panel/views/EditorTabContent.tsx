@@ -20,7 +20,8 @@ const {
   TrafficRateEditorView
 } = editorViews;
 
-export interface EditorTabContentProps extends ContextPanelEditorState {
+export interface EditorTabContentProps
+  extends Omit<ContextPanelEditorState, "onOpenSelectedNodeEditor"> {
   onFooterRef: (ref: EditorFooterRef | null) => void;
   onBannerRef: (ref: EditorBannerRef | null) => void;
 }
@@ -36,9 +37,6 @@ const EditorPlaceholder: React.FC = () => (
 export const EditorTabContent: React.FC<EditorTabContentProps> = ({
   editingNodeData,
   editingNodeInheritedProps,
-  selectedNodeVisualData,
-  selectedNodeVisualInheritedProps,
-  enableSelectedNodeVisualEditor,
   nodeEditorHandlers,
   editingLinkData,
   linkEditorHandlers,
@@ -59,30 +57,20 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
 }) => {
   const panelView = useContextPanelContent();
   const isLocked = useIsLocked();
-  const isReadOnly = isLocked && panelView.hasFooter;
-  const shouldUseSelectedNodeVisualEditor =
-    enableSelectedNodeVisualEditor && panelView.kind === "nodeInfo";
-  const nodeEditorData = shouldUseSelectedNodeVisualEditor
-    ? selectedNodeVisualData
-    : editingNodeData;
-  const nodeEditorInheritedProps = shouldUseSelectedNodeVisualEditor
-    ? selectedNodeVisualInheritedProps
-    : editingNodeInheritedProps;
+  const isReadOnly = isLocked && panelView.isEditor;
 
   // Render the appropriate editor based on current state
   switch (panelView.kind) {
     case "nodeEditor":
-    case "nodeInfo":
       return (
         <NodeEditorView
-          nodeData={nodeEditorData}
+          nodeData={editingNodeData}
           onSave={nodeEditorHandlers.handleSave}
           onApply={nodeEditorHandlers.handleApply}
           onPreview={nodeEditorHandlers.previewVisuals}
-          inheritedProps={nodeEditorInheritedProps}
+          inheritedProps={editingNodeInheritedProps}
           onFooterRef={onFooterRef}
           readOnly={isReadOnly}
-          visualOnly={shouldUseSelectedNodeVisualEditor}
         />
       );
     case "linkEditor":
@@ -124,12 +112,7 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
       return (
         <FreeTextEditorView
           annotation={editingTextAnnotation}
-          onSave={textAnnotationHandlers.onSave}
-          onPreview={textAnnotationHandlers.onPreview}
-          onPreviewDelete={textAnnotationHandlers.onPreviewDelete}
-          onClose={textAnnotationHandlers.onClose}
-          onDelete={textAnnotationHandlers.onDelete}
-          onFooterRef={onFooterRef}
+          onApply={textAnnotationHandlers.onApply}
           readOnly={isReadOnly}
         />
       );
@@ -137,12 +120,7 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
       return (
         <FreeShapeEditorView
           annotation={editingShapeAnnotation}
-          onSave={shapeAnnotationHandlers.onSave}
-          onPreview={shapeAnnotationHandlers.onPreview}
-          onPreviewDelete={shapeAnnotationHandlers.onPreviewDelete}
-          onClose={shapeAnnotationHandlers.onClose}
-          onDelete={shapeAnnotationHandlers.onDelete}
-          onFooterRef={onFooterRef}
+          onApply={shapeAnnotationHandlers.onApply}
           readOnly={isReadOnly}
         />
       );
@@ -150,11 +128,7 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
       return (
         <GroupEditorView
           groupData={editingGroup}
-          onSave={groupHandlers.onSave}
-          onClose={groupHandlers.onClose}
-          onDelete={groupHandlers.onDelete}
-          onStylePreview={groupHandlers.onStylePreview}
-          onFooterRef={onFooterRef}
+          onApply={groupHandlers.onApply}
           readOnly={isReadOnly}
         />
       );
@@ -162,11 +136,7 @@ export const EditorTabContent: React.FC<EditorTabContentProps> = ({
       return (
         <TrafficRateEditorView
           annotation={editingTrafficRateAnnotation}
-          onSave={trafficRateAnnotationHandlers.onSave}
-          onPreview={trafficRateAnnotationHandlers.onPreview}
-          onClose={trafficRateAnnotationHandlers.onClose}
-          onDelete={trafficRateAnnotationHandlers.onDelete}
-          onFooterRef={onFooterRef}
+          onApply={trafficRateAnnotationHandlers.onApply}
           readOnly={isReadOnly}
         />
       );

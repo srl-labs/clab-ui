@@ -24,6 +24,18 @@ function expandShortHex(value: string): string {
 // Regex pattern for parsing rgba() or rgb() values
 const RGB_REGEX = /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+)\s*)?\)$/i;
 
+// Regex pattern for a full 6-digit hex color
+const HEX6_REGEX = /^#([0-9a-f]{6})$/i;
+
+// Regex pattern for 3-8 digit hex colors (capturing the digits)
+const HEX_DIGITS_REGEX = /^#([0-9a-f]{3,8})$/i;
+
+// Regex pattern for 3-8 digit hex colors (test only)
+const HEX_TEST_REGEX = /^#[0-9a-f]{3,8}$/i;
+
+// Regex pattern for extracting the leading r/g/b components of rgb()/rgba() values
+const RGB_PREFIX_REGEX = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/;
+
 function parseRgb(value: string): { hex: string; alpha?: number } | null {
   const match = RGB_REGEX.exec(value);
   if (!match) return null;
@@ -42,7 +54,7 @@ function parseRgb(value: string): { hex: string; alpha?: number } | null {
  */
 export function applyAlphaToColor(color: string, alpha: number): string {
   const normalizedAlpha = Math.min(1, Math.max(0, alpha));
-  const hexMatch = /^#([0-9a-f]{6})$/i.exec(color);
+  const hexMatch = HEX6_REGEX.exec(color);
   if (hexMatch) {
     const r = parseInt(hexMatch[1].slice(0, 2), 16);
     const g = parseInt(hexMatch[1].slice(2, 4), 16);
@@ -61,7 +73,7 @@ export function parseLuminance(color: string): number | null {
   let g = 0;
   let b = 0;
 
-  const hexMatch = /^#([0-9a-f]{3,8})$/i.exec(color.trim());
+  const hexMatch = HEX_DIGITS_REGEX.exec(color.trim());
   if (hexMatch) {
     let hex = hexMatch[1];
     if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
@@ -69,7 +81,7 @@ export function parseLuminance(color: string): number | null {
     g = parseInt(hex.slice(2, 4), 16);
     b = parseInt(hex.slice(4, 6), 16);
   } else {
-    const rgbMatch = /rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/.exec(color);
+    const rgbMatch = RGB_PREFIX_REGEX.exec(color);
     if (!rgbMatch) return null;
     r = parseInt(rgbMatch[1], 10);
     g = parseInt(rgbMatch[2], 10);
@@ -95,14 +107,54 @@ export function normalizeHexColor(value: string | undefined, fallback = "#000000
   return fallback;
 }
 
+// Cache for resolved CSS variable colors. getComputedStyle forces a style
+// recalculation, and hot components resolve several variables per render, so
+// successful lookups are memoized until the theme changes. VS Code theme swaps
+// mutate class/style on body/documentElement (same signal MonacoCodeEditor
+// observes), which clears the cache.
+const computedColorCache = new Map<string, string>();
+let computedColorObserverInstalled = false;
+
+function ensureComputedColorCacheObserver(): boolean {
+  if (computedColorObserverInstalled) return true;
+  try {
+    if (typeof document === "undefined" || typeof MutationObserver === "undefined") return false;
+    const { body, documentElement } = document;
+    if (!body || !documentElement) return false;
+    const observer = new MutationObserver(() => computedColorCache.clear());
+    observer.observe(body, { attributes: true, attributeFilter: ["class", "style"] });
+    observer.observe(documentElement, { attributes: true, attributeFilter: ["class", "style"] });
+    computedColorObserverInstalled = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function parseComputedColorValue(raw: string): string | null {
+  if (HEX_TEST_REGEX.test(raw)) {
+    const normalized = normalizeHexColor(raw, "");
+    return normalized.length > 0 ? normalized : null;
+  }
+  const rgb = parseRgb(raw);
+  return rgb ? rgb.hex : null;
+}
+
 export function resolveComputedColor(cssVar: string, fallback: string): string {
+  // Only cache when the invalidation observer is active, so stale colors can
+  // never be served after a theme change (and node-env test runs stay safe).
+  const canCache = ensureComputedColorCacheObserver();
+  if (canCache) {
+    const cached = computedColorCache.get(cssVar);
+    if (cached !== undefined) return cached;
+  }
   try {
     const raw = window.getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim();
     if (!raw) return fallback;
-    if (/^#[0-9a-f]{3,8}$/i.test(raw)) return normalizeHexColor(raw, fallback);
-    const rgb = parseRgb(raw);
-    if (rgb) return rgb.hex;
-    return fallback;
+    const resolved = parseComputedColorValue(raw);
+    if (resolved === null) return fallback;
+    if (canCache) computedColorCache.set(cssVar, resolved);
+    return resolved;
   } catch {
     return fallback;
   }

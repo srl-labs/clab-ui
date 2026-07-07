@@ -29,6 +29,7 @@ import type {
   NetemState
 } from "./types";
 import { nullLogger } from "./types";
+import { isRecord } from "../utilities/typeHelpers";
 
 // ============================================================================
 // Build Options
@@ -43,10 +44,6 @@ export interface EdgeBuildOptions {
   annotations?: TopologyAnnotations;
   /** Logger */
   logger?: ParserLogger;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 function isEndpointObject(value: unknown): value is { node: string; interface?: string } {
@@ -66,7 +63,7 @@ function isEndpointInput(value: unknown): value is string | { node: string; inte
 /**
  * Checks if a node is a special node type.
  */
-export function isSpecialNode(nodeData: ClabNode | undefined, nodeName: string): boolean {
+function isSpecialNode(nodeData: ClabNode | undefined, nodeName: string): boolean {
   return (
     nodeData?.kind === NODE_KIND_BRIDGE ||
     nodeData?.kind === NODE_KIND_OVS_BRIDGE ||
@@ -86,7 +83,7 @@ export function isSpecialNode(nodeData: ClabNode | undefined, nodeName: string):
 /**
  * Gets edge class from interface state.
  */
-export function classFromState(ifaceData: { state?: string } | undefined): string {
+function classFromState(ifaceData: { state?: string } | undefined): string {
   if (ifaceData?.state === undefined || ifaceData.state === "") return "";
   return ifaceData.state === "up" ? "link-up" : "link-down";
 }
@@ -94,7 +91,7 @@ export function classFromState(ifaceData: { state?: string } | undefined): strin
 /**
  * Computes edge class for special nodes.
  */
-export function edgeClassForSpecial(
+function edgeClassForSpecial(
   sourceIsSpecial: boolean,
   targetIsSpecial: boolean,
   sourceIfaceData: { state?: string } | undefined,
@@ -132,7 +129,7 @@ function computeSpecialNodeEdgeClass(
 /**
  * Computes edge class based on interface states.
  */
-export function computeEdgeClass(
+function computeEdgeClass(
   sourceNode: string,
   targetNode: string,
   sourceIfaceData: { state?: string } | undefined,
@@ -200,7 +197,7 @@ export function computeEdgeClassFromStates(
 /**
  * Validates a veth link.
  */
-export function validateVethLink(linkObj: Record<string, unknown>): string[] {
+function validateVethLink(linkObj: Record<string, unknown>): string[] {
   const eps: unknown[] = Array.isArray(linkObj.endpoints) ? linkObj.endpoints : [];
   const first = eps[0];
   const second = eps[1];
@@ -215,10 +212,13 @@ export function validateVethLink(linkObj: Record<string, unknown>): string[] {
   return ok ? [] : ["invalid-veth-endpoints"];
 }
 
+/** Link types that require a host-interface property */
+const HOST_INTERFACE_LINK_TYPES = ["mgmt-net", "host", "macvlan"];
+
 /**
  * Validates a special link type.
  */
-export function validateSpecialLink(linkType: string, linkObj: Record<string, unknown>): string[] {
+function validateSpecialLink(linkType: string, linkObj: Record<string, unknown>): string[] {
   const errors: string[] = [];
   const ep = linkObj.endpoint;
   const hostInterface = linkObj["host-interface"];
@@ -227,7 +227,7 @@ export function validateSpecialLink(linkType: string, linkObj: Record<string, un
     errors.push("invalid-endpoint");
   }
   if (
-    ["mgmt-net", "host", "macvlan"].includes(linkType) &&
+    HOST_INTERFACE_LINK_TYPES.includes(linkType) &&
     (typeof hostInterface !== "string" || hostInterface === "")
   ) {
     errors.push("missing-host-interface");
@@ -244,7 +244,7 @@ export function validateSpecialLink(linkType: string, linkObj: Record<string, un
 /**
  * Validates an extended link.
  */
-export function validateExtendedLink(linkObj: Record<string, unknown>): string[] {
+function validateExtendedLink(linkObj: Record<string, unknown>): string[] {
   const linkType = typeof linkObj.type === "string" ? linkObj.type : "";
   if (linkType === "") return [];
 
@@ -266,7 +266,7 @@ export function validateExtendedLink(linkObj: Record<string, unknown>): string[]
 /**
  * Resolves container and interface for an endpoint.
  */
-export function resolveContainerAndInterface(params: {
+function resolveContainerAndInterface(params: {
   parsed: ClabTopology;
   nodeName: string;
   actualNodeName: string;
@@ -330,6 +330,19 @@ export function resolveContainerAndInterface(params: {
 // Interface Stats Extraction
 // ============================================================================
 
+/** Numeric stats keys extracted for edges */
+const EDGE_STATS_KEYS = [
+  "rxBps",
+  "rxPps",
+  "rxBytes",
+  "rxPackets",
+  "txBps",
+  "txPps",
+  "txBytes",
+  "txPackets",
+  "statsIntervalSeconds"
+];
+
 /**
  * Extracts interface stats for an edge.
  */
@@ -340,20 +353,8 @@ export function extractEdgeInterfaceStats(ifaceData: unknown): Record<string, nu
 
   const sourceStats = isRecord(ifaceData.stats) ? ifaceData.stats : ifaceData;
 
-  const keys = [
-    "rxBps",
-    "rxPps",
-    "rxBytes",
-    "rxPackets",
-    "txBps",
-    "txPps",
-    "txBytes",
-    "txPackets",
-    "statsIntervalSeconds"
-  ];
-
   const stats: Record<string, number> = {};
-  for (const key of keys) {
+  for (const key of EDGE_STATS_KEYS) {
     const value = sourceStats[key];
     if (typeof value === "number" && Number.isFinite(value)) {
       stats[key] = value;
@@ -389,7 +390,7 @@ function extractIfaceProps(ifaceData?: InterfaceInfo): {
 /**
  * Creates clab info for an edge.
  */
-export function createClabInfo(params: {
+function createClabInfo(params: {
   sourceContainerName: string;
   targetContainerName: string;
   sourceIface: string;
@@ -438,7 +439,7 @@ export function createClabInfo(params: {
 /**
  * Extracts extended link properties.
  */
-export function extractExtLinkProps(linkObj: Record<string, unknown>): Record<string, unknown> {
+function extractExtLinkProps(linkObj: Record<string, unknown>): Record<string, unknown> {
   const {
     type: extType = "",
     mtu: extMtu = "",
@@ -469,7 +470,7 @@ export function extractExtLinkProps(linkObj: Record<string, unknown>): Record<st
 /**
  * Extracts MAC addresses from endpoints.
  */
-export function extractExtMacs(
+function extractExtMacs(
   linkObj: Record<string, unknown>,
   endA: unknown,
   endB: unknown
@@ -503,7 +504,7 @@ function indexedIp(linkObj: Record<string, unknown>, key: "ipv4" | "ipv6", index
  * Extracts endpoint IP addresses from endpoint objects (extended format)
  * with fallback to ordered ipv4/ipv6 arrays (brief format).
  */
-export function extractExtIps(
+function extractExtIps(
   linkObj: Record<string, unknown>,
   endA: unknown,
   endB: unknown
@@ -519,7 +520,7 @@ export function extractExtIps(
 /**
  * Creates extended info for an edge.
  */
-export function createExtInfo(params: {
+function createExtInfo(params: {
   linkObj: Record<string, unknown>;
   endA: unknown;
   endB: unknown;
@@ -538,7 +539,7 @@ export function createExtInfo(params: {
 /**
  * Builds edge classes string.
  */
-export function buildEdgeClasses(
+function buildEdgeClasses(
   edgeClass: string,
   specialNodes: Map<string, SpecialNodeInfo>,
   actualSourceNode: string,
@@ -552,7 +553,7 @@ export function buildEdgeClasses(
 /**
  * Builds edge extra data.
  */
-export function buildEdgeExtraData(params: {
+function buildEdgeExtraData(params: {
   linkObj: Record<string, unknown>;
   endA: unknown;
   endB: unknown;
@@ -608,7 +609,7 @@ export function buildEdgeExtraData(params: {
 /**
  * Builds a single edge element.
  */
-export function buildEdgeElement(params: {
+function buildEdgeElement(params: {
   linkObj: Record<string, unknown>;
   endA: unknown;
   endB: unknown;

@@ -19,6 +19,8 @@ interface ColorFieldProps {
 
 const SWATCH_SIZE = 22;
 const COLOR_INPUT_THROTTLE_MS = 40;
+const LEADING_HASH_REGEX = /^#/;
+const HEX_TEXT_REGEX = /^[0-9A-Fa-f]{0,6}$/;
 
 export const ColorField: React.FC<ColorFieldProps> = ({
   id,
@@ -100,8 +102,8 @@ export const ColorField: React.FC<ColorFieldProps> = ({
 
   const handleHexChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = e.target.value.replace(/^#/, "");
-      if (/^[0-9A-Fa-f]{0,6}$/.test(raw)) {
+      const raw = e.target.value.replace(LEADING_HASH_REGEX, "");
+      if (HEX_TEXT_REGEX.test(raw)) {
         setHexText(raw);
         if (raw.length === 6) {
           onChange("#" + raw);
@@ -112,8 +114,9 @@ export const ColorField: React.FC<ColorFieldProps> = ({
   );
 
   const handleCopy = useCallback(() => {
-    const clipboard = globalThis.navigator.clipboard;
-    if (typeof clipboard.writeText !== "function") {
+    // navigator.clipboard is undefined in non-secure contexts; guard the access itself.
+    const clipboard = globalThis.navigator?.clipboard;
+    if (typeof clipboard?.writeText !== "function") {
       return;
     }
     clipboard.writeText(normalizedValue).catch(() => undefined);

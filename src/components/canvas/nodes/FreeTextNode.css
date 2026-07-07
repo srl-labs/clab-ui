@@ -30,3 +30,22 @@
 .free-text-markdown > :last-child {
   margin-bottom: 0;
 }
+
+/* WYSIWYG parity with the inline textarea: a blank line typed in the editor
+   must equal the rendered paragraph gap (exactly one line box). */
+.free-text-markdown p {
+  margin-block: 0;
+}
+
+.free-text-markdown p + p {
+  /* Fallback mirrors TEXT_LINE_HEIGHT in FreeTextNode.tsx for engines without lh units. */
+  margin-block-start: 1.5em;
+  margin-block-start: 1lh;
+}
+
+/* Live rendered preview shown under the node while editing inline. */
+.free-text-inline-preview {
+  max-width: 420px;
+  max-height: 260px;
+  overflow: hidden;
+}

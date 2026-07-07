@@ -22,7 +22,6 @@ import {
   buildNetworkNodeAnnotations
 } from "../../services";
 import { useTopologySessionClient } from "../../host";
-import { requestSnapshot } from "../../services/topologyHostClient";
 import { useGraphStore } from "../../stores/graphStore";
 import {
   findEdgeAnnotation,
@@ -31,6 +30,7 @@ import {
 import { convertEditorDataToLinkSaveData } from "../../utils/linkEditorConversions";
 import { BRIDGE_NETWORK_TYPES, getNetworkType } from "../../utils/networkNodeTypes";
 import { getViewportCenter } from "../../utils/viewportUtils";
+import { isRecord } from "../../core/utilities/typeHelpers";
 
 // ============================================================================
 // Types
@@ -61,10 +61,6 @@ type BasicNode = { id: string; data?: unknown; position?: { x: number; y: number
 type BasicEdge = { id: string; source: string; target: string; data?: unknown };
 type AliasEdgeInfo = { edge: BasicEdge; interfaceName?: string };
 type GraphState = ReturnType<typeof useGraphStore.getState>;
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
 
 function toRecord(value: unknown): Record<string, unknown> | undefined {
   return isRecord(value) ? value : undefined;
@@ -937,7 +933,7 @@ export function useNetworkEditorHandlers(
       const edgeInfos = collectAliasEdgeInfos(currentEdges as BasicEdge[], aliasId);
       const { interfaceSet, interfaceCandidates } = extractInterfaceCandidates(edgeInfos);
 
-      const snapshot = await requestSnapshot({}, sessionClient);
+      const snapshot = await sessionClient.requestSnapshot({});
       const annotations = snapshot.annotations;
       const nodeAnnotations = [...(annotations.nodeAnnotations ?? [])];
       const existingAnn = nodeAnnotations.find((ann) => ann.id === aliasId);

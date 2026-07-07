@@ -1,11 +1,12 @@
 /**
  * DynamicList - Array of string inputs with add/remove
  */
-import React from "react";
+import React, { useRef } from "react";
 import Box from "@mui/material/Box";
 import TextField from "@mui/material/TextField";
 
 import { AddItemButton, DeleteItemButton } from "./ListButtons";
+import { createRowIds, nextRowId } from "./listRowIds";
 
 interface DynamicListProps {
   items: string[];
@@ -24,11 +25,22 @@ export const DynamicList: React.FC<DynamicListProps> = ({
   disabled,
   hideAddButton
 }) => {
+  // Stable per-row identities so removing a row doesn't reassign focus/state to
+  // its neighbor. Add/remove handlers keep the id list aligned with the items
+  // array; an external length change (parent reset) regenerates all ids.
+  const rowIdsRef = useRef<number[] | null>(null);
+  if (rowIdsRef.current === null || rowIdsRef.current.length !== items.length) {
+    rowIdsRef.current = createRowIds(items.length);
+  }
+  const rowIds = rowIdsRef.current;
+
   const handleAdd = () => {
+    rowIdsRef.current = [...rowIds, nextRowId()];
     onChange([...items, ""]);
   };
 
   const handleRemove = (index: number) => {
+    rowIdsRef.current = rowIds.filter((_, i) => i !== index);
     onChange(items.filter((_, i) => i !== index));
   };
 
@@ -42,7 +54,7 @@ export const DynamicList: React.FC<DynamicListProps> = ({
     <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
       {items.map((item, index) => (
         <DynamicListItem
-          key={index}
+          key={rowIds[index]}
           value={item}
           onChange={(value) => handleChange(index, value)}
           onRemove={() => handleRemove(index)}

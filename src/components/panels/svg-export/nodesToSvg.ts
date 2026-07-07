@@ -13,6 +13,7 @@ import {
   getRoleSvgType,
   escapeXml
 } from "./constants";
+import { sampleFontMetrics, truncateTextToWidth, type SampledFontMetrics } from "./textMetrics";
 
 // ============================================================================
 // Types
@@ -73,6 +74,23 @@ function clamp(value: number, min: number, max: number): number {
 function resolveNodeIconSize(nodeIconSize: number | undefined): number {
   if (typeof nodeIconSize !== "number" || !Number.isFinite(nodeIconSize)) return NODE_ICON_SIZE;
   return clamp(nodeIconSize, 12, 240);
+}
+
+/**
+ * Icon top-left in flow coordinates. Matches the canvas: the icon is
+ * horizontally centered within the measured node width.
+ */
+function getIconTopLeft(node: Node, iconSize: number): { x: number; y: number } {
+  let measuredWidth = iconSize;
+  if (typeof node.measured?.width === "number") {
+    measuredWidth = node.measured.width;
+  } else if (typeof node.width === "number") {
+    measuredWidth = node.width;
+  }
+  return {
+    x: node.position.x + (measuredWidth - iconSize) / 2,
+    y: node.position.y
+  };
 }
 
 // ============================================================================
@@ -160,26 +178,48 @@ function getNodeDirectionRotation(value: unknown): number {
 // Node Label Builder
 // ============================================================================
 
+const NODE_LABEL_FALLBACK_FONT_FAMILY = "system-ui, -apple-system, sans-serif";
+
+/**
+ * Font the canvas renders node labels with. Sampled from a live label so the
+ * exported pill sizes exactly like the canvas; falls back to constants when
+ * labels are hidden or no DOM exists.
+ */
+function resolveNodeLabelFont(): SampledFontMetrics {
+  return (
+    sampleFontMetrics(".topology-node-label") ?? {
+      fontFamily: NODE_LABEL_FALLBACK_FONT_FAMILY,
+      fontSizePx: NODE_LABEL.fontSize,
+      fontWeight: String(NODE_LABEL.fontWeight),
+      lineHeightPx: NODE_LABEL.fontSize * NODE_LABEL.lineHeight
+    }
+  );
+}
+
 /**
  * Build SVG for node label with background and text shadow
  * Positioned around the icon.
  */
-export function buildNodeLabelSvg(
+function buildNodeLabelSvg(
   label: string,
   iconX: number,
   iconY: number,
   iconSize: number,
+  labelFont: SampledFontMetrics,
   position?: string,
   direction?: string,
   labelBackgroundColor?: string
 ): string {
   if (!label) return "";
 
-  // Estimate text width (rough approximation)
-  const charWidth = NODE_LABEL.fontSize * 0.6;
-  const textWidth = Math.min(label.length * charWidth, NODE_LABEL.maxWidth);
+  // Measure real text width and emulate the canvas CSS ellipsis at maxWidth
+  const { text: displayLabel, width: textWidth } = truncateTextToWidth(
+    label,
+    labelFont,
+    NODE_LABEL.maxWidth
+  );
   const bgWidth = textWidth + NODE_LABEL.paddingX * 2;
-  const bgHeight = NODE_LABEL.fontSize + NODE_LABEL.paddingY * 2 + 2;
+  const bgHeight = labelFont.lineHeightPx + NODE_LABEL.paddingY * 2;
   const iconCenterX = iconX + iconSize / 2;
   const iconCenterY = iconY + iconSize / 2;
   const gap = NODE_LABEL.marginTop;
@@ -208,15 +248,7 @@ export function buildNodeLabelSvg(
   }
 
   const textX = bgX + bgWidth / 2;
-  const textY = bgY + NODE_LABEL.paddingY + NODE_LABEL.fontSize * 0.8;
   const textCenterY = bgY + bgHeight / 2;
-
-  // Truncate label if too long
-  let displayLabel = label;
-  if (label.length * charWidth > NODE_LABEL.maxWidth) {
-    const maxChars = Math.floor(NODE_LABEL.maxWidth / charWidth) - 1;
-    displayLabel = label.slice(0, maxChars) + "…";
-  }
 
   let svg = "";
   if (textRotation !== 0) {
@@ -232,12 +264,11 @@ export function buildNodeLabelSvg(
   svg += `fill="${bgColor}" rx="${NODE_LABEL.borderRadius}" ry="${NODE_LABEL.borderRadius}"/>`;
 
   // Label text with shadow filter
-  svg += `<text x="${textX}" y="${textY}" `;
-  svg += `font-size="${NODE_LABEL.fontSize}" font-weight="${NODE_LABEL.fontWeight}" `;
-  svg += `font-family="system-ui, -apple-system, sans-serif" `;
+  svg += `<text x="${textX}" y="${textCenterY}" `;
+  svg += `font-size="${labelFont.fontSizePx}" font-weight="${labelFont.fontWeight}" `;
+  svg += `font-family='${escapeXml(labelFont.fontFamily)}' `;
+  svg += `dominant-baseline="central" `;
   svg += `fill="${NODE_LABEL.color}" text-anchor="middle" `;
-  svg += `stroke="${NODE_LABEL.textStrokeColor}" stroke-width="${NODE_LABEL.textStrokeWidth}" `;
-  svg += `paint-order="stroke" stroke-linejoin="round" `;
   svg += `filter="url(#text-shadow)">`;
   svg += escapeXml(displayLabel);
   svg += `</text>`;
@@ -255,15 +286,15 @@ export function buildNodeLabelSvg(
 /**
  * Render a topology node (router, switch, etc.) to SVG
  */
-export function topologyNodeToSvg(
+function topologyNodeToSvg(
   node: Node,
+  labelFont: SampledFontMetrics,
   customIconMap?: CustomIconMap,
   nodeIconSize: number = NODE_ICON_SIZE
 ): string {
   const data = node.data as TopologyNodeData;
   const iconSize = resolveNodeIconSize(nodeIconSize);
-  const x = node.position.x;
-  const y = node.position.y;
+  const { x, y } = getIconTopLeft(node, iconSize);
   const label = data.label ?? node.id;
   const role = data.role ?? "pe";
   const iconColor = data.iconColor ?? DEFAULT_ICON_COLOR;
@@ -309,6 +340,7 @@ export function topologyNodeToSvg(
     x,
     y,
     iconSize,
+    labelFont,
     labelPosition,
     data.direction,
     data.labelBackgroundColor
@@ -326,11 +358,14 @@ export function topologyNodeToSvg(
  * Render a network node (host, mgmt-net, etc.) to SVG
  * Network nodes use the cloud icon with type-based colors
  */
-export function networkNodeToSvg(node: Node, nodeIconSize: number = NODE_ICON_SIZE): string {
+function networkNodeToSvg(
+  node: Node,
+  labelFont: SampledFontMetrics,
+  nodeIconSize: number = NODE_ICON_SIZE
+): string {
   const data = node.data as NetworkNodeData;
   const iconSize = resolveNodeIconSize(nodeIconSize);
-  const x = node.position.x;
-  const y = node.position.y;
+  const { x, y } = getIconTopLeft(node, iconSize);
   const label = data.label ?? node.id;
   const nodeType = data.nodeType ?? "host";
   const iconColor = getNetworkTypeColor(nodeType);
@@ -363,6 +398,7 @@ export function networkNodeToSvg(node: Node, nodeIconSize: number = NODE_ICON_SI
     x,
     y,
     iconSize,
+    labelFont,
     labelPosition,
     data.direction,
     data.labelBackgroundColor
@@ -387,6 +423,7 @@ export function renderNodesToSvg(
   renderOptions?: NodeSvgRenderOptions
 ): string {
   const nodeIconSize = resolveNodeIconSize(renderOptions?.nodeIconSize);
+  const labelFont = resolveNodeLabelFont();
   const skipTypes =
     annotationNodeTypes ??
     new Set(["free-text-annotation", "free-shape-annotation", "group-annotation"]);
@@ -401,9 +438,9 @@ export function renderNodesToSvg(
 
     // Render based on node type
     if (nodeType === "network-node") {
-      svg += networkNodeToSvg(node, nodeIconSize);
+      svg += networkNodeToSvg(node, labelFont, nodeIconSize);
     } else {
-      svg += topologyNodeToSvg(node, customIconMap, nodeIconSize);
+      svg += topologyNodeToSvg(node, labelFont, customIconMap, nodeIconSize);
     }
   }
 

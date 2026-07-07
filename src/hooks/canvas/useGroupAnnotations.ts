@@ -25,6 +25,8 @@ interface UseGroupAnnotationsParams {
   rfInstance: ReactFlowInstance | null;
   derived: UseDerivedAnnotationsReturn;
   sessionClient: TopologySessionClient;
+  /** Debounced whole-graph persist shared across annotation kinds (live apply). */
+  debouncedPersist: () => void;
   uiActions: Pick<AnnotationUIActions, "setEditingGroup" | "removeFromGroupSelection">;
 }
 
@@ -54,6 +56,7 @@ function toStringArray(value: unknown): string[] {
 export interface GroupAnnotationActions {
   editGroup: (id: string) => void;
   saveGroup: (data: GroupEditorData) => void;
+  applyGroupEdit: (data: GroupEditorData) => void;
   deleteGroup: (id: string) => void;
   handleAddGroup: () => void;
   createGroupAtPosition: (position: { x: number; y: number }) => void;
@@ -146,7 +149,8 @@ function reassignGroupMembers(
 }
 
 export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnnotationActions {
-  const { isLocked, onLockedAction, rfInstance, derived, sessionClient, uiActions } = params;
+  const { isLocked, onLockedAction, rfInstance, derived, sessionClient, debouncedPersist, uiActions } =
+    params;
   const canEditAnnotations = !isLocked;
 
   const persist = useCallback(() => {
@@ -209,6 +213,30 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
       persist();
     },
     [derived, persist]
+  );
+
+  /** Live apply from the group editor panel: merge form fields and persist debounced.
+   * Position/size stay canvas-authoritative (drag/resize persists them separately). */
+  const applyGroupEdit = useCallback(
+    (data: GroupEditorData) => {
+      const group = derived.groups.find((g) => g.id === data.id);
+      if (!group) return;
+
+      derived.updateGroup(data.id, {
+        name: data.name,
+        level: data.level,
+        backgroundColor: data.style.backgroundColor,
+        backgroundOpacity: data.style.backgroundOpacity,
+        borderColor: data.style.borderColor,
+        borderWidth: data.style.borderWidth,
+        borderStyle: data.style.borderStyle,
+        borderRadius: data.style.borderRadius,
+        labelColor: data.style.labelColor,
+        labelPosition: data.style.labelPosition
+      });
+      debouncedPersist();
+    },
+    [derived, debouncedPersist]
   );
 
   const deleteGroup = useCallback(
@@ -366,6 +394,7 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
     () => ({
       editGroup,
       saveGroup,
+      applyGroupEdit,
       deleteGroup,
       handleAddGroup,
       createGroupAtPosition,
@@ -375,6 +404,7 @@ export function useGroupAnnotations(params: UseGroupAnnotationsParams): GroupAnn
     [
       editGroup,
       saveGroup,
+      applyGroupEdit,
       deleteGroup,
       handleAddGroup,
       createGroupAtPosition,

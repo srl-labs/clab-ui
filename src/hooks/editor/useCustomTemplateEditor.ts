@@ -9,9 +9,9 @@ import {
   convertEditorDataToSaveData,
   convertEditorDataToTemplateData
 } from "../../core/utilities/customNodeConversions";
-import { useExtensionMessaging } from "../../messaging/extensionMessaging";
+import { useClabUiHost } from "../../host";
 
-export interface CustomTemplateEditorHandlers {
+interface CustomTemplateEditorHandlers {
   handleClose: () => void;
   handleSave: (data: NodeEditorData) => void;
   handleApply: (data: NodeEditorData) => void;
@@ -33,7 +33,7 @@ export function useCustomTemplateEditor(
   editingCustomTemplate: CustomTemplateEditorData | null,
   editCustomTemplate: (data: CustomTemplateEditorData | null) => void
 ): CustomTemplateEditorResult {
-  const { sendSaveCustomNode } = useExtensionMessaging();
+  const { topoViewer } = useClabUiHost();
 
   const editorData = useMemo(() => {
     if (!editingCustomTemplate) return null;
@@ -45,19 +45,19 @@ export function useCustomTemplateEditor(
       handleClose: () => editCustomTemplate(null),
       handleSave: (data: NodeEditorData) => {
         const saveData = convertEditorDataToSaveData(data, editingCustomTemplate?.originalName);
-        sendSaveCustomNode(saveData);
+        topoViewer.saveCustomNode(saveData as Record<string, unknown>);
         editCustomTemplate(null);
       },
       handleApply: (data: NodeEditorData) => {
         const saveData = convertEditorDataToSaveData(data, editingCustomTemplate?.originalName);
-        sendSaveCustomNode(saveData);
+        topoViewer.saveCustomNode(saveData as Record<string, unknown>);
         // Update editingCustomTemplate with applied values to keep form in sync
         // This prevents the form from resetting when custom-nodes-updated triggers a re-render
         const updatedTemplate = convertEditorDataToTemplateData(data, editingCustomTemplate);
         editCustomTemplate(updatedTemplate);
       }
     }),
-    [editingCustomTemplate, editCustomTemplate]
+    [editingCustomTemplate, editCustomTemplate, topoViewer]
   );
 
   return { editorData, handlers };

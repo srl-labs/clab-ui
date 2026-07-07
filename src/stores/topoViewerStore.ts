@@ -13,6 +13,7 @@ import {
 } from "../annotations/endpointLabelOffset";
 
 import { useAnnotationUIStore } from "./annotationUIStore";
+import { isRecord } from "../core/utilities/typeHelpers";
 
 // ============================================================================
 // Types
@@ -21,9 +22,9 @@ import { useAnnotationUIStore } from "./annotationUIStore";
 export type DeploymentState = "deployed" | "undeployed" | "unknown";
 export type LinkLabelMode = "show-all" | "on-select" | "hide" | "telemetry-style";
 export type NonTelemetryLinkLabelMode = Exclude<LinkLabelMode, "telemetry-style">;
-export type GridStyle = "dotted" | "quadratic";
-export type ProcessingMode = "deploy" | "destroy" | "start" | "stop" | "restart" | null;
-export type LifecycleLogStream = "stdout" | "stderr";
+type GridStyle = "dotted" | "quadratic";
+export type ProcessingMode = "deploy" | "destroy" | "apply" | "start" | "stop" | "restart" | null;
+type LifecycleLogStream = "stdout" | "stderr";
 export type LifecycleStatus = "running" | "success" | "error" | null;
 
 export interface LifecycleLogEntry {
@@ -35,6 +36,16 @@ export interface TopoViewerState {
   labName: string;
   mode: "edit" | "view";
   deploymentState: DeploymentState;
+  /**
+   * Whether the on-disk topology diverged from the deployed runtime state
+   * (i.e. apply would change something). `undefined` = unknown.
+   */
+  isDirty: boolean | undefined;
+  /**
+   * YAML content captured when the runtime is known to be in sync. Annotation
+   * file updates must not dirty apply state while this content is unchanged.
+   */
+  cleanYamlContent: string | undefined;
   labSettings?: LabSettings;
   yamlFileName: string;
   annotationsFileName: string;
@@ -95,6 +106,7 @@ export interface TopoViewerActions {
   // Mode and state
   setMode: (mode: "edit" | "view") => void;
   setDeploymentState: (state: DeploymentState) => void;
+  setDirty: (dirty: boolean | undefined) => void;
   toggleLock: () => void;
 
   // Rendering settings
@@ -152,6 +164,8 @@ const initialState: TopoViewerState = {
   labName: "",
   mode: "edit",
   deploymentState: "unknown",
+  isDirty: undefined,
+  cleanYamlContent: undefined,
   labSettings: undefined,
   yamlFileName: "topology.clab.yml",
   annotationsFileName: "topology.clab.yml.annotations.json",
@@ -202,10 +216,6 @@ const MAX_LIFECYCLE_LOG_LINES = 500;
 // Helper Functions
 // ============================================================================
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
 function isCustomNodeTemplate(value: unknown): value is CustomNodeTemplate {
   return isRecord(value) && typeof value.name === "string" && typeof value.kind === "string";
 }
@@ -228,6 +238,52 @@ function isCustomIconInfo(value: unknown): value is CustomIconInfo {
 function parseCustomIconInfos(value: unknown): CustomIconInfo[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is CustomIconInfo => isCustomIconInfo(entry));
+}
+
+function hasOwnProperty<T extends object, K extends PropertyKey>(
+  value: T,
+  key: K
+): value is T & Record<K, unknown> {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function resolveDirtyUpdate(
+  dirty: boolean | undefined,
+  yamlContent: string,
+  cleanYamlContent: string | undefined
+): Partial<Pick<TopoViewerState, "isDirty" | "cleanYamlContent">> {
+  if (dirty === false) {
+    return { isDirty: false, cleanYamlContent: yamlContent };
+  }
+  if (dirty === true) {
+    if (cleanYamlContent !== undefined && yamlContent === cleanYamlContent) {
+      return { isDirty: false };
+    }
+    return { isDirty: true };
+  }
+  return { isDirty: undefined };
+}
+
+function resolveInitialDataDirtyUpdate(
+  state: TopoViewerState,
+  data: Partial<TopoViewerState>
+): Partial<Pick<TopoViewerState, "isDirty" | "cleanYamlContent">> {
+  const hasYamlContent = hasOwnProperty(data, "yamlContent");
+  const yamlContent = data.yamlContent ?? state.yamlContent;
+  const fileChanged =
+    hasOwnProperty(data, "yamlFileName") && data.yamlFileName !== state.yamlFileName;
+  const cleanYamlContent = fileChanged ? undefined : state.cleanYamlContent;
+
+  if (hasOwnProperty(data, "isDirty")) {
+    return resolveDirtyUpdate(data.isDirty, yamlContent, cleanYamlContent);
+  }
+  if (fileChanged) {
+    return { isDirty: undefined, cleanYamlContent: undefined };
+  }
+  if (hasYamlContent && cleanYamlContent !== undefined) {
+    return { isDirty: yamlContent === cleanYamlContent ? false : true };
+  }
+  return {};
 }
 
 /** Parse non-topology bootstrap data from extension/dev host */
@@ -325,6 +381,10 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
 
   setDeploymentState: (deploymentState) => {
     set({ deploymentState });
+  },
+
+  setDirty: (isDirty) => {
+    set((state) => resolveDirtyUpdate(isDirty, state.yamlContent, state.cleanYamlContent));
   },
 
   toggleLock: () => {
@@ -446,30 +506,28 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
 
   // Processing state
   setProcessing: (isProcessing, mode) => {
-    set((state) => {
-      const next: Partial<TopoViewerState> = {
-        isProcessing
-      };
+    const next: Partial<TopoViewerState> = {
+      isProcessing
+    };
 
-      if (isProcessing) {
-        next.processingMode = mode ?? null;
-        next.lifecycleModalOpen = true;
-        next.lifecycleStatus = "running";
-        next.lifecycleStatusMessage = null;
-        next.editingNode = null;
-        next.editingEdge = null;
-        next.editingImpairment = null;
-        next.editingNetwork = null;
-        next.editingCustomTemplate = null;
-        next.selectedNode = null;
-        next.selectedEdge = null;
-        next.lifecycleLogs = [];
-      } else if (mode) {
-        next.processingMode = mode;
-      }
+    if (isProcessing) {
+      next.processingMode = mode ?? null;
+      next.lifecycleModalOpen = true;
+      next.lifecycleStatus = "running";
+      next.lifecycleStatusMessage = null;
+      next.editingNode = null;
+      next.editingEdge = null;
+      next.editingImpairment = null;
+      next.editingNetwork = null;
+      next.editingCustomTemplate = null;
+      next.selectedNode = null;
+      next.selectedEdge = null;
+      next.lifecycleLogs = [];
+    } else if (mode) {
+      next.processingMode = mode;
+    }
 
-      return { ...state, ...next };
-    });
+    set(next);
   },
 
   setLifecycleStatus: (lifecycleStatus, lifecycleStatusMessage = null) => {
@@ -530,9 +588,15 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
 
   // Initial data — if mode changes, clear selection & editing so stale tabs disappear
   setInitialData: (data) => {
-    if (data.mode && data.mode !== get().mode) {
+    const currentState = get();
+    const nextData = {
+      ...data,
+      ...resolveInitialDataDirtyUpdate(currentState, data)
+    };
+
+    if (data.mode && data.mode !== currentState.mode) {
       set({
-        ...data,
+        ...nextData,
         selectedNode: null,
         selectedEdge: null,
         editingNode: null,
@@ -547,7 +611,7 @@ export const useTopoViewerStore = createWithEqualityFn<TopoViewerStore>((set, ge
       if (annotationUI.editingTrafficRateAnnotation) annotationUI.closeTrafficRateEditor();
       if (annotationUI.editingGroup) annotationUI.closeGroupEditor();
     } else {
-      set(data);
+      set(nextData);
     }
   }
 }));
@@ -565,34 +629,12 @@ export const useLabName = () => useTopoViewerStore((state) => state.labName);
 /** Get deployment state */
 export const useDeploymentState = () => useTopoViewerStore((state) => state.deploymentState);
 
-/** Get selected node */
-export const useSelectedNode = () => useTopoViewerStore((state) => state.selectedNode);
-
-/** Get selected edge */
-export const useSelectedEdge = () => useTopoViewerStore((state) => state.selectedEdge);
-
-/** Get editing node */
-export const useEditingNode = () => useTopoViewerStore((state) => state.editingNode);
-
-/** Get editing edge */
-export const useEditingEdge = () => useTopoViewerStore((state) => state.editingEdge);
-
-/** Get editing impairment edge */
-export const useEditingImpairment = () => useTopoViewerStore((state) => state.editingImpairment);
+/** Get dirty state (on-disk topology diverged from runtime; undefined = unknown) */
+export const useIsDirty = () => useTopoViewerStore((state) => state.isDirty);
 
 /** Get lock state */
 export const useIsLocked = () =>
   useTopoViewerStore((state) => state.isLocked || state.isProcessing);
-
-/** Get link label mode */
-export const useLinkLabelMode = () => useTopoViewerStore((state) => state.linkLabelMode);
-
-/** Get dummy link visibility */
-export const useShowDummyLinks = () => useTopoViewerStore((state) => state.showDummyLinks);
-
-/** Get endpoint label offset */
-export const useEndpointLabelOffset = () =>
-  useTopoViewerStore((state) => state.endpointLabelOffset);
 
 /** Get Telemetry label rendering settings */
 export const useTelemetryLabelSettings = () =>
@@ -607,73 +649,14 @@ export const useTelemetryLabelSettings = () =>
     shallow
   );
 
-export const useGridColor = () => useTopoViewerStore((state) => state.gridColor);
-export const useGridBgColor = () => useTopoViewerStore((state) => state.gridBgColor);
-
 /** Get processing state */
 export const useIsProcessing = () => useTopoViewerStore((state) => state.isProcessing);
-
-/** Get processing mode */
-export const useProcessingMode = () => useTopoViewerStore((state) => state.processingMode);
-
-/** Get edge annotations */
-export const useEdgeAnnotations = () => useTopoViewerStore((state) => state.edgeAnnotations);
 
 /** Get custom nodes */
 export const useCustomNodes = () => useTopoViewerStore((state) => state.customNodes);
 
 /** Get custom icons */
 export const useCustomIcons = () => useTopoViewerStore((state) => state.customIcons);
-
-/** Get TopoViewer state (convenience) */
-export const useTopoViewerState = () =>
-  useTopoViewerStore(
-    (state) => ({
-      labName: state.labName,
-      mode: state.mode,
-      deploymentState: state.deploymentState,
-      labSettings: state.labSettings,
-      yamlFileName: state.yamlFileName,
-      annotationsFileName: state.annotationsFileName,
-      yamlContent: state.yamlContent,
-      annotationsContent: state.annotationsContent,
-      canUndo: state.canUndo,
-      canRedo: state.canRedo,
-      selectedNode: state.selectedNode,
-      selectedEdge: state.selectedEdge,
-      editingImpairment: state.editingImpairment,
-      editingNode: state.editingNode,
-      editingEdge: state.editingEdge,
-      editingNetwork: state.editingNetwork,
-      isLocked: state.isLocked,
-      linkLabelMode: state.linkLabelMode,
-      lastNonTelemetryLinkLabelMode: state.lastNonTelemetryLinkLabelMode,
-      showDummyLinks: state.showDummyLinks,
-      endpointLabelOffsetEnabled: state.endpointLabelOffsetEnabled,
-      endpointLabelOffset: state.endpointLabelOffset,
-      telemetryNodeSizePx: state.telemetryNodeSizePx,
-      telemetryInterfaceSizePercent: state.telemetryInterfaceSizePercent,
-      showRateLabels: state.showRateLabels,
-      telemetryGlobalInterfaceOverrideSelection: state.telemetryGlobalInterfaceOverrideSelection,
-      telemetryInterfaceLabelOverrides: state.telemetryInterfaceLabelOverrides,
-      gridLineWidth: state.gridLineWidth,
-      gridStyle: state.gridStyle,
-      edgeAnnotations: state.edgeAnnotations,
-      customNodes: state.customNodes,
-      defaultNode: state.defaultNode,
-      customIcons: state.customIcons,
-      editingCustomTemplate: state.editingCustomTemplate,
-      isProcessing: state.isProcessing,
-      processingMode: state.processingMode,
-      lifecycleModalOpen: state.lifecycleModalOpen,
-      lifecycleStatus: state.lifecycleStatus,
-      lifecycleStatusMessage: state.lifecycleStatusMessage,
-      lifecycleLogs: state.lifecycleLogs,
-      editorDataVersion: state.editorDataVersion,
-      customNodeError: state.customNodeError
-    }),
-    shallow
-  );
 
 /** Get TopoViewer actions (stable reference) */
 export const useTopoViewerActions = () =>
@@ -687,6 +670,7 @@ export const useTopoViewerActions = () =>
       editNetwork: state.editNetwork,
       setMode: state.setMode,
       setDeploymentState: state.setDeploymentState,
+      setDirty: state.setDirty,
       toggleLock: state.toggleLock,
       setLinkLabelMode: state.setLinkLabelMode,
       toggleDummyLinks: state.toggleDummyLinks,

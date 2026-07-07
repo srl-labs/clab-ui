@@ -178,53 +178,20 @@ export function useSourceNodePosition(linkSourceNode: string | null, nodes: Node
   return positionRef.current;
 }
 
-/**
- * Hook for keyboard delete handlers
- */
-export function useKeyboardDeleteHandlers(
-  mode: "view" | "edit",
-  isLocked: boolean,
-  selectedNode: string | null,
-  selectedEdge: string | null,
-  handleDeleteNode: (nodeId: string) => void,
-  handleDeleteEdge: (edgeId: string) => void
-) {
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Delete" && event.key !== "Backspace") return;
-      if (mode !== "edit" || isLocked) return;
-
-      if (!(event.target instanceof HTMLElement)) return;
-      const tagName = event.target.tagName;
-      if (tagName === "INPUT" || tagName === "TEXTAREA") return;
-
-      if (selectedNode !== null && selectedNode.length > 0) {
-        handleDeleteNode(selectedNode);
-      } else if (selectedEdge !== null && selectedEdge.length > 0) {
-        handleDeleteEdge(selectedEdge);
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, isLocked, selectedNode, selectedEdge, handleDeleteNode, handleDeleteEdge]);
-}
-
 /** Position entry for undo/redo */
 interface PositionEntry {
   id: string;
   position: { x: number; y: number };
 }
 
-/** Apply position update to a single node */
-function applyPositionToNode(node: Node, positions: PositionEntry[]): Node {
-  const posEntry = positions.find((p) => p.id === node.id);
-  return posEntry ? { ...node, position: posEntry.position } : node;
-}
-
 /** Create node updater function for position changes */
 function createPositionUpdater(positions: PositionEntry[]) {
-  return (currentNodes: Node[]) => currentNodes.map((node) => applyPositionToNode(node, positions));
+  const positionsById = new Map(positions.map((p) => [p.id, p.position]));
+  return (currentNodes: Node[]) =>
+    currentNodes.map((node) => {
+      const position = positionsById.get(node.id);
+      return position ? { ...node, position } : node;
+    });
 }
 
 /**

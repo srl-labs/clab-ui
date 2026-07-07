@@ -4,7 +4,7 @@
 import type { GroupStyleAnnotation } from "../../core/types/topology";
 
 /** Check if a position is inside a group's bounding box */
-export function isPositionInsideGroup(
+function isPositionInsideGroup(
   position: { x: number; y: number },
   group: GroupStyleAnnotation
 ): boolean {
@@ -39,14 +39,6 @@ export function findDeepestGroupAtPosition(
   return deepest;
 }
 
-/** Alias for findDeepestGroupAtPosition */
-export function findGroupForNodeAtPosition(
-  position: { x: number; y: number },
-  groups: GroupStyleAnnotation[]
-): GroupStyleAnnotation | null {
-  return findDeepestGroupAtPosition(position, groups);
-}
-
 /** Generate a unique group ID */
 export function generateGroupId(existingGroups: GroupStyleAnnotation[]): string {
   const existingIds = new Set(existingGroups.map((g) => g.id));
@@ -58,7 +50,7 @@ export function generateGroupId(existingGroups: GroupStyleAnnotation[]): string 
 }
 
 /** Check if a group's bounds are fully contained within another group */
-export function isGroupInsideGroup(
+function isGroupInsideGroup(
   inner: GroupStyleAnnotation,
   outer: GroupStyleAnnotation
 ): boolean {
@@ -120,31 +112,4 @@ export function findParentGroupForBounds(
   }
 
   return parent;
-}
-
-/** Handle node membership change between groups */
-export function handleNodeMembershipChange(
-  nodeId: string,
-  oldGroupId: string | null,
-  newGroupId: string | null,
-  targetGroup: GroupStyleAnnotation | null,
-  actions: {
-    addNodeToGroup: (nodeId: string, groupId: string) => void;
-    removeNodeFromGroup: (nodeId: string) => void;
-  },
-  onMembershipWillChange?: (
-    nodeId: string,
-    oldGroupId: string | null,
-    newGroupId: string | null
-  ) => void
-): void {
-  // Notify about the change
-  onMembershipWillChange?.(nodeId, oldGroupId, newGroupId);
-
-  // Apply the change
-  if (newGroupId !== null && targetGroup !== null) {
-    actions.addNodeToGroup(nodeId, newGroupId);
-  } else if (oldGroupId !== null) {
-    actions.removeNodeFromGroup(nodeId);
-  }
 }

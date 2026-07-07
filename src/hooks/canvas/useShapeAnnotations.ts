@@ -14,6 +14,8 @@ interface UseShapeAnnotationsParams {
   onLockedAction: () => void;
   derived: UseDerivedAnnotationsReturn;
   sessionClient: TopologySessionClient;
+  /** Debounced whole-graph persist shared across annotation kinds (live apply). */
+  debouncedPersist: () => void;
   uiState: Pick<AnnotationUIState, "isAddShapeMode" | "pendingShapeType" | "selectedShapeIds">;
   uiActions: Pick<
     AnnotationUIActions,
@@ -29,6 +31,7 @@ export interface ShapeAnnotationActions {
   createShapeAtPosition: (position: { x: number; y: number }, shapeType?: string) => void;
   editShapeAnnotation: (id: string) => void;
   saveShapeAnnotation: (annotation: FreeShapeAnnotation) => void;
+  applyShapeAnnotationEdit: (annotation: FreeShapeAnnotation) => void;
   deleteShapeAnnotation: (id: string) => void;
   deleteSelectedShapeAnnotations: () => void;
   onShapeRotationStart: (id: string) => void;
@@ -36,8 +39,30 @@ export interface ShapeAnnotationActions {
   handleShapeCanvasClick: (position: { x: number; y: number }) => void;
 }
 
+/** Fields the shape editor form may change. Position, group membership and geo
+ * coordinates stay canvas-authoritative. */
+function pickShapeEditableFields(annotation: FreeShapeAnnotation): Partial<FreeShapeAnnotation> {
+  return {
+    shapeType: annotation.shapeType,
+    width: annotation.width,
+    height: annotation.height,
+    fillColor: annotation.fillColor,
+    fillOpacity: annotation.fillOpacity,
+    borderColor: annotation.borderColor,
+    borderWidth: annotation.borderWidth,
+    borderStyle: annotation.borderStyle,
+    borderRadius: annotation.borderRadius,
+    cornerRadius: annotation.cornerRadius,
+    rotation: annotation.rotation,
+    lineStartArrow: annotation.lineStartArrow,
+    lineEndArrow: annotation.lineEndArrow,
+    lineArrowSize: annotation.lineArrowSize
+  };
+}
+
 export function useShapeAnnotations(params: UseShapeAnnotationsParams): ShapeAnnotationActions {
-  const { isLocked, onLockedAction, derived, sessionClient, uiState, uiActions } = params;
+  const { isLocked, onLockedAction, derived, sessionClient, debouncedPersist, uiState, uiActions } =
+    params;
   const canEditAnnotations = !isLocked;
 
   const lastShapeStyleRef = useRef<Partial<FreeShapeAnnotation>>({});
@@ -138,6 +163,25 @@ export function useShapeAnnotations(params: UseShapeAnnotationsParams): ShapeAnn
     [derived, persist]
   );
 
+  /** Live apply from the shape editor panel: merge editable fields and persist debounced. */
+  const applyShapeAnnotationEdit = useCallback(
+    (annotation: FreeShapeAnnotation) => {
+      if (!derived.shapeAnnotations.some((s) => s.id === annotation.id)) return;
+      derived.updateShapeAnnotation(annotation.id, pickShapeEditableFields(annotation));
+      lastShapeStyleRef.current = {
+        fillColor: annotation.fillColor,
+        fillOpacity: annotation.fillOpacity,
+        borderColor: annotation.borderColor,
+        borderWidth: annotation.borderWidth,
+        borderStyle: annotation.borderStyle,
+        borderRadius: annotation.borderRadius,
+        rotation: annotation.rotation
+      };
+      debouncedPersist();
+    },
+    [derived, debouncedPersist]
+  );
+
   const deleteShapeAnnotation = useCallback(
     (id: string) => {
       derived.deleteShapeAnnotation(id);
@@ -175,11 +219,21 @@ export function useShapeAnnotations(params: UseShapeAnnotationsParams): ShapeAnn
     (position: { x: number; y: number }) => {
       if (!uiState.isAddShapeMode) return;
       const newAnnotation = buildShapeAnnotation(position, uiState.pendingShapeType);
+      // The editor live-applies, so the shape must exist before it opens.
+      derived.addShapeAnnotation(newAnnotation);
+      persist();
       uiActions.setEditingShapeAnnotation(newAnnotation);
       uiActions.disableAddShapeMode();
       logger.log.info(`[FreeShape] Creating annotation at (${position.x}, ${position.y})`);
     },
-    [uiState.isAddShapeMode, uiState.pendingShapeType, buildShapeAnnotation, uiActions]
+    [
+      uiState.isAddShapeMode,
+      uiState.pendingShapeType,
+      buildShapeAnnotation,
+      derived,
+      persist,
+      uiActions
+    ]
   );
 
   return useMemo(
@@ -188,6 +242,7 @@ export function useShapeAnnotations(params: UseShapeAnnotationsParams): ShapeAnn
       createShapeAtPosition,
       editShapeAnnotation,
       saveShapeAnnotation,
+      applyShapeAnnotationEdit,
       deleteShapeAnnotation,
       deleteSelectedShapeAnnotations,
       onShapeRotationStart,
@@ -199,6 +254,7 @@ export function useShapeAnnotations(params: UseShapeAnnotationsParams): ShapeAnn
       createShapeAtPosition,
       editShapeAnnotation,
       saveShapeAnnotation,
+      applyShapeAnnotationEdit,
       deleteShapeAnnotation,
       deleteSelectedShapeAnnotations,
       onShapeRotationStart,

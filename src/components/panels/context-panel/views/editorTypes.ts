@@ -1,8 +1,7 @@
 import type {
   FreeTextAnnotation,
   FreeShapeAnnotation,
-  TrafficRateAnnotation,
-  GroupStyleAnnotation
+  TrafficRateAnnotation
 } from "../../../../core/types/topology";
 import type { GroupEditorData } from "../../../../hooks/canvas";
 import type { LinkImpairmentData } from "../../link-impairment/types";
@@ -24,9 +23,8 @@ export interface EditorBannerRef {
 export interface ContextPanelEditorState {
   editingNodeData: NodeEditorData | null;
   editingNodeInheritedProps: string[];
-  selectedNodeVisualData: NodeEditorData | null;
-  selectedNodeVisualInheritedProps: string[];
-  enableSelectedNodeVisualEditor: boolean;
+  /** Open the full editor for the currently selected node (Edit tab on a selection). */
+  onOpenSelectedNodeEditor: () => void;
   nodeEditorHandlers: {
     handleClose: () => void;
     handleSave: (data: NodeEditorData) => void;
@@ -58,32 +56,27 @@ export interface ContextPanelEditorState {
   };
   editingTextAnnotation: FreeTextAnnotation | null;
   textAnnotationHandlers: {
-    onSave: (annotation: FreeTextAnnotation) => void;
-    onPreview?: (annotation: FreeTextAnnotation) => boolean;
-    onPreviewDelete?: (id: string) => void;
+    /** Live apply: update the canvas immediately and persist debounced. */
+    onApply: (annotation: FreeTextAnnotation) => void;
     onClose: () => void;
     onDelete: (id: string) => void;
   };
   editingShapeAnnotation: FreeShapeAnnotation | null;
   shapeAnnotationHandlers: {
-    onSave: (annotation: FreeShapeAnnotation) => void;
-    onPreview?: (annotation: FreeShapeAnnotation) => boolean;
-    onPreviewDelete?: (id: string) => void;
+    onApply: (annotation: FreeShapeAnnotation) => void;
     onClose: () => void;
     onDelete: (id: string) => void;
   };
   editingTrafficRateAnnotation: TrafficRateAnnotation | null;
   trafficRateAnnotationHandlers: {
-    onSave: (annotation: TrafficRateAnnotation) => void;
-    onPreview?: (annotation: TrafficRateAnnotation) => void;
+    onApply: (annotation: TrafficRateAnnotation) => void;
     onClose: () => void;
     onDelete: (id: string) => void;
   };
   editingGroup: GroupEditorData | null;
   groupHandlers: {
-    onSave: (data: GroupEditorData) => void;
+    onApply: (data: GroupEditorData) => void;
     onClose: () => void;
     onDelete: (groupId: string) => void;
-    onStylePreview: (groupId: string, style: Partial<GroupStyleAnnotation>) => void;
   };
 }

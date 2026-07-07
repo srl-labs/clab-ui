@@ -42,11 +42,6 @@ import {
   clampTelemetryNodeSizePx
 } from "../utils/telemetryInterfaceLabels";
 
-import {
-  dispatchTopologyCommand,
-  getHostCommandQueueScope,
-  setHostRevision
-} from "./topologyHostClient";
 import { enqueueHostCommand } from "./topologyHostQueue";
 
 export interface ApplySnapshotOptions {
@@ -66,10 +61,11 @@ const LEGACY_MIN_MEDIA_TEXT_HEIGHT = 48;
 type TelemetryStyle = NonNullable<NonNullable<TopologyAnnotations["viewerSettings"]>["style"]>;
 const GRID_LINE_WIDTH_MIN = 0.00001;
 const GRID_LINE_WIDTH_MAX = 2;
+const STANDALONE_MARKDOWN_IMAGE_REGEX = /^\s*!\[[^\]]*\]\([^)]+\)\s*$/u;
 
 function isStandaloneMarkdownImage(value: unknown): boolean {
   if (!isNonEmptyString(value)) return false;
-  return /^\s*!\[[^\]]*\]\([^)]+\)\s*$/u.test(value);
+  return STANDALONE_MARKDOWN_IMAGE_REGEX.test(value);
 }
 
 function inferLegacyMediaTextHeight(width: number): number {
@@ -364,24 +360,24 @@ async function persistLayoutPositions(
   if (positions.length === 0) return;
   try {
     const response = await enqueueHostCommand(() =>
-      dispatchTopologyCommand({
+      client.dispatchCommand({
         command: "savePositions",
         payload: positions,
         skipHistory: true
-      }, client),
-      getHostCommandQueueScope(client)
+      }),
+      client
     );
     if (response.type === "topology-host:ack") {
       if (response.snapshot) {
-        setHostRevision(response.snapshot.revision, client);
+        client.setRevision(response.snapshot.revision);
         syncUndoRedo(response.snapshot);
       } else if (typeof response.revision === "number") {
-        setHostRevision(response.revision, client);
+        client.setRevision(response.revision);
       }
       return;
     }
     if (response.type === "topology-host:reject") {
-      setHostRevision(response.snapshot.revision, client);
+      client.setRevision(response.snapshot.revision);
       syncUndoRedo(response.snapshot);
       return;
     }
@@ -672,6 +668,9 @@ function buildInitialTopoViewerData(
     labName: snapshot.labName,
     mode: snapshot.mode,
     deploymentState: snapshot.deploymentState,
+    // Only overwrite the dirty flag when the host actually knows it; hosts that
+    // track sync state elsewhere (e.g. via dry-run apply) omit it from snapshots.
+    ...(snapshot.dirty !== undefined ? { isDirty: snapshot.dirty } : {}),
     labSettings: snapshot.labSettings,
     yamlFileName: snapshot.yamlFileName,
     annotationsFileName: snapshot.annotationsFileName,
@@ -701,7 +700,7 @@ export function applySnapshotToStores(
   options: ApplySnapshotOptions = {},
   client: TopologySessionClient
 ): void {
-  setHostRevision(snapshot.revision, client);
+  client.setRevision(snapshot.revision);
 
   const annotations = normalizeAnnotations(snapshot.annotations);
   const edges = snapshot.edges;

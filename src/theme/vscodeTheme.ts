@@ -180,6 +180,58 @@ export const structuralOverrides: NonNullable<ThemeOptions["components"]> = {
   MuiTabs: { styleOverrides: { root: { minHeight: 36 } } },
   MuiTab: { styleOverrides: { root: { minHeight: 36, padding: "6px 12px" } } },
   MuiPaper: { styleOverrides: { root: { backgroundImage: "none" } } },
+  // MUI derives standard/filled Alert colors by running darken()/lighten() on
+  // palette.*.main at render — those can't parse our var() palette, so the text
+  // and background collapse to the same color (unreadable until selected). Set
+  // explicit, theme-aware colors from VS Code's purpose-built validation vars.
+  MuiAlert: {
+    styleOverrides: {
+      standardError: {
+        backgroundColor: "var(--vscode-inputValidation-errorBackground)",
+        color: "var(--vscode-inputValidation-errorForeground, var(--vscode-foreground))",
+        border: "1px solid var(--vscode-inputValidation-errorBorder)",
+        "& .MuiAlert-icon": { color: EDITOR_ERROR_FOREGROUND }
+      },
+      filledError: {
+        backgroundColor: "var(--vscode-inputValidation-errorBackground)",
+        color: "var(--vscode-inputValidation-errorForeground, var(--vscode-foreground))",
+        border: "1px solid var(--vscode-inputValidation-errorBorder)"
+      },
+      standardWarning: {
+        backgroundColor: "var(--vscode-inputValidation-warningBackground)",
+        color: "var(--vscode-inputValidation-warningForeground, var(--vscode-foreground))",
+        border: "1px solid var(--vscode-inputValidation-warningBorder)",
+        "& .MuiAlert-icon": { color: EDITOR_WARNING_FOREGROUND }
+      },
+      filledWarning: {
+        backgroundColor: "var(--vscode-inputValidation-warningBackground)",
+        color: "var(--vscode-inputValidation-warningForeground, var(--vscode-foreground))",
+        border: "1px solid var(--vscode-inputValidation-warningBorder)"
+      },
+      standardInfo: {
+        backgroundColor: "var(--vscode-inputValidation-infoBackground)",
+        color: "var(--vscode-inputValidation-infoForeground, var(--vscode-foreground))",
+        border: "1px solid var(--vscode-inputValidation-infoBorder)",
+        "& .MuiAlert-icon": { color: EDITOR_INFO_FOREGROUND }
+      },
+      filledInfo: {
+        backgroundColor: "var(--vscode-inputValidation-infoBackground)",
+        color: "var(--vscode-inputValidation-infoForeground, var(--vscode-foreground))",
+        border: "1px solid var(--vscode-inputValidation-infoBorder)"
+      },
+      standardSuccess: {
+        backgroundColor: vscodePalette.background.paper,
+        color: vscodePalette.text.primary,
+        border: `1px solid ${TESTING_ICON_PASSED}`,
+        "& .MuiAlert-icon": { color: TESTING_ICON_PASSED }
+      },
+      filledSuccess: {
+        backgroundColor: vscodePalette.background.paper,
+        color: vscodePalette.text.primary,
+        border: `1px solid ${TESTING_ICON_PASSED}`
+      }
+    }
+  },
   MuiAppBar: {
     styleOverrides: {
       root: { backgroundColor: vscodePalette.background.paper, color: vscodePalette.text.primary }

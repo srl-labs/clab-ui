@@ -13,12 +13,6 @@ import type { TopologySessionClient } from "../session/client";
 import { getRecordUnknown } from "../core/utilities/typeHelpers";
 import { useTopoViewerStore } from "../stores/topoViewerStore";
 
-import {
-  dispatchTopologyCommand,
-  getHostCommandQueueScope,
-  requestSnapshot,
-  setHostRevision
-} from "./topologyHostClient";
 import { enqueueHostCommand } from "./topologyHostQueue";
 import { applySnapshotToStores } from "./topologyHostSync";
 
@@ -75,7 +69,7 @@ async function handleHostResponse(
   };
 
   const setRevisionAndNotify = (revision: number, snapshot?: TopologySnapshot) => {
-    setHostRevision(revision, client);
+    client.setRevision(revision);
     if (snapshot) {
       syncUndoRedo(snapshot);
       // Even when applySnapshot=false (quiet updates), keep source editors in sync.
@@ -127,7 +121,7 @@ async function handleAckResponse(
   }
 
   if (applySnapshot) {
-    const snapshot = await requestSnapshot({}, client);
+    const snapshot = await client.requestSnapshot({});
     applySnapshotAndNotify(snapshot);
     return response;
   }
@@ -163,10 +157,10 @@ export async function executeTopologyCommand(
   }
   const run = async () => {
     const applySnapshot = options.applySnapshot ?? true;
-    const response = await dispatchTopologyCommand(command, client);
+    const response = await client.dispatchCommand(command);
     return handleHostResponse(response, applySnapshot, client);
   };
-  return enqueueHostCommand(run, getHostCommandQueueScope(client));
+  return enqueueHostCommand(run, client);
 }
 
 export async function executeTopologyCommands(
@@ -182,7 +176,7 @@ export async function executeTopologyCommands(
     let lastResponse: TopologyHostResponseMessage | null = null;
 
     for (const command of commands) {
-      const response = await dispatchTopologyCommand(command, client);
+      const response = await client.dispatchCommand(command);
       lastResponse = await handleHostResponse(response, false, client);
 
       if (response.type === HOST_REJECT) {
@@ -197,21 +191,21 @@ export async function executeTopologyCommands(
       if (lastResponse?.type === HOST_ACK && lastResponse.snapshot) {
         applySnapshotToStores(lastResponse.snapshot, {}, client);
       } else {
-        const snapshot = await requestSnapshot({}, client);
+        const snapshot = await client.requestSnapshot({});
         applySnapshotToStores(snapshot, {}, client);
       }
     }
 
     return lastResponse;
   };
-  return enqueueHostCommand(run, getHostCommandQueueScope(client));
+  return enqueueHostCommand(run, client);
 }
 
 export async function refreshTopologySnapshot(
   options: { externalChange?: boolean } = {},
   client: TopologySessionClient
 ): Promise<TopologySnapshot> {
-  const snapshot = await requestSnapshot(options, client);
+  const snapshot = await client.requestSnapshot(options);
   applySnapshotToStores(snapshot, {}, client);
   notifyDevHostUpdate();
   return snapshot;

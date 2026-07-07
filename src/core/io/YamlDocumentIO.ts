@@ -9,10 +9,7 @@ import * as YAML from "yaml";
 
 import type { FileSystemAdapter, SaveResult, IOLogger } from "./types";
 import { noopLogger } from "./types";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
+import { isRecord } from "../utilities/typeHelpers";
 
 /**
  * Creates a YAML scalar with double quotes for endpoint values
@@ -49,7 +46,7 @@ export function deepEqual(a: unknown, b: unknown): boolean {
 /**
  * Checks if a value should be persisted (not empty/undefined)
  */
-export function shouldPersist(value: unknown): boolean {
+function shouldPersist(value: unknown): boolean {
   if (value === undefined || value === null || value === "") return false;
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === "object") return Object.keys(value).length > 0;
@@ -77,13 +74,6 @@ export function setOrDelete(
  */
 export function parseYamlDocument(content: string): YAML.Document.Parsed {
   return YAML.parseDocument(content);
-}
-
-/**
- * Stringify YAML AST to string (preserves comments and formatting)
- */
-export function stringifyYamlDocument(doc: YAML.Document.Parsed): string {
-  return doc.toString();
 }
 
 /**

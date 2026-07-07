@@ -20,7 +20,7 @@ function getFiniteNumberAt(values: unknown[], index: number): number | undefined
  * @param fallbackFreq - Fallback frequency if lookup fails (default: 440Hz)
  * @returns Frequency in Hz
  */
-export function getScaleFrequency(
+function getScaleFrequency(
   scaleDegree: number,
   octave: number,
   scale: ScaleDefinition,
@@ -48,7 +48,7 @@ export function getScaleFrequency(
  * A minor scale frequencies
  * Scale degrees: 1=A, 2=B, 3=C, 4=D, 5=E, 6=F, 7=G
  */
-export const A_MINOR_SCALE: ScaleDefinition = {
+const A_MINOR_SCALE: ScaleDefinition = {
   [-2]: [55.0, 61.74, 65.41, 73.42, 82.41, 87.31, 98.0],
   [-1]: [110.0, 123.47, 130.81, 146.83, 164.81, 174.61, 196.0],
   0: [220.0, 246.94, 261.63, 293.66, 329.63, 349.23, 392.0],
@@ -59,7 +59,7 @@ export const A_MINOR_SCALE: ScaleDefinition = {
  * B minor scale frequencies
  * Scale degrees: 1=B, 2=C#, 3=D, 4=E, 5=F#, 6=G, 7=A
  */
-export const B_MINOR_SCALE: ScaleDefinition = {
+const B_MINOR_SCALE: ScaleDefinition = {
   [-3]: [30.87, 34.65, 36.71, 41.2, 46.25, 49.0, 55.0],
   [-2]: [61.74, 69.3, 73.42, 82.41, 92.5, 98.0, 110.0],
   [-1]: [123.47, 138.59, 146.83, 164.81, 185.0, 196.0, 220.0],
@@ -72,7 +72,7 @@ export const B_MINOR_SCALE: ScaleDefinition = {
  * C minor scale frequencies
  * Scale degrees: 1=C, 2=D, 3=Eb, 4=F, 5=G, 6=Ab, 7=Bb
  */
-export const C_MINOR_SCALE: ScaleDefinition = {
+const C_MINOR_SCALE: ScaleDefinition = {
   3: [130.81, 146.83, 155.56, 174.61, 196.0, 207.65, 233.08],
   4: [261.63, 293.66, 311.13, 349.23, 392.0, 415.3, 466.16],
   5: [523.25, 587.33, 622.25, 698.46, 783.99, 830.61, 932.33],

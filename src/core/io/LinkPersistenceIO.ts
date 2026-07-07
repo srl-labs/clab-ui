@@ -9,6 +9,7 @@ import * as YAML from "yaml";
 
 import type { SaveResult, IOLogger } from "./types";
 import { ERROR_LINKS_NOT_SEQ, noopLogger } from "./types";
+import { SINGLE_ENDPOINT_TYPES } from "../utilities/LinkTypes";
 import { createQuotedScalar, setOrDelete } from "./YamlDocumentIO";
 
 /**
@@ -66,16 +67,6 @@ export interface LinkSaveData {
   originalSourceEndpoint?: string;
   originalTargetEndpoint?: string;
 }
-
-/** Link types that use single endpoint format (type + endpoint, not endpoints array) */
-const SINGLE_ENDPOINT_TYPES = new Set([
-  "host",
-  "mgmt-net",
-  "macvlan",
-  "vxlan",
-  "vxlan-stitch",
-  "dummy"
-]);
 
 function hasText(value: string | undefined): value is string {
   return value !== undefined && value !== "";
@@ -366,28 +357,30 @@ function createExtendedLink(doc: YAML.Document, linkData: LinkSaveData): YAML.YA
   return linkMap;
 }
 
+/** Extended-format property keys checked when deciding the link YAML format */
+const EXTENDED_PROPERTY_KEYS = [
+  "extMtu",
+  "extSourceMac",
+  "extTargetMac",
+  "extSourceIpv4",
+  "extSourceIpv6",
+  "extTargetIpv4",
+  "extTargetIpv6",
+  "extHostInterface",
+  "extMode",
+  "extRemote",
+  "extVni",
+  "extDstPort",
+  "extSrcPort"
+];
+
 /**
  * Checks if link data has extended properties requiring extended format
  */
 function hasExtendedProperties(linkData: LinkSaveData): boolean {
   const extra = linkData.extraData ?? {};
-  const extendedKeys = [
-    "extMtu",
-    "extSourceMac",
-    "extTargetMac",
-    "extSourceIpv4",
-    "extSourceIpv6",
-    "extTargetIpv4",
-    "extTargetIpv6",
-    "extHostInterface",
-    "extMode",
-    "extRemote",
-    "extVni",
-    "extDstPort",
-    "extSrcPort"
-  ];
 
-  if (extendedKeys.some((k) => extra[k] !== undefined && extra[k] !== "")) return true;
+  if (EXTENDED_PROPERTY_KEYS.some((k) => extra[k] !== undefined && extra[k] !== "")) return true;
   if (
     extra.extVars !== undefined &&
     typeof extra.extVars === "object" &&

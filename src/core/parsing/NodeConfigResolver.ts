@@ -4,10 +4,7 @@
  */
 
 import type { ClabTopology, ClabNode } from "../types/topology";
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+import { isRecord } from "../utilities/typeHelpers";
 
 /**
  * Gets a section from the topology configuration.

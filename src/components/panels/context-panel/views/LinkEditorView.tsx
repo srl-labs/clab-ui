@@ -9,7 +9,7 @@ import type { LinkEditorData, LinkEditorTabId, LinkTabProps } from "../../link-e
 import { validateLinkEditorData, ExtendedTab } from "../../link-editor/ExtendedTab";
 import { BasicTab } from "../../link-editor/BasicTab";
 
-export interface LinkEditorBannerRef {
+interface LinkEditorBannerRef {
   errors: string[];
 }
 
@@ -27,7 +27,7 @@ export interface LinkEditorViewProps {
   onBannerRef?: (ref: LinkEditorBannerRef | null) => void;
 }
 
-export interface LinkEditorFooterRef {
+interface LinkEditorFooterRef {
   handleApply: () => void;
   handleSave: () => void;
   handleDiscard: () => void;

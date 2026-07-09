@@ -28,6 +28,17 @@ export interface PaletteViewProps {
 
 const NOOP_BANNER = () => {};
 
+export function createInfoTabContent(
+  selectedNodeData: NodeData | null | undefined,
+  selectedLinkData: (LinkData & { extraData?: Record<string, unknown> }) | null | undefined
+): React.ReactNode {
+  const nodeData = selectedNodeData ?? null;
+  const linkData = selectedLinkData ?? null;
+  if (nodeData === null && linkData === null) return null;
+
+  return <InfoTabContent selectedNodeData={nodeData} selectedLinkData={linkData} />;
+}
+
 export const PaletteView: React.FC<PaletteViewProps> = ({
   mode,
   isLocked,
@@ -116,12 +127,7 @@ export const PaletteView: React.FC<PaletteViewProps> = ({
     wrappedOnFooterRef(null);
   }, [wrappedOnFooterRef]);
 
-  const infoTabContent = selectedNodeData ? (
-    <InfoTabContent
-      selectedNodeData={selectedNodeData}
-      selectedLinkData={selectedLinkData ?? null}
-    />
-  ) : null;
+  const infoTabContent = createInfoTabContent(selectedNodeData, selectedLinkData);
 
   const editTabContent = editor ? (
     <EditorTabContent

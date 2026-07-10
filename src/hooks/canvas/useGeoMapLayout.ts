@@ -97,6 +97,16 @@ const GEO_VIEWPORT_RESET = { x: 0, y: 0, zoom: 1 };
 const INTERACTION_END_DEBOUNCE_MS = 20;
 const ZOOM_END_DEBOUNCE_MS = 20;
 
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (isRecord(error) && typeof error.message === "string") {
+    return error.message;
+  }
+  return String(error);
+}
+
 // Keep wrapped city assignments visually separate when sequence repeats.
 const GEO_REPEAT_RING_POINTS = 8;
 const GEO_REPEAT_RADIUS_STEP = 2.8;
@@ -669,12 +679,7 @@ export function useGeoMapLayout({
         mapRef.current = map;
         setInitError(null);
       } catch (err) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : isRecord(err) && typeof err.message === "string"
-              ? err.message
-              : String(err);
+        const message = errorMessage(err);
         log.error(`[GeoMap] Failed to initialize map: ${message}`);
         if (!cancelled) {
           setInitError(message);

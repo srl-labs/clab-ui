@@ -64,13 +64,13 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
 } from "react";
 
 import { useClabUiHost } from "../host";
 import {
   ContextMenu,
-  type ContextMenuItem
+  type ContextMenuItem,
 } from "../components/context-menu/ContextMenu";
 import { useMessageListener, useReadySignal } from "./shared/hooks";
 import {
@@ -81,7 +81,7 @@ import {
   type ExplorerNode,
   type ExplorerSectionId,
   type ExplorerSectionSnapshot,
-  type ExplorerUiState
+  type ExplorerUiState,
 } from "./shared/explorer/types";
 import {
   buildExplorerUiState,
@@ -91,7 +91,7 @@ import {
   nextExpandedBySectionForSnapshot,
   nextExpandedItemsForNodeToggle,
   shouldPersistExpandedSectionImmediately,
-  withExpandedSectionItems
+  withExpandedSectionItems,
 } from "./explorerUiState";
 
 const COLOR_ERROR_MAIN = "error.main";
@@ -104,7 +104,7 @@ const DEFAULT_EXPANDED_SECTIONS = new Set<ExplorerSectionId>([
   "runningLabs",
   "localLabs",
   "fileExplorer",
-  "helpFeedback"
+  "helpFeedback",
 ]);
 const TREE_DEPTH_INDENT = 1.25;
 const TREE_DISCLOSURE_SLOT_PX = 16;
@@ -116,14 +116,16 @@ const TREE_SECTION_ROW_HEIGHT_PX = 22;
 const TREE_ENDPOINT_ROW_HEIGHT_PX = 24;
 const RESIZE_DIVIDER_HEIGHT_PX = 4;
 const MIN_SECTION_BODY_HEIGHT_PX = 40;
-const FIXED_HEIGHT_SECTIONS: ReadonlySet<ExplorerSectionId> = new Set(["helpFeedback"]);
+const FIXED_HEIGHT_SECTIONS: ReadonlySet<ExplorerSectionId> = new Set([
+  "helpFeedback",
+]);
 
 const STATUS_COLOR_MAP: Record<string, string> = {
   green: "success.main",
   red: COLOR_ERROR_MAIN,
   yellow: "warning.main",
   blue: "info.main",
-  gray: COLOR_TEXT_DISABLED
+  gray: COLOR_TEXT_DISABLED,
 };
 
 const TOOLBAR_ICON_BUTTON_SX = {
@@ -132,8 +134,8 @@ const TOOLBAR_ICON_BUTTON_SX = {
   borderRadius: 1,
   color: COLOR_TEXT_PRIMARY,
   "&:hover": {
-    bgcolor: (theme: Theme) => theme.alpha(theme.palette.primary.main, 0.14)
-  }
+    bgcolor: (theme: Theme) => theme.alpha(theme.palette.primary.main, 0.14),
+  },
 } as const;
 
 interface ExplorerNodeLabelProps {
@@ -157,7 +159,13 @@ type ActionGroupId =
   | "danger"
   | "other";
 
-type ExplorerNodeKind = "lab" | "container" | "interface" | "link" | "file" | "other";
+type ExplorerNodeKind =
+  | "lab"
+  | "container"
+  | "interface"
+  | "link"
+  | "file"
+  | "other";
 
 interface ExplorerActionGroup {
   id: ActionGroupId;
@@ -192,10 +200,13 @@ const ACTION_GROUP_ORDER_DEFAULT: ActionGroupId[] = [
   "tools",
   "view",
   "other",
-  "danger"
+  "danger",
 ];
 
-const ACTION_GROUP_ORDER_BY_NODE_KIND: Record<ExplorerNodeKind, ActionGroupId[]> = {
+const ACTION_GROUP_ORDER_BY_NODE_KIND: Record<
+  ExplorerNodeKind,
+  ActionGroupId[]
+> = {
   lab: [
     "lifecycle",
     "save",
@@ -209,7 +220,7 @@ const ACTION_GROUP_ORDER_BY_NODE_KIND: Record<ExplorerNodeKind, ActionGroupId[]>
     "view",
     "network",
     "other",
-    "danger"
+    "danger",
   ],
   container: [
     "lifecycle",
@@ -223,12 +234,25 @@ const ACTION_GROUP_ORDER_BY_NODE_KIND: Record<ExplorerNodeKind, ActionGroupId[]>
     "view",
     "topology",
     "graph",
-    "other"
+    "other",
   ],
   interface: ACTION_GROUP_ORDER_DEFAULT,
-  link: ["sharing", "copy", "view", "topology", "graph", "lifecycle", "save", "network", "inspect", "tools", "other", "access"],
+  link: [
+    "sharing",
+    "copy",
+    "view",
+    "topology",
+    "graph",
+    "lifecycle",
+    "save",
+    "network",
+    "inspect",
+    "tools",
+    "other",
+    "access",
+  ],
   file: ["topology", "view", "copy", "tools", "other", "danger"],
-  other: ACTION_GROUP_ORDER_DEFAULT
+  other: ACTION_GROUP_ORDER_DEFAULT,
 };
 
 const ACTION_ICON_BY_COMMAND: Record<string, SvgIconComponent> = {
@@ -279,52 +303,78 @@ const ACTION_ICON_BY_COMMAND: Record<string, SvgIconComponent> = {
   "containerlab.set.sessionhostname": SettingsEthernetIcon,
   "containerlab.endpoint.reconnect": RefreshIcon,
   "containerlab.endpoint.remove": DeleteOutlineIcon,
-  "containerlab.endpoint.copyurl": ContentCopyIcon
+  "containerlab.endpoint.copyurl": ContentCopyIcon,
 };
 
 const ACTION_ICON_RULES: ReadonlyArray<CommandIconRule> = [
-  { match: (command) => command.includes("upload"), icon: FileUploadOutlinedIcon },
-  { match: (command) => command.includes("download"), icon: DownloadOutlinedIcon },
+  {
+    match: (command) => command.includes("upload"),
+    icon: FileUploadOutlinedIcon,
+  },
+  {
+    match: (command) => command.includes("download"),
+    icon: DownloadOutlinedIcon,
+  },
   { match: (command) => command.includes("copy"), icon: ContentCopyIcon },
   {
     match: (command) =>
-      command.includes("destroy") || command.includes("delete") || command.includes("detach"),
-    icon: DeleteOutlineIcon
+      command.includes("destroy") ||
+      command.includes("delete") ||
+      command.includes("detach"),
+    icon: DeleteOutlineIcon,
   },
   {
     match: (command) => command.includes("redeploy"),
-    icon: RefreshIcon
+    icon: RefreshIcon,
   },
   {
     match: (command) => command.includes("restart"),
-    icon: RefreshIcon
+    icon: RefreshIcon,
   },
   { match: (command) => command.includes("stop"), icon: StopIcon },
-  { match: (command) => command.includes("unpause"), icon: PlayCircleOutlineIcon },
-  { match: (command) => command.includes("pause"), icon: PauseCircleOutlineIcon },
+  {
+    match: (command) => command.includes("unpause"),
+    icon: PlayCircleOutlineIcon,
+  },
+  {
+    match: (command) => command.includes("pause"),
+    icon: PauseCircleOutlineIcon,
+  },
   {
     match: (command) =>
-      command.includes("ssh") || command.includes("shell") || command.includes("telnet"),
-    icon: TerminalIcon
+      command.includes("ssh") ||
+      command.includes("shell") ||
+      command.includes("telnet"),
+    icon: TerminalIcon,
   },
   { match: (command) => command.includes("filter"), icon: FilterAltIcon },
   { match: (command) => command.includes(".save"), icon: SaveOutlinedIcon },
   {
-    match: (command) => command.includes("showlogs") || command.includes("logs"),
-    icon: ArticleOutlinedIcon
+    match: (command) =>
+      command.includes("showlogs") || command.includes("logs"),
+    icon: ArticleOutlinedIcon,
   },
-  { match: (command) => command.startsWith("containerlab.lab.fcli."), icon: BuildIcon },
+  {
+    match: (command) => command.startsWith("containerlab.lab.fcli."),
+    icon: BuildIcon,
+  },
   { match: (command) => command.includes(".gotty."), icon: OpenInBrowserIcon },
-  { match: (command) => command.startsWith("containerlab.lab.graph."), icon: AccountTreeIcon },
+  {
+    match: (command) => command.startsWith("containerlab.lab.graph."),
+    icon: AccountTreeIcon,
+  },
   {
     match: (command) =>
-      command.includes("open") || command.includes("graph") || command.includes("inspect"),
-    icon: OpenInNewIcon
+      command.includes("open") ||
+      command.includes("graph") ||
+      command.includes("inspect"),
+    icon: OpenInNewIcon,
   },
   { match: (command) => command.includes("folder"), icon: FolderOpenIcon },
   {
-    match: (command) => command.includes("capture") || command.includes("impairment"),
-    icon: SettingsEthernetIcon
+    match: (command) =>
+      command.includes("capture") || command.includes("impairment"),
+    icon: SettingsEthernetIcon,
   },
   {
     match: (command) =>
@@ -333,34 +383,52 @@ const ACTION_ICON_RULES: ReadonlyArray<CommandIconRule> = [
       command.includes("loss") ||
       command.includes("rate") ||
       command.includes("corruption"),
-    icon: TuneIcon
+    icon: TuneIcon,
   },
   {
     match: (command) =>
-      command.includes("deploy") || command.includes("start") || command.includes("run"),
-    icon: PlayArrowIcon
+      command.includes("deploy") ||
+      command.includes("start") ||
+      command.includes("run"),
+    icon: PlayArrowIcon,
   },
-  { match: (command) => command.includes("link"), icon: LinkIcon }
+  { match: (command) => command.includes("link"), icon: LinkIcon },
 ];
 
 const ACTION_GROUP_RULES: ReadonlyArray<CommandActionGroupRule> = [
-  { match: (command) => command.startsWith("containerlab.lab.graph."), group: "graph" },
-  { match: (command) => command.includes(".save"), group: "save" },
-  { match: (command) => command.startsWith("containerlab.lab.fcli."), group: "tools" },
   {
-    match: (command) => command.startsWith("containerlab.interface.") || command.includes("impairment"),
-    group: "network"
+    match: (command) => command.startsWith("containerlab.lab.graph."),
+    group: "graph",
   },
-  { match: (command) => command.includes(".sshx.") || command.includes(".gotty."), group: "sharing" },
+  { match: (command) => command.includes(".save"), group: "save" },
+  {
+    match: (command) => command.startsWith("containerlab.lab.fcli."),
+    group: "tools",
+  },
+  {
+    match: (command) =>
+      command.startsWith("containerlab.interface.") ||
+      command.includes("impairment"),
+    group: "network",
+  },
+  {
+    match: (command) =>
+      command.includes(".sshx.") || command.includes(".gotty."),
+    group: "sharing",
+  },
   { match: (command) => command.includes("copy"), group: "copy" },
-  { match: (command) => command.includes("inspect") || command.includes("showlogs"), group: "inspect" },
+  {
+    match: (command) =>
+      command.includes("inspect") || command.includes("showlogs"),
+    group: "inspect",
+  },
   {
     match: (command) =>
       command.includes("ssh") ||
       command.includes("shell") ||
       command.includes("telnet") ||
       command.includes("openbrowser"),
-    group: "access"
+    group: "access",
   },
   {
     match: (command) =>
@@ -372,7 +440,7 @@ const ACTION_GROUP_RULES: ReadonlyArray<CommandActionGroupRule> = [
       command.includes("stop") ||
       command.includes("pause") ||
       command.includes("unpause"),
-    group: "lifecycle"
+    group: "lifecycle",
   },
   {
     match: (command) =>
@@ -382,32 +450,35 @@ const ACTION_GROUP_RULES: ReadonlyArray<CommandActionGroupRule> = [
       command.includes("addtoworkspace") ||
       command.includes("togglefavorite") ||
       command.includes("clonerepo"),
-    group: "topology"
+    group: "topology",
   },
   {
     match: (command) => command.includes("delete"),
-    group: "danger"
+    group: "danger",
   },
   {
     match: (command) => command.startsWith("containerlab.file."),
-    group: "topology"
+    group: "topology",
   },
   {
     match: (command) =>
       command.includes("filter") ||
       command.includes("hide") ||
       command.includes("show"),
-    group: "view"
-  }
+    group: "view",
+  },
 ];
 
-const ACTION_GROUP_SECTION_DEFAULT_BY_NODE_KIND: Record<ExplorerNodeKind, number> = {
+const ACTION_GROUP_SECTION_DEFAULT_BY_NODE_KIND: Record<
+  ExplorerNodeKind,
+  number
+> = {
   lab: 4,
   container: 3,
   interface: 1,
   link: 2,
   file: 1,
-  other: 1
+  other: 1,
 };
 
 const ACTION_GROUP_SECTION_BY_NODE_KIND: Partial<
@@ -422,25 +493,25 @@ const ACTION_GROUP_SECTION_BY_NODE_KIND: Partial<
     sharing: 3,
     inspect: 3,
     tools: 3,
-    danger: 5
+    danger: 5,
   },
   container: {
     lifecycle: 1,
     save: 1,
     access: 2,
     inspect: 2,
-    network: 2
+    network: 2,
   },
   link: {
     sharing: 1,
-    copy: 1
+    copy: 1,
   },
   file: {
     topology: 1,
     view: 1,
     copy: 2,
-    danger: 3
-  }
+    danger: 3,
+  },
 };
 
 interface SectionTreeProps {
@@ -462,43 +533,55 @@ interface ExplorerSectionCardProps {
   isDropTarget: boolean;
   isBeingDragged: boolean;
   flexStyle: string;
-  onSetSectionRef: (sectionId: ExplorerSectionId, element: HTMLDivElement | null) => void;
-  onSectionDragStart: (sectionId: ExplorerSectionId) => (event: DragEvent<HTMLDivElement>) => void;
-  onSectionDragOver: (sectionId: ExplorerSectionId) => (event: DragEvent<HTMLDivElement>) => void;
-  onSectionDrop: (sectionId: ExplorerSectionId) => (event: DragEvent<HTMLDivElement>) => void;
+  onSetSectionRef: (
+    sectionId: ExplorerSectionId,
+    element: HTMLDivElement | null,
+  ) => void;
+  onSectionDragStart: (
+    sectionId: ExplorerSectionId,
+  ) => (event: DragEvent<HTMLDivElement>) => void;
+  onSectionDragOver: (
+    sectionId: ExplorerSectionId,
+  ) => (event: DragEvent<HTMLDivElement>) => void;
+  onSectionDrop: (
+    sectionId: ExplorerSectionId,
+  ) => (event: DragEvent<HTMLDivElement>) => void;
   onSectionDragEnd: () => void;
   onToggleSectionCollapsed: (sectionId: ExplorerSectionId) => void;
   onInvokeAction: (action: ExplorerAction) => void;
-  onExpandedItemsChange: (sectionId: ExplorerSectionId, itemIds: string[]) => void;
-  onExpandAllInSection: (sectionId: ExplorerSectionId, nodes: ExplorerNode[]) => void;
+  onExpandedItemsChange: (
+    sectionId: ExplorerSectionId,
+    itemIds: string[],
+  ) => void;
+  onExpandAllInSection: (
+    sectionId: ExplorerSectionId,
+    nodes: ExplorerNode[],
+  ) => void;
   onCollapseAllInSection: (sectionId: ExplorerSectionId) => void;
 }
 
-type SnapshotExplorerMessage = Extract<ExplorerIncomingMessage, { command: "snapshot" }>;
-type FilterStateExplorerMessage = Extract<ExplorerIncomingMessage, { command: "filterState" }>;
-type UiStateExplorerMessage = Extract<ExplorerIncomingMessage, { command: "uiState" }>;
-type ErrorExplorerMessage = Extract<ExplorerIncomingMessage, { command: "error" }>;
+type SnapshotExplorerMessage = Extract<
+  ExplorerIncomingMessage,
+  { command: "snapshot" }
+>;
+type FilterStateExplorerMessage = Extract<
+  ExplorerIncomingMessage,
+  { command: "filterState" }
+>;
+type UiStateExplorerMessage = Extract<
+  ExplorerIncomingMessage,
+  { command: "uiState" }
+>;
+type ErrorExplorerMessage = Extract<
+  ExplorerIncomingMessage,
+  { command: "error" }
+>;
 
 function statusColor(indicator: string | undefined): string {
   if (!indicator) {
     return COLOR_TEXT_DISABLED;
   }
   return STATUS_COLOR_MAP[indicator] || COLOR_TEXT_DISABLED;
-}
-
-function indicatorThemeColor(theme: Theme, indicator: ExplorerNode["statusIndicator"]): string {
-  switch (indicator) {
-    case "green":
-      return theme.palette.success.main;
-    case "red":
-      return theme.palette.error.main;
-    case "yellow":
-      return theme.palette.warning.main;
-    case "blue":
-      return theme.palette.info.main;
-    default:
-      return theme.palette.text.disabled;
-  }
 }
 
 function formatSectionTitle(section: ExplorerSectionSnapshot): string {
@@ -519,7 +602,7 @@ function sectionHeaderHeight(section: ExplorerSectionSnapshot): number {
 
 function mergeSectionOrder(
   currentOrder: ExplorerSectionId[],
-  sections: ExplorerSectionSnapshot[]
+  sections: ExplorerSectionSnapshot[],
 ): ExplorerSectionId[] {
   const visibleIds = sections.map((section) => section.id);
   const visibleSet = new Set(visibleIds);
@@ -532,7 +615,9 @@ function mergeSectionOrder(
         .slice(0, index)
         .reverse()
         .find((id) => nextOrder.includes(id));
-      const insertIndex = previousVisibleId ? nextOrder.indexOf(previousVisibleId) + 1 : 0;
+      const insertIndex = previousVisibleId
+        ? nextOrder.indexOf(previousVisibleId) + 1
+        : 0;
       nextOrder.splice(insertIndex, 0, sectionId);
     }
   }
@@ -543,7 +628,7 @@ function mergeSectionOrder(
 function reorderSections(
   currentOrder: ExplorerSectionId[],
   sourceId: ExplorerSectionId,
-  targetId: ExplorerSectionId
+  targetId: ExplorerSectionId,
 ): ExplorerSectionId[] {
   if (sourceId === targetId) {
     return currentOrder;
@@ -563,20 +648,31 @@ function isExplorerSectionId(value: string): value is ExplorerSectionId {
   return EXPLORER_SECTION_IDS.includes(value as ExplorerSectionId);
 }
 
-function nodeKindFromContext(contextValue: string | undefined): ExplorerNodeKind {
+function nodeKindFromContext(
+  contextValue: string | undefined,
+): ExplorerNodeKind {
   if (!contextValue) {
     return "other";
   }
   if (contextValue.includes("containerlabLab")) {
     return "lab";
   }
-  if (contextValue === "containerlabContainer" || contextValue === "containerlabContainerGroup") {
+  if (
+    contextValue === "containerlabContainer" ||
+    contextValue === "containerlabContainerGroup"
+  ) {
     return "container";
   }
-  if (contextValue === "containerlabInterfaceUp" || contextValue === "containerlabInterfaceDown") {
+  if (
+    contextValue === "containerlabInterfaceUp" ||
+    contextValue === "containerlabInterfaceDown"
+  ) {
     return "interface";
   }
-  if (contextValue === "containerlabSSHXLink" || contextValue === "containerlabGottyLink") {
+  if (
+    contextValue === "containerlabSSHXLink" ||
+    contextValue === "containerlabGottyLink"
+  ) {
     return "link";
   }
   if (
@@ -594,6 +690,13 @@ function isEndpointNode(contextValue: string | undefined): boolean {
   return contextValue === "containerlabEndpoint";
 }
 
+function isBackendRootNode(contextValue: string | undefined): boolean {
+  return (
+    isEndpointNode(contextValue) ||
+    contextValue === "containerlabLocalWorkspace"
+  );
+}
+
 function isEndpointSectionNode(contextValue: string | undefined): boolean {
   return (
     contextValue === "containerlabEndpointSectionRunning" ||
@@ -606,34 +709,10 @@ function isEndpointDisconnectedNode(contextValue: string | undefined): boolean {
 }
 
 function isFileExplorerFolderNode(contextValue: string | undefined): boolean {
-  return contextValue === "containerlabFileExplorerRoot" || contextValue === "containerlabFileFolder";
-}
-
-function endpointStatusLabel(
-  state: ExplorerNode["state"],
-  indicator: ExplorerNode["statusIndicator"]
-): string {
-  switch (String(state ?? "").toLowerCase()) {
-    case "connected":
-      return "connected";
-    case "session_expired":
-      return "expired";
-    case "offline":
-      return "offline";
-    case "saved":
-      return "saved";
-    default:
-      switch (indicator) {
-        case "green":
-          return "connected";
-        case "red":
-          return "disconnected";
-        case "yellow":
-          return "degraded";
-        default:
-          return "unknown";
-      }
-  }
+  return (
+    contextValue === "containerlabFileExplorerRoot" ||
+    contextValue === "containerlabFileFolder"
+  );
 }
 
 function isFavoriteLabNode(contextValue: string | undefined): boolean {
@@ -648,7 +727,10 @@ function isSharedLabNode(node: ExplorerNode): boolean {
   return Boolean(node.shareAction);
 }
 
-function endpointRowHeight(isEndpointRoot: boolean, isEndpointSection: boolean): number {
+function endpointRowHeight(
+  isEndpointRoot: boolean,
+  isEndpointSection: boolean,
+): number {
   if (isEndpointRoot) {
     return TREE_ENDPOINT_ROW_HEIGHT_PX;
   }
@@ -661,7 +743,7 @@ function endpointRowHeight(isEndpointRoot: boolean, isEndpointSection: boolean):
 function explorerNodeLabelColor({
   isEndpointRoot,
   isEndpointSection,
-  isDisconnectedPlaceholder
+  isDisconnectedPlaceholder,
 }: {
   isEndpointRoot: boolean;
   isEndpointSection: boolean;
@@ -676,16 +758,9 @@ function explorerNodeLabelColor({
   return undefined;
 }
 
-function endpointStatusText(node: ExplorerNode, isEndpointRoot: boolean): string | null {
-  if (!isEndpointRoot) {
-    return null;
-  }
-  return endpointStatusLabel(node.state, node.statusIndicator);
-}
-
 function endpointDescriptionText(
   secondaryText: string | undefined,
-  isEndpointRoot: boolean
+  isEndpointRoot: boolean,
 ): string | null {
   if (!isEndpointRoot || !secondaryText || secondaryText.trim().length === 0) {
     return null;
@@ -706,12 +781,14 @@ function deriveExplorerNodeDisplayFlags(
   secondaryText: string | undefined,
   isEndpointRoot: boolean,
   isEndpointSection: boolean,
-  isDisconnectedPlaceholder: boolean
+  isDisconnectedPlaceholder: boolean,
 ): ExplorerNodeDisplayFlags {
   const isContainer =
-    node.contextValue === "containerlabContainer" || node.contextValue === "containerlabContainerGroup";
+    node.contextValue === "containerlabContainer" ||
+    node.contextValue === "containerlabContainerGroup";
   const isInterface =
-    node.contextValue === "containerlabInterfaceUp" || node.contextValue === "containerlabInterfaceDown";
+    node.contextValue === "containerlabInterfaceUp" ||
+    node.contextValue === "containerlabInterfaceDown";
   return {
     inlineContainerStatus: isContainer ? secondaryText?.trim() : undefined,
     showSecondaryLine:
@@ -721,9 +798,13 @@ function deriveExplorerNodeDisplayFlags(
       !isEndpointRoot &&
       !isEndpointSection &&
       !isDisconnectedPlaceholder,
-    showStatusDot: Boolean(node.statusIndicator) && !isInterface && !isEndpointRoot && !isDisconnectedPlaceholder,
+    showStatusDot:
+      Boolean(node.statusIndicator) &&
+      !isInterface &&
+      !isEndpointRoot &&
+      !isDisconnectedPlaceholder,
     showFavoriteIcon: isFavoriteLabNode(node.contextValue),
-    showSharedIcon: isSharedLabNode(node)
+    showSharedIcon: isSharedLabNode(node),
   };
 }
 
@@ -736,26 +817,32 @@ interface ExplorerEndpointQuickActions {
 function resolveEndpointQuickActions(
   actions: readonly ExplorerAction[],
   isEndpointRoot: boolean,
-  isEndpointConnected: boolean
+  isEndpointConnected: boolean,
 ): ExplorerEndpointQuickActions {
   if (!isEndpointRoot) {
     return {
       newTopologyAction: undefined,
       cloneRepoAction: undefined,
-      reconnectAction: undefined
+      reconnectAction: undefined,
     };
   }
   if (isEndpointConnected) {
     return {
-      newTopologyAction: actions.find((action) => action.commandId === "containerlab.editor.topoViewerEditor"),
-      cloneRepoAction: actions.find((action) => action.commandId === "containerlab.lab.cloneRepo"),
-      reconnectAction: undefined
+      newTopologyAction: actions.find(
+        (action) => action.commandId === "containerlab.editor.topoViewerEditor",
+      ),
+      cloneRepoAction: actions.find(
+        (action) => action.commandId === "containerlab.lab.cloneRepo",
+      ),
+      reconnectAction: undefined,
     };
   }
   return {
     newTopologyAction: undefined,
     cloneRepoAction: undefined,
-    reconnectAction: actions.find((action) => action.commandId === "containerlab.endpoint.reconnect")
+    reconnectAction: actions.find(
+      (action) => action.commandId === "containerlab.endpoint.reconnect",
+    ),
   };
 }
 
@@ -800,7 +887,7 @@ const ACTION_GROUP_LABELS: Record<ActionGroupId, string> = {
   tools: "Tools",
   view: "View",
   danger: "Danger",
-  other: "Other"
+  other: "Other",
 };
 
 const ACTION_GROUP_ICONS: Record<ActionGroupId, SvgIconComponent> = {
@@ -816,14 +903,14 @@ const ACTION_GROUP_ICONS: Record<ActionGroupId, SvgIconComponent> = {
   tools: BuildIcon,
   view: FilterAltIcon,
   danger: DeleteOutlineIcon,
-  other: BuildIcon
+  other: BuildIcon,
 };
 
 const GRAPH_COMMAND_ORDER = new Map<string, number>([
   ["containerlab.lab.graph.topoviewer", 1],
   ["containerlab.lab.graph.drawio.interactive", 2],
   ["containerlab.lab.graph.drawio.horizontal", 3],
-  ["containerlab.lab.graph.drawio.vertical", 4]
+  ["containerlab.lab.graph.drawio.vertical", 4],
 ]);
 
 function actionGroupLabel(groupId: ActionGroupId): string {
@@ -834,14 +921,21 @@ function actionGroupIcon(groupId: ActionGroupId): SvgIconComponent {
   return ACTION_GROUP_ICONS[groupId];
 }
 
-function sortGroupActions(groupId: ActionGroupId, actions: ExplorerAction[]): ExplorerAction[] {
+function sortGroupActions(
+  groupId: ActionGroupId,
+  actions: ExplorerAction[],
+): ExplorerAction[] {
   if (groupId !== "graph") {
     return actions;
   }
 
   return [...actions].sort((a, b) => {
-    const aOrder = GRAPH_COMMAND_ORDER.get(a.commandId.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
-    const bOrder = GRAPH_COMMAND_ORDER.get(b.commandId.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
+    const aOrder =
+      GRAPH_COMMAND_ORDER.get(a.commandId.toLowerCase()) ??
+      Number.MAX_SAFE_INTEGER;
+    const bOrder =
+      GRAPH_COMMAND_ORDER.get(b.commandId.toLowerCase()) ??
+      Number.MAX_SAFE_INTEGER;
     if (aOrder !== bOrder) {
       return aOrder - bOrder;
     }
@@ -849,9 +943,13 @@ function sortGroupActions(groupId: ActionGroupId, actions: ExplorerAction[]): Ex
   });
 }
 
-function groupActions(actions: ExplorerAction[], nodeKind: ExplorerNodeKind): ExplorerActionGroup[] {
+function groupActions(
+  actions: ExplorerAction[],
+  nodeKind: ExplorerNodeKind,
+): ExplorerActionGroup[] {
   const grouped = new Map<ActionGroupId, ExplorerAction[]>();
-  const order = ACTION_GROUP_ORDER_BY_NODE_KIND[nodeKind] ?? ACTION_GROUP_ORDER_DEFAULT;
+  const order =
+    ACTION_GROUP_ORDER_BY_NODE_KIND[nodeKind] ?? ACTION_GROUP_ORDER_DEFAULT;
 
   for (const action of actions) {
     const groupId = actionGroupId(action);
@@ -864,7 +962,7 @@ function groupActions(actions: ExplorerAction[], nodeKind: ExplorerNodeKind): Ex
     .map((groupId) => ({
       id: groupId,
       label: actionGroupLabel(groupId),
-      actions: sortGroupActions(groupId, grouped.get(groupId) ?? [])
+      actions: sortGroupActions(groupId, grouped.get(groupId) ?? []),
     }))
     .filter((group) => group.actions.length > 0);
 }
@@ -879,7 +977,10 @@ function isInterfaceTimingAction(commandId: string): boolean {
   );
 }
 
-function actionGroupSection(groupId: ActionGroupId, nodeKind: ExplorerNodeKind): number {
+function actionGroupSection(
+  groupId: ActionGroupId,
+  nodeKind: ExplorerNodeKind,
+): number {
   const nodeKindSections = ACTION_GROUP_SECTION_BY_NODE_KIND[nodeKind];
   const section = nodeKindSections?.[groupId];
   if (section !== undefined) {
@@ -891,7 +992,7 @@ function actionGroupSection(groupId: ActionGroupId, nodeKind: ExplorerNodeKind):
 function withSectionDividers(
   groups: ExplorerActionGroup[],
   nodeKind: ExplorerNodeKind,
-  renderGroup: (group: ExplorerActionGroup) => ContextMenuItem[]
+  renderGroup: (group: ExplorerActionGroup) => ContextMenuItem[],
 ): ContextMenuItem[] {
   if (groups.length === 0) {
     return [];
@@ -905,8 +1006,16 @@ function withSectionDividers(
     if (rendered.length === 0) {
       continue;
     }
-    if (items.length > 0 && previousSection !== null && section !== previousSection) {
-      items.push({ id: `divider:${nodeKind}:${group.id}:${items.length}`, label: "", divider: true });
+    if (
+      items.length > 0 &&
+      previousSection !== null &&
+      section !== previousSection
+    ) {
+      items.push({
+        id: `divider:${nodeKind}:${group.id}:${items.length}`,
+        label: "",
+        divider: true,
+      });
     }
     items.push(...rendered);
     previousSection = section;
@@ -914,11 +1023,16 @@ function withSectionDividers(
   return items;
 }
 
-function isHelpFeedbackLinkNode(node: ExplorerNode, sectionId: ExplorerSectionId): boolean {
+function isHelpFeedbackLinkNode(
+  node: ExplorerNode,
+  sectionId: ExplorerSectionId,
+): boolean {
   if (sectionId !== "helpFeedback") {
     return false;
   }
-  return node.primaryAction?.commandId.toLowerCase() === "containerlab.openlink";
+  return (
+    node.primaryAction?.commandId.toLowerCase() === "containerlab.openlink"
+  );
 }
 
 function helpFeedbackIconForNode(node: ExplorerNode): SvgIconComponent {
@@ -962,7 +1076,11 @@ const FILE_ICON_RULES: FileIconRule[] = [
   { match: /\.clab\.ya?ml$/i, icon: AccountTreeIcon, color: "#519aba" },
   { match: /\.ya?ml$/i, icon: DataObjectOutlinedIcon, color: "#cbcb41" },
   { match: /\.jsonc?$/i, icon: DataObjectOutlinedIcon, color: "#cbcb41" },
-  { match: /\.(drawio|xml|xsd|svg|xhtml|xaml|plist|gml|kml|wsdl)$/i, icon: CodeIcon, color: "#e37933" },
+  {
+    match: /\.(drawio|xml|xsd|svg|xhtml|xaml|plist|gml|kml|wsdl)$/i,
+    icon: CodeIcon,
+    color: "#e37933",
+  },
   { match: /\.html?$/i, icon: HtmlIcon, color: "#e44d26" },
   { match: /\.css$/i, icon: CssIcon, color: "#42a5f5" },
   { match: /\.(scss|sass)$/i, icon: CssIcon, color: "#c6538c" },
@@ -981,16 +1099,35 @@ const FILE_ICON_RULES: FileIconRule[] = [
   { match: /\.java$/i, icon: CodeIcon, color: "#e76f00" },
   { match: /\.php$/i, icon: CodeIcon, color: "#777bb4" },
   { match: /\.rb$/i, icon: CodeIcon, color: "#cc342d" },
-  { match: /\.(sql|mysql|pgsql)$/i, icon: DataObjectOutlinedIcon, color: "#f29111" },
-  { match: /\.(tf|tfvars|hcl)$/i, icon: DataObjectOutlinedIcon, color: "#844fba" },
+  {
+    match: /\.(sql|mysql|pgsql)$/i,
+    icon: DataObjectOutlinedIcon,
+    color: "#f29111",
+  },
+  {
+    match: /\.(tf|tfvars|hcl)$/i,
+    icon: DataObjectOutlinedIcon,
+    color: "#844fba",
+  },
   { match: /\.proto$/i, icon: DataObjectOutlinedIcon, color: "#e37933" },
-  { match: /\.(ini|conf|cfg|properties|env)$/i, icon: DataObjectOutlinedIcon, color: "#6d8086" },
-  { match: /\.(lic|license|pem|crt|key)$/i, icon: DescriptionOutlinedIcon, color: "#f9c74f" }
+  {
+    match: /\.(ini|conf|cfg|properties|env)$/i,
+    icon: DataObjectOutlinedIcon,
+    color: "#6d8086",
+  },
+  {
+    match: /\.(lic|license|pem|crt|key)$/i,
+    icon: DescriptionOutlinedIcon,
+    color: "#f9c74f",
+  },
 ];
 
 function fileIconForNode(node: ExplorerNode): ExplorerLeadingIcon {
   const fileName = node.label.toLowerCase();
-  if (DOCKERFILE_NAME_REGEX.test(fileName) || DOCKERFILE_EXTENSION_REGEX.test(fileName)) {
+  if (
+    DOCKERFILE_NAME_REGEX.test(fileName) ||
+    DOCKERFILE_EXTENSION_REGEX.test(fileName)
+  ) {
     return { Icon: HubOutlinedIcon, color: "#2496ed" };
   }
 
@@ -1002,7 +1139,7 @@ function fileIconForNode(node: ExplorerNode): ExplorerLeadingIcon {
 
 function nodeLeadingIcon(
   node: ExplorerNode,
-  sectionId: ExplorerSectionId
+  sectionId: ExplorerSectionId,
 ): ExplorerLeadingIcon | undefined {
   if (isHelpFeedbackLinkNode(node, sectionId)) {
     return { Icon: helpFeedbackIconForNode(node), color: COLOR_TEXT_SECONDARY };
@@ -1010,7 +1147,10 @@ function nodeLeadingIcon(
 
   const context = node.contextValue;
   if (isEndpointNode(context)) {
-    return { Icon: HubOutlinedIcon, color: COLOR_TEXT_PRIMARY };
+    return {
+      Icon: HubOutlinedIcon,
+      color: node.statusIndicator === "green" ? "success.main" : "error.main",
+    };
   }
   if (context === "containerlabInterfaceUp") {
     return { Icon: SettingsEthernetIcon, color: "success.main" };
@@ -1033,7 +1173,10 @@ function nodeLeadingIcon(
   if (context === "containerlabFile") {
     return fileIconForNode(node);
   }
-  if (typeof context === "string" && context.includes("containerlabLabUndeployed")) {
+  if (
+    typeof context === "string" &&
+    context.includes("containerlabLabUndeployed")
+  ) {
     return { Icon: DescriptionOutlinedIcon, color: COLOR_TEXT_SECONDARY };
   }
   return undefined;
@@ -1041,7 +1184,7 @@ function nodeLeadingIcon(
 
 function toContextMenuItem(
   action: ExplorerAction,
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ): ContextMenuItem {
   const ActionIcon = actionIcon(action);
   return {
@@ -1050,7 +1193,7 @@ function toContextMenuItem(
     icon: <ActionIcon fontSize="small" />,
     danger: Boolean(action.destructive),
     disabled: action.disabled,
-    onClick: () => onInvokeAction(action)
+    onClick: () => onInvokeAction(action),
   };
 }
 
@@ -1068,18 +1211,22 @@ function sharingBucketForCommand(commandId: string): SharingBucket {
 function buildSharingGroupChildren(
   actions: ExplorerAction[],
   groupId: ActionGroupId,
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ): ContextMenuItem[] {
   const sharingChildren: ContextMenuItem[] = [];
   let previousBucket: SharingBucket | null = null;
 
   for (const action of actions) {
     const bucket = sharingBucketForCommand(action.commandId);
-    if (sharingChildren.length > 0 && previousBucket !== null && bucket !== previousBucket) {
+    if (
+      sharingChildren.length > 0 &&
+      previousBucket !== null &&
+      bucket !== previousBucket
+    ) {
       sharingChildren.push({
         id: `group:${groupId}:divider:${action.id}`,
         label: "",
-        divider: true
+        divider: true,
       });
     }
     sharingChildren.push(toContextMenuItem(action, onInvokeAction));
@@ -1091,7 +1238,7 @@ function buildSharingGroupChildren(
 
 function toGroupMenuItem(
   group: ExplorerActionGroup,
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ): ContextMenuItem {
   if (group.actions.length === 1) {
     return toContextMenuItem(group.actions[0], onInvokeAction);
@@ -1101,29 +1248,33 @@ function toGroupMenuItem(
   const children =
     group.id === "sharing"
       ? buildSharingGroupChildren(group.actions, group.id, onInvokeAction)
-      : group.actions.map((action) => toContextMenuItem(action, onInvokeAction));
+      : group.actions.map((action) =>
+          toContextMenuItem(action, onInvokeAction),
+        );
 
   return {
     id: `group:${group.id}`,
     label: group.label,
     icon: <GroupIcon fontSize="small" />,
-    children
+    children,
   };
 }
 
 function toGroupMenuItems(
   group: ExplorerActionGroup,
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ): ContextMenuItem[] {
   if (group.id === "lifecycle") {
-    return group.actions.map((action) => toContextMenuItem(action, onInvokeAction));
+    return group.actions.map((action) =>
+      toContextMenuItem(action, onInvokeAction),
+    );
   }
   return [toGroupMenuItem(group, onInvokeAction)];
 }
 
 function buildInterfaceMenuItems(
   actions: ExplorerAction[],
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ): ContextMenuItem[] {
   const interfaceItems: ContextMenuItem[] = [];
   let inTimingGroup = false;
@@ -1135,14 +1286,14 @@ function buildInterfaceMenuItems(
       interfaceItems.push({
         id: `group:interface:timing-start:${action.id}`,
         label: "",
-        divider: true
+        divider: true,
       });
     }
     if (!isTimingAction && inTimingGroup) {
       interfaceItems.push({
         id: `group:interface:timing-end:${action.id}`,
         label: "",
-        divider: true
+        divider: true,
       });
     }
 
@@ -1158,40 +1309,42 @@ const ENDPOINT_ROOT_MENU_COMMANDS = [
   "containerlab.lab.cloneRepo",
   "containerlab.endpoint.reconnect",
   "containerlab.endpoint.copyUrl",
-  "containerlab.endpoint.remove"
+  "containerlab.endpoint.remove",
 ] as const;
 
 const ENDPOINT_CAPTURE_MENU_COMMANDS = [
   "containerlab.install.edgeshark",
   "containerlab.uninstall.edgeshark",
   "containerlab.capture.killAllWiresharkVNC",
-  "containerlab.set.sessionHostname"
+  "containerlab.set.sessionHostname",
 ] as const;
 
 function findActionByCommandId(
   actions: readonly ExplorerAction[],
-  commandId: string
+  commandId: string,
 ): ExplorerAction | undefined {
   return actions.find((action) => action.commandId === commandId);
 }
 
 function buildEndpointMenuItems(
   actions: ExplorerAction[],
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ): ContextMenuItem[] {
   const groupedCommandIds = new Set<string>([
     ...ENDPOINT_ROOT_MENU_COMMANDS,
-    ...ENDPOINT_CAPTURE_MENU_COMMANDS
+    ...ENDPOINT_CAPTURE_MENU_COMMANDS,
   ]);
-  const rootItems = ENDPOINT_ROOT_MENU_COMMANDS
-    .map((commandId) => findActionByCommandId(actions, commandId))
+  const rootItems = ENDPOINT_ROOT_MENU_COMMANDS.map((commandId) =>
+    findActionByCommandId(actions, commandId),
+  )
     .filter((action): action is ExplorerAction => Boolean(action))
     .map((action) => toContextMenuItem(action, onInvokeAction));
   const extraEndpointItems = actions
     .filter((action) => !groupedCommandIds.has(action.commandId))
     .map((action) => toContextMenuItem(action, onInvokeAction));
-  const captureItems = ENDPOINT_CAPTURE_MENU_COMMANDS
-    .map((commandId) => findActionByCommandId(actions, commandId))
+  const captureItems = ENDPOINT_CAPTURE_MENU_COMMANDS.map((commandId) =>
+    findActionByCommandId(actions, commandId),
+  )
     .filter((action): action is ExplorerAction => Boolean(action))
     .map((action) => toContextMenuItem(action, onInvokeAction));
 
@@ -1206,8 +1359,8 @@ function buildEndpointMenuItems(
       id: "group:endpoint:capture",
       label: "Capture",
       icon: <SettingsEthernetIcon fontSize="small" />,
-      children: captureItems
-    }
+      children: captureItems,
+    },
   ];
 }
 
@@ -1215,9 +1368,9 @@ function buildNodeContextMenuItems(
   menuActions: ExplorerAction[],
   nodeKind: ExplorerNodeKind,
   contextValue: string | undefined,
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ): ContextMenuItem[] {
-  if (isEndpointNode(contextValue)) {
+  if (isBackendRootNode(contextValue)) {
     return buildEndpointMenuItems(menuActions, onInvokeAction);
   }
 
@@ -1228,21 +1381,25 @@ function buildNodeContextMenuItems(
   const groupedActions = groupActions(menuActions, nodeKind);
   if (nodeKind === "file") {
     return withSectionDividers(groupedActions, nodeKind, (group) =>
-      group.actions.map((action) => toContextMenuItem(action, onInvokeAction))
+      group.actions.map((action) => toContextMenuItem(action, onInvokeAction)),
     );
   }
 
   return withSectionDividers(groupedActions, nodeKind, (group) =>
-    toGroupMenuItems(group, onInvokeAction)
+    toGroupMenuItems(group, onInvokeAction),
   );
 }
 
-function filterNodeMenuActions(nodeActions: ExplorerAction[], nodeKind: ExplorerNodeKind): ExplorerAction[] {
+function filterNodeMenuActions(
+  nodeActions: ExplorerAction[],
+  nodeKind: ExplorerNodeKind,
+): ExplorerAction[] {
   if (nodeKind !== "lab") {
     return nodeActions;
   }
   return nodeActions.filter(
-    (action) => action.commandId.toLowerCase() !== "containerlab.lab.graph.topoviewer"
+    (action) =>
+      action.commandId.toLowerCase() !== "containerlab.lab.graph.topoviewer",
   );
 }
 
@@ -1251,14 +1408,23 @@ function useExplorerNodeMenu(params: {
   hasContextMenuItems: boolean;
 }) {
   const { hasActions, hasContextMenuItems } = params;
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [menuOpenToLeft, setMenuOpenToLeft] = useState(false);
 
-  const openMenuFromElement = useCallback((element: HTMLElement, openToLeft = true) => {
-    const rect = element.getBoundingClientRect();
-    setMenuOpenToLeft(openToLeft);
-    setMenuPosition({ x: Math.round(rect.right), y: Math.round(rect.bottom + 2) });
-  }, []);
+  const openMenuFromElement = useCallback(
+    (element: HTMLElement, openToLeft = true) => {
+      const rect = element.getBoundingClientRect();
+      setMenuOpenToLeft(openToLeft);
+      setMenuPosition({
+        x: Math.round(rect.right),
+        y: Math.round(rect.bottom + 2),
+      });
+    },
+    [],
+  );
 
   const handleMenuOpen = useCallback(
     (event: MouseEvent<HTMLElement>) => {
@@ -1269,7 +1435,7 @@ function useExplorerNodeMenu(params: {
       event.stopPropagation();
       openMenuFromElement(event.currentTarget, true);
     },
-    [hasActions, openMenuFromElement]
+    [hasActions, openMenuFromElement],
   );
 
   const handleRowContextMenu = useCallback(
@@ -1279,10 +1445,12 @@ function useExplorerNodeMenu(params: {
       }
       event.preventDefault();
       event.stopPropagation();
-      const trigger = event.currentTarget.querySelector<HTMLElement>('[data-node-actions-trigger="true"]');
+      const trigger = event.currentTarget.querySelector<HTMLElement>(
+        '[data-node-actions-trigger="true"]',
+      );
       openMenuFromElement(trigger ?? event.currentTarget, true);
     },
-    [hasActions, openMenuFromElement]
+    [hasActions, openMenuFromElement],
   );
 
   const handleMenuClose = useCallback(() => {
@@ -1290,30 +1458,35 @@ function useExplorerNodeMenu(params: {
     setMenuPosition(null);
   }, []);
 
-  const handleBackdropContextMenu = useCallback((event: MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const handleBackdropContextMenu = useCallback(
+    (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
 
-    const relayTarget = document
-      .elementsFromPoint(event.clientX, event.clientY)
-      .map((element) => element.closest<HTMLElement>('[data-explorer-node-row="true"]'))
-      .find((element): element is HTMLElement => Boolean(element));
-    if (!relayTarget) {
-      return;
-    }
+      const relayTarget = document
+        .elementsFromPoint(event.clientX, event.clientY)
+        .map((element) =>
+          element.closest<HTMLElement>('[data-explorer-node-row="true"]'),
+        )
+        .find((element): element is HTMLElement => Boolean(element));
+      if (!relayTarget) {
+        return;
+      }
 
-    handleMenuClose();
-    relayTarget.dispatchEvent(
-      new window.MouseEvent("contextmenu", {
-        bubbles: true,
-        cancelable: true,
-        clientX: event.clientX,
-        clientY: event.clientY,
-        button: 2,
-        buttons: 2
-      })
-    );
-  }, [handleMenuClose]);
+      handleMenuClose();
+      relayTarget.dispatchEvent(
+        new window.MouseEvent("contextmenu", {
+          bubbles: true,
+          cancelable: true,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          button: 2,
+          buttons: 2,
+        }),
+      );
+    },
+    [handleMenuClose],
+  );
 
   const menuOpen = Boolean(menuPosition) && hasContextMenuItems;
 
@@ -1324,13 +1497,13 @@ function useExplorerNodeMenu(params: {
     handleMenuOpen,
     handleRowContextMenu,
     handleMenuClose,
-    handleBackdropContextMenu
+    handleBackdropContextMenu,
   };
 }
 
 function usePrimaryActionHandler(
   primaryAction: ExplorerNode["primaryAction"],
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ) {
   return useCallback(
     (event: MouseEvent<HTMLElement>) => {
@@ -1341,13 +1514,13 @@ function usePrimaryActionHandler(
       event.stopPropagation();
       onInvokeAction(primaryAction);
     },
-    [primaryAction, onInvokeAction]
+    [primaryAction, onInvokeAction],
   );
 }
 
 function useShareActionHandler(
   shareAction: ExplorerNode["shareAction"],
-  onInvokeAction: (action: ExplorerAction) => void
+  onInvokeAction: (action: ExplorerAction) => void,
 ) {
   return useCallback(
     (event: MouseEvent<HTMLElement>) => {
@@ -1358,7 +1531,7 @@ function useShareActionHandler(
       event.stopPropagation();
       onInvokeAction(shareAction);
     },
-    [shareAction, onInvokeAction]
+    [shareAction, onInvokeAction],
   );
 }
 
@@ -1390,9 +1563,12 @@ function ExplorerNodeMarker({
   leadingIcon,
   isEndpointRoot,
   showStatusDot,
-  statusIndicator
+  statusIndicator,
 }: Readonly<ExplorerNodeMarkerProps>) {
-  const markerSlotPx = leadingIcon && isEndpointRoot ? NODE_MARKER_SLOT_PX + 3 : NODE_MARKER_SLOT_PX;
+  const markerSlotPx =
+    leadingIcon && isEndpointRoot
+      ? NODE_MARKER_SLOT_PX + 3
+      : NODE_MARKER_SLOT_PX;
 
   return (
     <Box
@@ -1401,7 +1577,7 @@ function ExplorerNodeMarker({
         flex: `0 0 ${markerSlotPx}px`,
         display: "flex",
         alignItems: "center",
-        justifyContent: "center"
+        justifyContent: "center",
       }}
     >
       {leadingIcon ? (
@@ -1410,7 +1586,7 @@ function ExplorerNodeMarker({
           sx={{
             fontSize: isEndpointRoot ? 14 : 13,
             color: leadingIcon.color,
-            flex: "0 0 auto"
+            flex: "0 0 auto",
           }}
         />
       ) : (
@@ -1421,7 +1597,7 @@ function ExplorerNodeMarker({
               height: 8,
               borderRadius: "50%",
               flex: "0 0 auto",
-              bgcolor: statusColor(statusIndicator)
+              bgcolor: statusColor(statusIndicator),
             }}
           />
         )
@@ -1440,7 +1616,7 @@ function ExplorerNodePrimaryLabel({
   label,
   isEndpointRoot,
   isEndpointSection,
-  isDisconnectedPlaceholder
+  isDisconnectedPlaceholder,
 }: Readonly<ExplorerNodePrimaryLabelProps>) {
   return (
     <Typography
@@ -1456,9 +1632,9 @@ function ExplorerNodePrimaryLabel({
         color: explorerNodeLabelColor({
           isEndpointRoot,
           isEndpointSection,
-          isDisconnectedPlaceholder
+          isDisconnectedPlaceholder,
         }),
-        fontStyle: isDisconnectedPlaceholder ? "italic" : undefined
+        fontStyle: isDisconnectedPlaceholder ? "italic" : undefined,
       }}
     >
       {label}
@@ -1471,7 +1647,6 @@ interface ExplorerNodeTrailingContentProps {
   showFavoriteIcon: boolean;
   showSharedIcon: boolean;
   inlineContainerStatus: string | undefined;
-  endpointStatus: string | null;
   endpointDescription: string | null;
   handleShareAction: (event: MouseEvent<HTMLElement>) => void;
 }
@@ -1481,9 +1656,8 @@ function ExplorerNodeTrailingContent({
   showFavoriteIcon,
   showSharedIcon,
   inlineContainerStatus,
-  endpointStatus,
   endpointDescription,
-  handleShareAction
+  handleShareAction,
 }: Readonly<ExplorerNodeTrailingContentProps>) {
   return (
     <>
@@ -1511,41 +1685,14 @@ function ExplorerNodeTrailingContent({
         </IconButton>
       )}
       {inlineContainerStatus && (
-        <Typography variant="caption" color="text.secondary" noWrap sx={{ flexShrink: 0 }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          noWrap
+          sx={{ flexShrink: 0 }}
+        >
           {inlineContainerStatus}
         </Typography>
-      )}
-      {endpointStatus && (
-        <Box
-          sx={(theme) => {
-            const tone = indicatorThemeColor(theme, node.statusIndicator);
-            return {
-              display: "inline-flex",
-              alignItems: "center",
-              px: "6px",
-              borderRadius: 8,
-              color: tone,
-              bgcolor: theme.alpha(tone, 0.15),
-              height: 16,
-              flexShrink: 0,
-              ml: "6px"
-            };
-          }}
-        >
-          <Typography
-            variant="caption"
-            fontWeight={500}
-            sx={{
-              lineHeight: "16px",
-              color: "inherit",
-              letterSpacing: "0.03em",
-              fontSize: "0.65rem",
-              textTransform: "uppercase"
-            }}
-          >
-            {endpointStatus}
-          </Typography>
-        </Box>
       )}
       {endpointDescription && (
         <Typography
@@ -1556,7 +1703,7 @@ function ExplorerNodeTrailingContent({
             ml: "8px",
             maxWidth: 120,
             fontSize: "0.75rem",
-            flexShrink: 0
+            flexShrink: 0,
           }}
         >
           {endpointDescription}
@@ -1577,14 +1724,18 @@ function ExplorerEndpointActionButton({
   action,
   ariaLabel,
   icon: Icon,
-  onInvokeAction
+  onInvokeAction,
 }: Readonly<ExplorerEndpointActionButtonProps>) {
   if (!action) {
     return null;
   }
 
   return (
-    <Tooltip title={action.label || ariaLabel} placement="bottom" enterDelay={300}>
+    <Tooltip
+      title={action.label || ariaLabel}
+      placement="bottom"
+      enterDelay={300}
+    >
       <Box component="span" sx={{ display: "inline-flex" }}>
         <IconButton
           size="small"
@@ -1606,7 +1757,7 @@ function ExplorerEndpointActionButton({
             color: "text.secondary",
             opacity: 0,
             pointerEvents: "none",
-            transition: "opacity 120ms ease"
+            transition: "opacity 120ms ease",
           }}
         >
           <Icon sx={{ fontSize: 14 }} />
@@ -1623,7 +1774,7 @@ interface ExplorerEndpointQuickActionsProps {
 
 function ExplorerEndpointQuickActions({
   actions,
-  onInvokeAction
+  onInvokeAction,
 }: Readonly<ExplorerEndpointQuickActionsProps>) {
   return (
     <>
@@ -1663,15 +1814,21 @@ function ExplorerNodeTextBlock({
   showSecondaryLine,
   secondaryText,
   handlePrimaryAction,
-  handleShareAction
+  handleShareAction,
 }: Readonly<ExplorerNodeTextBlockProps>) {
-  const endpointStatus = endpointStatusText(node, isEndpointRoot);
-  const endpointDescription = endpointDescriptionText(secondaryText, isEndpointRoot);
+  const endpointDescription = endpointDescriptionText(
+    secondaryText,
+    isEndpointRoot,
+  );
 
   return (
     <Box
       onClick={handlePrimaryAction}
-      sx={{ minWidth: 0, flex: 1, cursor: node.primaryAction ? "pointer" : "default" }}
+      sx={{
+        minWidth: 0,
+        flex: 1,
+        cursor: node.primaryAction ? "pointer" : "default",
+      }}
     >
       <Tooltip
         title={hasEntryTooltip ? node.tooltip : ""}
@@ -1686,9 +1843,9 @@ function ExplorerNodeTextBlock({
             sx: {
               maxWidth: "min(360px, calc(100vw - 24px))",
               whiteSpace: "pre-wrap",
-              wordBreak: "break-word"
-            }
-          }
+              wordBreak: "break-word",
+            },
+          },
         }}
       >
         <Stack
@@ -1714,7 +1871,6 @@ function ExplorerNodeTextBlock({
             showFavoriteIcon={showFavoriteIcon}
             showSharedIcon={showSharedIcon}
             inlineContainerStatus={inlineContainerStatus}
-            endpointStatus={endpointStatus}
             endpointDescription={endpointDescription}
             handleShareAction={handleShareAction}
           />
@@ -1750,7 +1906,7 @@ function ExplorerNodeActions({
   menuOpenToLeft,
   handleMenuOpen,
   handleMenuClose,
-  handleBackdropContextMenu
+  handleBackdropContextMenu,
 }: Readonly<ExplorerNodeActionsProps>) {
   if (!hasActions) {
     return null;
@@ -1771,7 +1927,7 @@ function ExplorerNodeActions({
           color: "text.secondary",
           opacity: menuOpen ? 1 : 0,
           pointerEvents: menuOpen ? "auto" : "none",
-          transition: "opacity 120ms ease"
+          transition: "opacity 120ms ease",
         }}
       >
         <MoreVertIcon fontSize="small" />
@@ -1789,18 +1945,34 @@ function ExplorerNodeActions({
   );
 }
 
-function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<ExplorerNodeLabelProps>) {
+function ExplorerNodeLabel({
+  node,
+  sectionId,
+  onInvokeAction,
+}: Readonly<ExplorerNodeLabelProps>) {
   const hasEntryTooltip = Boolean(node.tooltip);
   const leadingIcon = nodeLeadingIcon(node, sectionId);
   const nodeKind = nodeKindFromContext(node.contextValue);
   const isEndpointRoot = isEndpointNode(node.contextValue);
+  const isBackendRoot = isBackendRootNode(node.contextValue);
   const isEndpointSection = isEndpointSectionNode(node.contextValue);
-  const isDisconnectedPlaceholder = isEndpointDisconnectedNode(node.contextValue);
-  const menuActions = useMemo(() => filterNodeMenuActions(node.actions, nodeKind), [node.actions, nodeKind]);
+  const isDisconnectedPlaceholder = isEndpointDisconnectedNode(
+    node.contextValue,
+  );
+  const menuActions = useMemo(
+    () => filterNodeMenuActions(node.actions, nodeKind),
+    [node.actions, nodeKind],
+  );
   const hasActions = menuActions.length > 0 && !isDisconnectedPlaceholder;
   const contextMenuItems = useMemo<ContextMenuItem[]>(
-    () => buildNodeContextMenuItems(menuActions, nodeKind, node.contextValue, onInvokeAction),
-    [menuActions, node.contextValue, nodeKind, onInvokeAction]
+    () =>
+      buildNodeContextMenuItems(
+        menuActions,
+        nodeKind,
+        node.contextValue,
+        onInvokeAction,
+      ),
+    [menuActions, node.contextValue, nodeKind, onInvokeAction],
   );
   const secondaryText = node.description || node.statusDescription;
   const {
@@ -1808,13 +1980,13 @@ function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<Explore
     showSecondaryLine,
     showStatusDot,
     showFavoriteIcon,
-    showSharedIcon
+    showSharedIcon,
   } = deriveExplorerNodeDisplayFlags(
     node,
     secondaryText,
     isEndpointRoot,
     isEndpointSection,
-    isDisconnectedPlaceholder
+    isDisconnectedPlaceholder,
   );
   const {
     menuPosition,
@@ -1823,17 +1995,29 @@ function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<Explore
     handleMenuOpen,
     handleRowContextMenu,
     handleMenuClose,
-    handleBackdropContextMenu
+    handleBackdropContextMenu,
   } = useExplorerNodeMenu({
     hasActions,
-    hasContextMenuItems: contextMenuItems.length > 0
+    hasContextMenuItems: contextMenuItems.length > 0,
   });
-  const handlePrimaryAction = usePrimaryActionHandler(node.primaryAction, onInvokeAction);
-  const handleShareAction = useShareActionHandler(node.shareAction, onInvokeAction);
-  const isEndpointConnected = String(node.state ?? "").toLowerCase() === "connected";
+  const handlePrimaryAction = usePrimaryActionHandler(
+    node.primaryAction,
+    onInvokeAction,
+  );
+  const handleShareAction = useShareActionHandler(
+    node.shareAction,
+    onInvokeAction,
+  );
+  const isEndpointConnected =
+    String(node.state ?? "").toLowerCase() === "connected";
   const endpointActions = useMemo(
-    () => resolveEndpointQuickActions(node.actions, isEndpointRoot, isEndpointConnected),
-    [isEndpointConnected, isEndpointRoot, node.actions]
+    () =>
+      resolveEndpointQuickActions(
+        node.actions,
+        isBackendRoot,
+        isEndpointConnected,
+      ),
+    [isBackendRoot, isEndpointConnected, node.actions],
   );
   const rowMinHeight = endpointRowHeight(isEndpointRoot, isEndpointSection);
 
@@ -1850,15 +2034,16 @@ function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<Explore
         borderRadius: 0.75,
         px: isEndpointRoot ? 0.35 : 0.15,
         "&:hover": {
-          bgcolor: "action.hover"
+          bgcolor: "action.hover",
         },
         ...(menuOpen && {
-          bgcolor: "action.selected"
+          bgcolor: "action.selected",
         }),
-        "&:hover .explorer-node-actions-trigger, &:focus-within .explorer-node-actions-trigger": {
-          opacity: 1,
-          pointerEvents: "auto"
-        }
+        "&:hover .explorer-node-actions-trigger, &:focus-within .explorer-node-actions-trigger":
+          {
+            opacity: 1,
+            pointerEvents: "auto",
+          },
       }}
     >
       <ExplorerNodeTextBlock
@@ -1877,7 +2062,10 @@ function ExplorerNodeLabel({ node, sectionId, onInvokeAction }: Readonly<Explore
         handlePrimaryAction={handlePrimaryAction}
         handleShareAction={handleShareAction}
       />
-      <ExplorerEndpointQuickActions actions={endpointActions} onInvokeAction={onInvokeAction} />
+      <ExplorerEndpointQuickActions
+        actions={endpointActions}
+        onInvokeAction={onInvokeAction}
+      />
       <ExplorerNodeActions
         hasActions={hasActions}
         node={node}
@@ -1908,14 +2096,17 @@ function SectionTreeNode({
   depth,
   expandedIds,
   onToggleExpanded,
-  onInvokeAction
+  onInvokeAction,
 }: Readonly<SectionTreeNodeProps>) {
   const hasChildren = node.hasChildren || node.children.length > 0;
   const isExpanded = expandedIds.has(node.id);
   const isEndpointRoot = isEndpointNode(node.contextValue);
   const isEndpointSection = isEndpointSectionNode(node.contextValue);
   const toggleOnRowClick =
-    hasChildren && (isEndpointRoot || isEndpointSection || isFileExplorerFolderNode(node.contextValue));
+    hasChildren &&
+    (isEndpointRoot ||
+      isEndpointSection ||
+      isFileExplorerFolderNode(node.contextValue));
   const rowMinHeight = endpointRowHeight(isEndpointRoot, isEndpointSection);
 
   return (
@@ -1932,7 +2123,7 @@ function SectionTreeNode({
             flex: `0 0 ${TREE_DISCLOSURE_SLOT_PX}px`,
             display: "flex",
             justifyContent: "center",
-            alignItems: "center"
+            alignItems: "center",
           }}
         >
           {hasChildren && (
@@ -1942,16 +2133,22 @@ function SectionTreeNode({
                 width: TREE_DISCLOSURE_SLOT_PX,
                 height: TREE_DISCLOSURE_SLOT_PX,
                 p: 0,
-                color: COLOR_TEXT_PRIMARY
+                color: COLOR_TEXT_PRIMARY,
               }}
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
                 onToggleExpanded(node.id);
               }}
-              aria-label={isExpanded ? `Collapse ${node.label}` : `Expand ${node.label}`}
+              aria-label={
+                isExpanded ? `Collapse ${node.label}` : `Expand ${node.label}`
+              }
             >
-              {isExpanded ? <ExpandMoreIcon fontSize="inherit" /> : <ChevronRightIcon fontSize="inherit" />}
+              {isExpanded ? (
+                <ExpandMoreIcon fontSize="inherit" />
+              ) : (
+                <ChevronRightIcon fontSize="inherit" />
+              )}
             </IconButton>
           )}
         </Box>
@@ -1965,9 +2162,17 @@ function SectionTreeNode({
             event.stopPropagation();
             onToggleExpanded(node.id);
           }}
-          sx={{ flex: 1, minWidth: 0, cursor: toggleOnRowClick ? "pointer" : "default" }}
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            cursor: toggleOnRowClick ? "pointer" : "default",
+          }}
         >
-          <ExplorerNodeLabel node={node} sectionId={sectionId} onInvokeAction={onInvokeAction} />
+          <ExplorerNodeLabel
+            node={node}
+            sectionId={sectionId}
+            onInvokeAction={onInvokeAction}
+          />
         </Box>
       </Stack>
 
@@ -1994,7 +2199,7 @@ function SectionTree({
   section,
   expandedItems,
   onExpandedItemsChange,
-  onInvokeAction
+  onInvokeAction,
 }: Readonly<SectionTreeProps>) {
   const nodeById = useMemo(() => {
     const map = new Map<string, ExplorerNode>();
@@ -2023,7 +2228,9 @@ function SectionTree({
   const toggleExpanded = useCallback(
     (nodeId: string) => {
       const node = nodeById.get(nodeId);
-      const shouldResetEndpointDescendants = Boolean(node && isEndpointNode(node.contextValue));
+      const shouldResetEndpointDescendants = Boolean(
+        node && isEndpointNode(node.contextValue),
+      );
       const childIdsToExpand = shouldResetEndpointDescendants
         ? (node?.children ?? []).map((child) => child.id)
         : [];
@@ -2033,11 +2240,11 @@ function SectionTree({
           descendantIds: descendantIdsByNodeId.get(nodeId) ?? [],
           expandedItems,
           nodeId,
-          resetDescendants: shouldResetEndpointDescendants
-        })
+          resetDescendants: shouldResetEndpointDescendants,
+        }),
       );
     },
-    [descendantIdsByNodeId, expandedItems, nodeById, onExpandedItemsChange]
+    [descendantIdsByNodeId, expandedItems, nodeById, onExpandedItemsChange],
   );
 
   if (section.nodes.length === 0) {
@@ -2065,9 +2272,16 @@ function SectionTree({
   );
 }
 
-function SectionToolbarActions({ actions, onInvokeAction }: Readonly<SectionToolbarProps>) {
+function SectionToolbarActions({
+  actions,
+  onInvokeAction,
+}: Readonly<SectionToolbarProps>) {
   return (
-    <Stack direction="row" spacing={0.1} className="explorer-section-hover-actions">
+    <Stack
+      direction="row"
+      spacing={0.1}
+      className="explorer-section-hover-actions"
+    >
       {actions.map((action) => {
         const IconComponent = actionIcon(action);
         return (
@@ -2098,10 +2312,18 @@ function SectionToolbarActions({ actions, onInvokeAction }: Readonly<SectionTool
 interface ResizeDividerProps {
   aboveId: ExplorerSectionId;
   belowId: ExplorerSectionId;
-  onResizeStart: (aboveId: ExplorerSectionId, belowId: ExplorerSectionId, startY: number) => void;
+  onResizeStart: (
+    aboveId: ExplorerSectionId,
+    belowId: ExplorerSectionId,
+    startY: number,
+  ) => void;
 }
 
-function ResizeDivider({ aboveId, belowId, onResizeStart }: Readonly<ResizeDividerProps>) {
+function ResizeDivider({
+  aboveId,
+  belowId,
+  onResizeStart,
+}: Readonly<ResizeDividerProps>) {
   return (
     <Box
       onMouseDown={(e) => {
@@ -2116,8 +2338,9 @@ function ResizeDivider({ aboveId, belowId, onResizeStart }: Readonly<ResizeDivid
         alignItems: "center",
         justifyContent: "center",
         "&:hover": {
-          bgcolor: (theme: Theme) => theme.alpha(theme.palette.primary.main, 0.18)
-        }
+          bgcolor: (theme: Theme) =>
+            theme.alpha(theme.palette.primary.main, 0.18),
+        },
       }}
     />
   );
@@ -2126,15 +2349,21 @@ function ResizeDivider({ aboveId, belowId, onResizeStart }: Readonly<ResizeDivid
 function usePaneResize(
   containerRef: RefObject<HTMLDivElement | null>,
   heightRatioBySection: Partial<Record<ExplorerSectionId, number>>,
-  setHeightRatioBySection: Dispatch<SetStateAction<Partial<Record<ExplorerSectionId, number>>>>,
+  setHeightRatioBySection: Dispatch<
+    SetStateAction<Partial<Record<ExplorerSectionId, number>>>
+  >,
   collapsedBySection: Partial<Record<ExplorerSectionId, boolean>>,
-  orderedSections: ExplorerSectionSnapshot[]
+  orderedSections: ExplorerSectionSnapshot[],
 ) {
   const [isResizing, setIsResizing] = useState(false);
   const isResizingRef = useRef(false);
 
   const handleResizeStart = useCallback(
-    (aboveId: ExplorerSectionId, belowId: ExplorerSectionId, startY: number) => {
+    (
+      aboveId: ExplorerSectionId,
+      belowId: ExplorerSectionId,
+      startY: number,
+    ) => {
       const container = containerRef.current;
       if (!container) return;
 
@@ -2142,20 +2371,26 @@ function usePaneResize(
       setIsResizing(true);
 
       const expandedSections = orderedSections.filter(
-        (section) => !collapsedBySection[section.id] && !FIXED_HEIGHT_SECTIONS.has(section.id)
+        (section) =>
+          !collapsedBySection[section.id] &&
+          !FIXED_HEIGHT_SECTIONS.has(section.id),
       );
       const expandedIds = expandedSections.map((section) => section.id);
       const headerHeight = expandedSections.reduce(
         (sum, section) => sum + sectionHeaderHeight(section),
-        0
+        0,
       );
       const dividerCount = Math.max(0, expandedIds.length - 1);
       const containerHeight = container.clientHeight;
       const availableBody =
-        containerHeight - headerHeight - dividerCount * RESIZE_DIVIDER_HEIGHT_PX;
+        containerHeight -
+        headerHeight -
+        dividerCount * RESIZE_DIVIDER_HEIGHT_PX;
 
-      const initialAboveRatio = heightRatioBySection[aboveId] ?? (1 / expandedIds.length);
-      const initialBelowRatio = heightRatioBySection[belowId] ?? (1 / expandedIds.length);
+      const initialAboveRatio =
+        heightRatioBySection[aboveId] ?? 1 / expandedIds.length;
+      const initialBelowRatio =
+        heightRatioBySection[belowId] ?? 1 / expandedIds.length;
       const combinedRatio = initialAboveRatio + initialBelowRatio;
 
       const onMouseMove = (ev: globalThis.MouseEvent) => {
@@ -2164,7 +2399,8 @@ function usePaneResize(
         const deltaY = ev.clientY - startY;
         const ratioDelta = availableBody > 0 ? deltaY / availableBody : 0;
 
-        const minRatio = availableBody > 0 ? MIN_SECTION_BODY_HEIGHT_PX / availableBody : 0;
+        const minRatio =
+          availableBody > 0 ? MIN_SECTION_BODY_HEIGHT_PX / availableBody : 0;
         let newAboveRatio = initialAboveRatio + ratioDelta;
         let newBelowRatio = initialBelowRatio - ratioDelta;
 
@@ -2180,7 +2416,7 @@ function usePaneResize(
         setHeightRatioBySection((current) => ({
           ...current,
           [aboveId]: newAboveRatio,
-          [belowId]: newBelowRatio
+          [belowId]: newBelowRatio,
         }));
       };
 
@@ -2194,7 +2430,13 @@ function usePaneResize(
       document.addEventListener("mousemove", onMouseMove);
       document.addEventListener("mouseup", onMouseUp);
     },
-    [containerRef, heightRatioBySection, setHeightRatioBySection, collapsedBySection, orderedSections]
+    [
+      containerRef,
+      heightRatioBySection,
+      setHeightRatioBySection,
+      collapsedBySection,
+      orderedSections,
+    ],
   );
 
   return { isResizing, handleResizeStart };
@@ -2202,12 +2444,14 @@ function usePaneResize(
 
 function normalizeHeightRatios(
   currentRatios: Partial<Record<ExplorerSectionId, number>>,
-  expandedIds: ExplorerSectionId[]
+  expandedIds: ExplorerSectionId[],
 ): Partial<Record<ExplorerSectionId, number>> {
   const n = expandedIds.length;
   if (n === 0) return currentRatios;
 
-  const nextRatios: Partial<Record<ExplorerSectionId, number>> = { ...currentRatios };
+  const nextRatios: Partial<Record<ExplorerSectionId, number>> = {
+    ...currentRatios,
+  };
   for (const id of expandedIds) {
     if (nextRatios[id] === undefined || nextRatios[id] === 0) {
       nextRatios[id] = 1 / n;
@@ -2233,8 +2477,9 @@ function getSectionPaperSx(isDropTarget: boolean, flexStyle: string) {
     border: "none",
     bgcolor: "transparent",
     boxShadow: isDropTarget
-      ? (theme: Theme) => `inset 0 0 0 1px ${theme.alpha(theme.palette.primary.main, 0.35)}`
-      : "none"
+      ? (theme: Theme) =>
+          `inset 0 0 0 1px ${theme.alpha(theme.palette.primary.main, 0.35)}`
+      : "none",
   };
 }
 
@@ -2252,17 +2497,18 @@ function getSectionHeaderSx(_isCollapsed: boolean, isBeingDragged: boolean) {
     userSelect: "none",
     bgcolor: isBeingDragged ? "action.selected" : "transparent",
     "&:hover": {
-      bgcolor: "action.hover"
+      bgcolor: "action.hover",
     },
     "& .explorer-section-hover-actions": {
       opacity: isBeingDragged ? 1 : 0,
       pointerEvents: isBeingDragged ? "auto" : "none",
-      transition: "opacity 120ms ease"
+      transition: "opacity 120ms ease",
     },
-    "&:hover .explorer-section-hover-actions, &:focus-within .explorer-section-hover-actions": {
-      opacity: 1,
-      pointerEvents: "auto"
-    }
+    "&:hover .explorer-section-hover-actions, &:focus-within .explorer-section-hover-actions":
+      {
+        opacity: 1,
+        pointerEvents: "auto",
+      },
   };
 }
 
@@ -2282,15 +2528,24 @@ function ExplorerSectionCard({
   onInvokeAction,
   onExpandedItemsChange,
   onExpandAllInSection,
-  onCollapseAllInSection
+  onCollapseAllInSection,
 }: Readonly<ExplorerSectionCardProps>) {
-  const expandableIds = useMemo(() => flattenExpandableNodeIds(section.nodes), [section.nodes]);
+  const expandableIds = useMemo(
+    () => flattenExpandableNodeIds(section.nodes),
+    [section.nodes],
+  );
   const bareTreeSection = isBareTreeSection(section);
-  const [sectionMenuPosition, setSectionMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [sectionMenuPosition, setSectionMenuPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [sectionMenuOpenToLeft, setSectionMenuOpenToLeft] = useState(false);
   const sectionContextMenuItems = useMemo(
-    () => (section.contextActions ?? []).map((action) => toContextMenuItem(action, onInvokeAction)),
-    [onInvokeAction, section.contextActions]
+    () =>
+      (section.contextActions ?? []).map((action) =>
+        toContextMenuItem(action, onInvokeAction),
+      ),
+    [onInvokeAction, section.contextActions],
   );
 
   const allExpanded = useMemo(() => {
@@ -2301,7 +2556,8 @@ function ExplorerSectionCard({
     return expandableIds.every((id) => expandedIds.has(id));
   }, [expandableIds, expandedItems]);
 
-  const showExpandAllControl = section.id !== "helpFeedback" && expandableIds.length > 0;
+  const showExpandAllControl =
+    section.id !== "helpFeedback" && expandableIds.length > 0;
   const handleSectionMenuClose = useCallback(() => {
     setSectionMenuOpenToLeft(false);
     setSectionMenuPosition(null);
@@ -2321,7 +2577,7 @@ function ExplorerSectionCard({
       setSectionMenuOpenToLeft(event.clientX > window.innerWidth - 260);
       setSectionMenuPosition({ x: event.clientX, y: event.clientY });
     },
-    [sectionContextMenuItems.length]
+    [sectionContextMenuItems.length],
   );
 
   return (
@@ -2339,7 +2595,10 @@ function ExplorerSectionCard({
           draggable
           onDragStart={onSectionDragStart(section.id)}
           onDragEnd={onSectionDragEnd}
-          sx={{ ...getSectionHeaderSx(isCollapsed, isBeingDragged), flex: "0 0 auto" }}
+          sx={{
+            ...getSectionHeaderSx(isCollapsed, isBeingDragged),
+            flex: "0 0 auto",
+          }}
         >
           <IconButton
             size="small"
@@ -2348,10 +2607,18 @@ function ExplorerSectionCard({
               event.stopPropagation();
               onToggleSectionCollapsed(section.id);
             }}
-            aria-label={isCollapsed ? `Expand ${section.label}` : `Collapse ${section.label}`}
+            aria-label={
+              isCollapsed
+                ? `Expand ${section.label}`
+                : `Collapse ${section.label}`
+            }
             sx={{ color: COLOR_TEXT_PRIMARY, p: 0.25 }}
           >
-            {isCollapsed ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+            {isCollapsed ? (
+              <ChevronRightIcon fontSize="small" />
+            ) : (
+              <ExpandMoreIcon fontSize="small" />
+            )}
           </IconButton>
 
           <Box
@@ -2362,10 +2629,14 @@ function ExplorerSectionCard({
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
-              gap: 0.5
+              gap: 0.5,
             }}
           >
-            <Typography className="explorer-section-title" variant="body2" noWrap>
+            <Typography
+              className="explorer-section-title"
+              variant="body2"
+              noWrap
+            >
               {formatSectionTitle(section)}
             </Typography>
             {showSectionCount(section) && (
@@ -2380,17 +2651,23 @@ function ExplorerSectionCard({
                   minWidth: 18,
                   borderRadius: 999,
                   bgcolor: theme.alpha(theme.palette.text.primary, 0.08),
-                  color: "text.secondary"
+                  color: "text.secondary",
                 })}
               >
-                <Typography variant="caption" sx={{ color: "inherit", lineHeight: 1.3, fontWeight: 700 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "inherit", lineHeight: 1.3, fontWeight: 700 }}
+                >
                   {section.count}
                 </Typography>
               </Box>
             )}
           </Box>
 
-          <SectionToolbarActions actions={section.toolbarActions} onInvokeAction={onInvokeAction} />
+          <SectionToolbarActions
+            actions={section.toolbarActions}
+            onInvokeAction={onInvokeAction}
+          />
 
           {showExpandAllControl && (
             <Tooltip title={allExpanded ? "Collapse All" : "Expand All"}>
@@ -2409,7 +2686,11 @@ function ExplorerSectionCard({
                   }
                 }}
               >
-                {allExpanded ? <ChevronRightIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+                {allExpanded ? (
+                  <ChevronRightIcon fontSize="small" />
+                ) : (
+                  <ExpandMoreIcon fontSize="small" />
+                )}
               </IconButton>
             </Tooltip>
           )}
@@ -2423,18 +2704,22 @@ function ExplorerSectionCard({
             py: bareTreeSection ? 0.1 : 0.25,
             flex: 1,
             minHeight: 0,
-            overflowY: "auto"
+            overflowY: "auto",
           }}
           onContextMenu={handleSectionBodyContextMenu}
         >
           <SectionTree
             section={section}
             expandedItems={expandedItems}
-            onExpandedItemsChange={(itemIds) => onExpandedItemsChange(section.id, itemIds)}
+            onExpandedItemsChange={(itemIds) =>
+              onExpandedItemsChange(section.id, itemIds)
+            }
             onInvokeAction={onInvokeAction}
           />
           <ContextMenu
-            isVisible={Boolean(sectionMenuPosition) && sectionContextMenuItems.length > 0}
+            isVisible={
+              Boolean(sectionMenuPosition) && sectionContextMenuItems.length > 0
+            }
             position={sectionMenuPosition ?? { x: 0, y: 0 }}
             items={sectionContextMenuItems}
             compact
@@ -2450,7 +2735,9 @@ function ExplorerSectionCard({
 export function ContainerlabExplorerView() {
   const host = useClabUiHost();
   const [sections, setSections] = useState<ExplorerSectionSnapshot[]>([]);
-  const [sectionOrder, setSectionOrder] = useState<ExplorerSectionId[]>(EXPLORER_SECTION_ORDER);
+  const [sectionOrder, setSectionOrder] = useState<ExplorerSectionId[]>(
+    EXPLORER_SECTION_ORDER,
+  );
   const [collapsedBySection, setCollapsedBySection] = useState<
     Partial<Record<ExplorerSectionId, boolean>>
   >({});
@@ -2458,98 +2745,118 @@ export function ContainerlabExplorerView() {
     Partial<Record<ExplorerSectionId, string[]>>
   >({
     runningLabs: [],
-    localLabs: []
+    localLabs: [],
   });
   const [filterText, setFilterText] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorOpen, setErrorOpen] = useState(false);
-  const [draggingSection, setDraggingSection] = useState<ExplorerSectionId | null>(null);
-  const [dragOverSection, setDragOverSection] = useState<ExplorerSectionId | null>(null);
+  const [draggingSection, setDraggingSection] =
+    useState<ExplorerSectionId | null>(null);
+  const [dragOverSection, setDragOverSection] =
+    useState<ExplorerSectionId | null>(null);
   const [heightRatioBySection, setHeightRatioBySection] = useState<
     Partial<Record<ExplorerSectionId, number>>
   >({});
   const [uiStateHydrated, setUiStateHydrated] = useState(false);
   const paneContainerRef = useRef<HTMLDivElement | null>(null);
-  const sectionRefs = useRef<Partial<Record<ExplorerSectionId, HTMLDivElement | null>>>({});
+  const sectionRefs = useRef<
+    Partial<Record<ExplorerSectionId, HTMLDivElement | null>>
+  >({});
   const pendingFilterSyncRef = useRef<string | null>(null);
   const filterTimeoutRef = useRef<number | null>(null);
   const uiStateTimeoutRef = useRef<number | null>(null);
-  const expandedBeforeFilterRef = useRef<Partial<Record<ExplorerSectionId, string[]>> | null>(null);
+  const expandedBeforeFilterRef = useRef<Partial<
+    Record<ExplorerSectionId, string[]>
+  > | null>(null);
   const latestUiStateRef = useRef<ExplorerUiState>(
     buildExplorerUiState({
       sectionOrder,
       collapsedBySection,
       expandedBySection,
-      heightRatioBySection
-    })
+      heightRatioBySection,
+    }),
   );
 
-  const handleSnapshotMessage = useCallback((message: SnapshotExplorerMessage) => {
-    const pending = pendingFilterSyncRef.current;
-    if (pending !== null && message.filterText !== pending) {
-      return;
-    }
-    if (pending !== null && message.filterText === pending) {
-      pendingFilterSyncRef.current = null;
-    }
-
-    setSections(message.sections);
-    setSectionOrder((currentOrder) => mergeSectionOrder(currentOrder, message.sections));
-    setCollapsedBySection((current) => {
-      const next: Partial<Record<ExplorerSectionId, boolean>> = {};
-      for (const section of message.sections) {
-        next[section.id] = isBareTreeSection(section)
-          ? false
-          : (current[section.id] ?? !DEFAULT_EXPANDED_SECTIONS.has(section.id));
+  const handleSnapshotMessage = useCallback(
+    (message: SnapshotExplorerMessage) => {
+      const pending = pendingFilterSyncRef.current;
+      if (pending !== null && message.filterText !== pending) {
+        return;
       }
-      if (message.filterText.length > 0) {
-        next.runningLabs = false;
-        next.localLabs = false;
+      if (pending !== null && message.filterText === pending) {
+        pendingFilterSyncRef.current = null;
       }
-      return next;
-    });
 
-    setExpandedBySection((current) => {
-      const next = nextExpandedBySectionForSnapshot({
-        current,
-        expandedBeforeFilter: expandedBeforeFilterRef.current,
-        filterText: message.filterText,
-        sections: message.sections
+      setSections(message.sections);
+      setSectionOrder((currentOrder) =>
+        mergeSectionOrder(currentOrder, message.sections),
+      );
+      setCollapsedBySection((current) => {
+        const next: Partial<Record<ExplorerSectionId, boolean>> = {};
+        for (const section of message.sections) {
+          next[section.id] = isBareTreeSection(section)
+            ? false
+            : (current[section.id] ??
+              !DEFAULT_EXPANDED_SECTIONS.has(section.id));
+        }
+        if (message.filterText.length > 0) {
+          next.runningLabs = false;
+          next.localLabs = false;
+        }
+        return next;
       });
-      expandedBeforeFilterRef.current = next.expandedBeforeFilter ?? null;
-      return next.expandedBySection ?? current;
-    });
 
-    setFilterText(message.filterText);
-  }, []);
+      setExpandedBySection((current) => {
+        const next = nextExpandedBySectionForSnapshot({
+          current,
+          expandedBeforeFilter: expandedBeforeFilterRef.current,
+          filterText: message.filterText,
+          sections: message.sections,
+        });
+        expandedBeforeFilterRef.current = next.expandedBeforeFilter ?? null;
+        return next.expandedBySection ?? current;
+      });
 
-  const handleFilterStateMessage = useCallback((message: FilterStateExplorerMessage) => {
-    const pending = pendingFilterSyncRef.current;
-    if (pending !== null && message.filterText !== pending) {
-      return;
-    }
-    if (pending !== null && message.filterText === pending) {
-      pendingFilterSyncRef.current = null;
-    }
-    setFilterText(message.filterText);
-  }, []);
+      setFilterText(message.filterText);
+    },
+    [],
+  );
 
-  const handleUiStateMessage = useCallback((message: UiStateExplorerMessage) => {
-    const state = message.state || {};
-    if (Array.isArray(state.sectionOrder) && state.sectionOrder.length > 0) {
-      setSectionOrder(state.sectionOrder.filter((id) => isExplorerSectionId(id)));
-    }
-    if (state.collapsedBySection) {
-      setCollapsedBySection(state.collapsedBySection);
-    }
-    if (state.expandedBySection) {
-      setExpandedBySection(state.expandedBySection);
-    }
-    if (state.heightRatioBySection) {
-      setHeightRatioBySection(state.heightRatioBySection);
-    }
-    setUiStateHydrated(true);
-  }, []);
+  const handleFilterStateMessage = useCallback(
+    (message: FilterStateExplorerMessage) => {
+      const pending = pendingFilterSyncRef.current;
+      if (pending !== null && message.filterText !== pending) {
+        return;
+      }
+      if (pending !== null && message.filterText === pending) {
+        pendingFilterSyncRef.current = null;
+      }
+      setFilterText(message.filterText);
+    },
+    [],
+  );
+
+  const handleUiStateMessage = useCallback(
+    (message: UiStateExplorerMessage) => {
+      const state = message.state || {};
+      if (Array.isArray(state.sectionOrder) && state.sectionOrder.length > 0) {
+        setSectionOrder(
+          state.sectionOrder.filter((id) => isExplorerSectionId(id)),
+        );
+      }
+      if (state.collapsedBySection) {
+        setCollapsedBySection(state.collapsedBySection);
+      }
+      if (state.expandedBySection) {
+        setExpandedBySection(state.expandedBySection);
+      }
+      if (state.heightRatioBySection) {
+        setHeightRatioBySection(state.heightRatioBySection);
+      }
+      setUiStateHydrated(true);
+    },
+    [],
+  );
 
   const handleErrorMessage = useCallback((message: ErrorExplorerMessage) => {
     setErrorMessage(message.message);
@@ -2561,24 +2868,32 @@ export function ContainerlabExplorerView() {
   }, []);
 
   useMessageListener<ExplorerIncomingMessage>(
-    useCallback((message) => {
-      switch (message.command) {
-        case "snapshot":
-          handleSnapshotMessage(message);
-          return;
-        case "filterState":
-          handleFilterStateMessage(message);
-          return;
-        case "uiState":
-          handleUiStateMessage(message);
-          return;
-        case "error":
-          handleErrorMessage(message);
-          return;
-        default:
-          break;
-      }
-    }, [handleErrorMessage, handleFilterStateMessage, handleSnapshotMessage, handleUiStateMessage])
+    useCallback(
+      (message) => {
+        switch (message.command) {
+          case "snapshot":
+            handleSnapshotMessage(message);
+            return;
+          case "filterState":
+            handleFilterStateMessage(message);
+            return;
+          case "uiState":
+            handleUiStateMessage(message);
+            return;
+          case "error":
+            handleErrorMessage(message);
+            return;
+          default:
+            break;
+        }
+      },
+      [
+        handleErrorMessage,
+        handleFilterStateMessage,
+        handleSnapshotMessage,
+        handleUiStateMessage,
+      ],
+    ),
   );
   useReadySignal();
 
@@ -2589,7 +2904,7 @@ export function ContainerlabExplorerView() {
       }
       void Promise.resolve(host.explorer.invokeAction(action.actionRef));
     },
-    [host]
+    [host],
   );
 
   const persistExplorerUiStateImmediately = useCallback(
@@ -2604,7 +2919,7 @@ export function ContainerlabExplorerView() {
       }
       void Promise.resolve(host.explorer.persistUiState(uiState));
     },
-    [host, uiStateHydrated]
+    [host, uiStateHydrated],
   );
 
   const handleFilterChange = useCallback(
@@ -2627,7 +2942,7 @@ export function ContainerlabExplorerView() {
         void Promise.resolve(host.explorer.setFilter(value));
       }, FILTER_UPDATE_DEBOUNCE_MS);
     },
-    [host]
+    [host],
   );
 
   const applyExpandedItemsChange = useCallback(
@@ -2635,11 +2950,11 @@ export function ContainerlabExplorerView() {
       const nextExpandedBySection = withExpandedSectionItems(
         latestUiStateRef.current.expandedBySection,
         sectionId,
-        itemIds
+        itemIds,
       );
       const nextUiState = {
         ...latestUiStateRef.current,
-        expandedBySection: nextExpandedBySection
+        expandedBySection: nextExpandedBySection,
       };
       latestUiStateRef.current = nextUiState;
       setExpandedBySection(nextExpandedBySection);
@@ -2647,23 +2962,29 @@ export function ContainerlabExplorerView() {
         persistExplorerUiStateImmediately(nextUiState);
       }
     },
-    [persistExplorerUiStateImmediately]
+    [persistExplorerUiStateImmediately],
   );
 
   const handleExpandedItemsChange = useCallback(
     (sectionId: ExplorerSectionId, itemIds: string[]) => {
       applyExpandedItemsChange(sectionId, itemIds);
     },
-    [applyExpandedItemsChange]
+    [applyExpandedItemsChange],
   );
 
-  const expandAllInSection = useCallback((sectionId: ExplorerSectionId, nodes: ExplorerNode[]) => {
-    applyExpandedItemsChange(sectionId, flattenNodeIds(nodes));
-  }, [applyExpandedItemsChange]);
+  const expandAllInSection = useCallback(
+    (sectionId: ExplorerSectionId, nodes: ExplorerNode[]) => {
+      applyExpandedItemsChange(sectionId, flattenNodeIds(nodes));
+    },
+    [applyExpandedItemsChange],
+  );
 
-  const collapseAllInSection = useCallback((sectionId: ExplorerSectionId) => {
-    applyExpandedItemsChange(sectionId, []);
-  }, [applyExpandedItemsChange]);
+  const collapseAllInSection = useCallback(
+    (sectionId: ExplorerSectionId) => {
+      applyExpandedItemsChange(sectionId, []);
+    },
+    [applyExpandedItemsChange],
+  );
 
   const sectionsById = useMemo(() => {
     const map = new Map<ExplorerSectionId, ExplorerSectionSnapshot>();
@@ -2684,32 +3005,47 @@ export function ContainerlabExplorerView() {
     return visible;
   }, [sectionOrder, sectionsById]);
 
-  const orderedSectionIds = useMemo(() => orderedSections.map((s) => s.id), [orderedSections]);
+  const orderedSectionIds = useMemo(
+    () => orderedSections.map((s) => s.id),
+    [orderedSections],
+  );
 
   const floatingToolbarActions = useMemo(() => {
-    const primaryBareTreeSection = orderedSections.find((section) => isBareTreeSection(section));
+    const primaryBareTreeSection = orderedSections.find((section) =>
+      isBareTreeSection(section),
+    );
     return primaryBareTreeSection?.toolbarActions ?? [];
   }, [orderedSections]);
 
-  const toggleSectionCollapsed = useCallback((sectionId: ExplorerSectionId) => {
-    setCollapsedBySection((current) => {
-      const section = sectionsById.get(sectionId);
-      if (section && isBareTreeSection(section)) {
-        return current;
-      }
-      const wasCollapsed = current[sectionId] ?? false;
-      const next = { ...current, [sectionId]: !wasCollapsed };
+  const toggleSectionCollapsed = useCallback(
+    (sectionId: ExplorerSectionId) => {
+      setCollapsedBySection((current) => {
+        const section = sectionsById.get(sectionId);
+        if (section && isBareTreeSection(section)) {
+          return current;
+        }
+        const wasCollapsed = current[sectionId] ?? false;
+        const next = { ...current, [sectionId]: !wasCollapsed };
 
-      const expandedAfter = orderedSectionIds.filter((id) => !next[id] && !FIXED_HEIGHT_SECTIONS.has(id));
-      setHeightRatioBySection((currentRatios) => normalizeHeightRatios(currentRatios, expandedAfter));
+        const expandedAfter = orderedSectionIds.filter(
+          (id) => !next[id] && !FIXED_HEIGHT_SECTIONS.has(id),
+        );
+        setHeightRatioBySection((currentRatios) =>
+          normalizeHeightRatios(currentRatios, expandedAfter),
+        );
 
-      return next;
-    });
-  }, [orderedSectionIds, sectionsById]);
+        return next;
+      });
+    },
+    [orderedSectionIds, sectionsById],
+  );
 
-  const setSectionRef = useCallback((sectionId: ExplorerSectionId, element: HTMLDivElement | null) => {
-    sectionRefs.current[sectionId] = element;
-  }, []);
+  const setSectionRef = useCallback(
+    (sectionId: ExplorerSectionId, element: HTMLDivElement | null) => {
+      sectionRefs.current[sectionId] = element;
+    },
+    [],
+  );
 
   const handleSectionDragStart = useCallback(
     (sectionId: ExplorerSectionId) => (event: DragEvent<HTMLDivElement>) => {
@@ -2718,7 +3054,7 @@ export function ContainerlabExplorerView() {
       setDraggingSection(sectionId);
       setDragOverSection(sectionId);
     },
-    []
+    [],
   );
 
   const handleSectionDragOver = useCallback(
@@ -2728,14 +3064,16 @@ export function ContainerlabExplorerView() {
         setDragOverSection(sectionId);
       }
     },
-    [draggingSection]
+    [draggingSection],
   );
 
   const handleSectionDrop = useCallback(
     (targetId: ExplorerSectionId) => (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       const sourceValue = event.dataTransfer.getData("text/plain");
-      const sourceId = isExplorerSectionId(sourceValue) ? sourceValue : draggingSection;
+      const sourceId = isExplorerSectionId(sourceValue)
+        ? sourceValue
+        : draggingSection;
 
       if (!sourceId || sourceId === targetId) {
         setDraggingSection(null);
@@ -2743,11 +3081,13 @@ export function ContainerlabExplorerView() {
         return;
       }
 
-      setSectionOrder((currentOrder) => reorderSections(currentOrder, sourceId, targetId));
+      setSectionOrder((currentOrder) =>
+        reorderSections(currentOrder, sourceId, targetId),
+      );
       setDraggingSection(null);
       setDragOverSection(null);
     },
-    [draggingSection]
+    [draggingSection],
   );
 
   const handleSectionDragEnd = useCallback(() => {
@@ -2760,12 +3100,14 @@ export function ContainerlabExplorerView() {
     heightRatioBySection,
     setHeightRatioBySection,
     collapsedBySection,
-    orderedSections
+    orderedSections,
   );
 
   const sectionFlexStyles = useMemo(() => {
     const styles: Partial<Record<ExplorerSectionId, string>> = {};
-    const expandedIds = orderedSectionIds.filter((id) => !collapsedBySection[id] && !FIXED_HEIGHT_SECTIONS.has(id));
+    const expandedIds = orderedSectionIds.filter(
+      (id) => !collapsedBySection[id] && !FIXED_HEIGHT_SECTIONS.has(id),
+    );
     const n = expandedIds.length;
     for (const id of orderedSectionIds) {
       if (collapsedBySection[id] || FIXED_HEIGHT_SECTIONS.has(id)) {
@@ -2787,7 +3129,7 @@ export function ContainerlabExplorerView() {
         window.clearTimeout(uiStateTimeoutRef.current);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
@@ -2795,7 +3137,7 @@ export function ContainerlabExplorerView() {
       sectionOrder,
       collapsedBySection,
       expandedBySection,
-      heightRatioBySection
+      heightRatioBySection,
     });
     latestUiStateRef.current = uiState;
 
@@ -2810,7 +3152,14 @@ export function ContainerlabExplorerView() {
       uiStateTimeoutRef.current = null;
       void Promise.resolve(host.explorer.persistUiState(uiState));
     }, UI_STATE_UPDATE_DEBOUNCE_MS);
-  }, [sectionOrder, collapsedBySection, expandedBySection, heightRatioBySection, host, uiStateHydrated]);
+  }, [
+    sectionOrder,
+    collapsedBySection,
+    expandedBySection,
+    heightRatioBySection,
+    host,
+    uiStateHydrated,
+  ]);
 
   return (
     <Box
@@ -2828,7 +3177,7 @@ export function ContainerlabExplorerView() {
         pt: 0,
         px: 0,
         pb: 0,
-        gap: 0
+        gap: 0,
       }}
     >
       <Snackbar
@@ -2839,7 +3188,7 @@ export function ContainerlabExplorerView() {
         sx={{
           mt: 1,
           mr: 1,
-          maxWidth: { xs: "calc(100vw - 16px)", sm: 560 }
+          maxWidth: { xs: "calc(100vw - 16px)", sm: 560 },
         }}
       >
         <Alert
@@ -2851,8 +3200,8 @@ export function ContainerlabExplorerView() {
             alignItems: "flex-start",
             "& .MuiAlert-message": {
               whiteSpace: "pre-wrap",
-              wordBreak: "break-word"
-            }
+              wordBreak: "break-word",
+            },
           }}
         >
           {errorMessage}
@@ -2868,7 +3217,7 @@ export function ContainerlabExplorerView() {
           py: 0.5,
           bgcolor: "background.paper",
           borderBottom: 1,
-          borderColor: "divider"
+          borderColor: "divider",
         }}
       >
         <TextField
@@ -2884,12 +3233,15 @@ export function ContainerlabExplorerView() {
                   <SearchIcon fontSize="small" />
                 </InputAdornment>
               ),
-              endAdornment: undefined
-            }
+              endAdornment: undefined,
+            },
           }}
         />
         {floatingToolbarActions.length > 0 && (
-          <SectionToolbarActions actions={floatingToolbarActions} onInvokeAction={invokeAction} />
+          <SectionToolbarActions
+            actions={floatingToolbarActions}
+            onInvokeAction={invokeAction}
+          />
         )}
       </Stack>
 
@@ -2901,7 +3253,7 @@ export function ContainerlabExplorerView() {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          ...(isResizing && { cursor: "row-resize", userSelect: "none" })
+          ...(isResizing && { cursor: "row-resize", userSelect: "none" }),
         }}
       >
         {orderedSections.map((section, index) => {
@@ -2917,18 +3269,24 @@ export function ContainerlabExplorerView() {
 
           return (
             <Box key={section.id} sx={{ display: "contents" }}>
-              {isExpanded && prevExpandedId && !FIXED_HEIGHT_SECTIONS.has(section.id) && !FIXED_HEIGHT_SECTIONS.has(prevExpandedId) && (
-                <ResizeDivider
-                  aboveId={prevExpandedId}
-                  belowId={section.id}
-                  onResizeStart={handleResizeStart}
-                />
-              )}
+              {isExpanded &&
+                prevExpandedId &&
+                !FIXED_HEIGHT_SECTIONS.has(section.id) &&
+                !FIXED_HEIGHT_SECTIONS.has(prevExpandedId) && (
+                  <ResizeDivider
+                    aboveId={prevExpandedId}
+                    belowId={section.id}
+                    onResizeStart={handleResizeStart}
+                  />
+                )}
               <ExplorerSectionCard
                 section={section}
                 expandedItems={expandedBySection[section.id] ?? []}
                 isCollapsed={collapsedBySection[section.id] ?? false}
-                isDropTarget={dragOverSection === section.id && draggingSection !== section.id}
+                isDropTarget={
+                  dragOverSection === section.id &&
+                  draggingSection !== section.id
+                }
                 isBeingDragged={draggingSection === section.id}
                 flexStyle={sectionFlexStyles[section.id] ?? "0 0 auto"}
                 onSetSectionRef={setSectionRef}

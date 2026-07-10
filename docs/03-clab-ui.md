@@ -16,6 +16,8 @@
 - Linux user and group checks
 - Container runtime privileges
 - Browser endpoint sessions or VS Code command registration
+- Endpoint profile persistence, credential forms, or active-backend selection
+- API URLs, TLS policy, credentials, tokens, or HTTP clients
 - Topology session creation and disposal in the host product
 
 ## Public package surface
@@ -59,6 +61,37 @@ The important subtlety is that `clab-ui` does not create topology sessions for y
 - push async updates back into the UI
 
 That is what allows the same package to run in a browser host and in a VS Code webview without changing the app code.
+
+## Backend capabilities
+
+Hosts that can route resources between backends should provide `ClabUiHost.capabilities`.
+The capability contract is intentionally about user-visible operations, not
+transport details: lifecycle actions, node actions, capture, impairments,
+export, and split view. The UI derives disabled or hidden affordances directly
+from that contract. Image support remains structural (`host.images`), while
+custom-node and custom-icon methods remain part of the host contract until
+their complete UI surfaces can participate in capability negotiation.
+
+Legacy hosts may omit the field and retain the complete historical surface.
+New multi-backend hosts should build an explicit capability set with
+`createClabUiHostCapabilities(...)`. The factory defaults omitted operations to
+unavailable; do not infer support from an API URL or put backend credentials in
+the capability object.
+
+## Endpoint-management boundary
+
+Endpoint management is host UI, not topology UI. `containerlab-app` can keep
+multiple API sessions active at once and adds BFF-specific health and profile
+transfer features. `vscode-containerlab` also connects multiple profiles at
+once, combines them with its local adapter, and keeps JWTs in VS Code
+SecretStorage. Those lifecycles
+must stay in their hosts; do not add cookies, passwords, TLS policy, or backend
+activation to `clab-ui` merely to make the screens look identical.
+
+Small stateless presentation primitives may move into `clab-ui` when both
+hosts can consume the same published contract without feature flags. Pure DTO
+and validation code shared by the browser and Fastify halves of
+`containerlab-app` belongs in its `containerlab-app-contract` package.
 
 ## Session and revision semantics
 

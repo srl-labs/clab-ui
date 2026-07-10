@@ -7,6 +7,20 @@ import { buildEdgeContextMenu, buildNodeContextMenu } from "./contextMenuBuilder
 import type { ContextMenuItem } from "../context-menu/ContextMenu";
 import { FREE_TEXT_NODE_TYPE } from "../../annotations/annotationNodeConverters";
 
+const ALL_NODE_ACTIONS: Readonly<Record<TopoViewerNodeAction, boolean>> = {
+  ssh: true,
+  shell: true,
+  logs: true,
+  start: true,
+  stop: true,
+  restart: true
+};
+
+const ALL_EDGE_RUNTIME_CAPABILITIES = {
+  interfaceCaptureSupported: true,
+  linkImpairmentSupported: true
+} as const;
+
 function buildDeployedNodeMenu(
   runtimeState?: "running" | "stopped" | "paused" | "undeployed",
   isEditMode = false
@@ -20,6 +34,7 @@ function buildDeployedNodeMenu(
     isDeployed: true,
     isLocked: false,
     onNodeAction: (action, nodeName) => actions.push({ action, nodeName }),
+    supportedNodeActions: ALL_NODE_ACTIONS,
     closeContextMenu: () => {},
     editNode: () => {},
     editNetwork: () => {},
@@ -57,6 +72,34 @@ test("deployed node context menu keeps runtime actions enabled for running nodes
   assert.equal(itemById(items, "logs-node").disabled, false);
 });
 
+test("node context menu omits runtime actions the host backend does not implement", () => {
+  const items = buildNodeContextMenu({
+    targetId: "srl1",
+    targetNodeType: "topology-node",
+    targetRuntimeState: "running",
+    isEditMode: false,
+    isDeployed: true,
+    isLocked: false,
+    supportedNodeActions: {
+      start: true,
+      stop: true,
+      restart: true,
+      ssh: true,
+      shell: false,
+      logs: false
+    },
+    onNodeAction: () => {},
+    closeContextMenu: () => {},
+    editNode: () => {},
+    handleDeleteNode: () => {},
+    showNodeInfo: () => {}
+  });
+
+  assert.ok(items.find((item) => item.id === "ssh-node"));
+  assert.equal(items.find((item) => item.id === "shell-node"), undefined);
+  assert.equal(items.find((item) => item.id === "logs-node"), undefined);
+});
+
 test("deployed editable node context menu offers runtime and edit actions", () => {
   const { items } = buildDeployedNodeMenu("running", true);
 
@@ -75,6 +118,7 @@ test("read-only view menus keep runtime actions when deployment state is unknown
     isDeployed: false,
     isLocked: true,
     onNodeAction: () => {},
+    supportedNodeActions: ALL_NODE_ACTIONS,
     closeContextMenu: () => {},
     editNode: () => {},
     editNetwork: () => {},
@@ -97,6 +141,7 @@ test("read-only view menus keep runtime actions when deployment state is unknown
     isDeployed: false,
     isLocked: true,
     onInterfaceCapture: () => {},
+    ...ALL_EDGE_RUNTIME_CAPABILITIES,
     closeContextMenu: () => {},
     editEdge: () => {},
     handleDeleteEdge: () => {}
@@ -115,6 +160,7 @@ test("undeployed editable node context menu has no runtime actions", () => {
     isDeployed: false,
     isLocked: false,
     onNodeAction: () => {},
+    supportedNodeActions: ALL_NODE_ACTIONS,
     closeContextMenu: () => {},
     editNode: () => {},
     editNetwork: () => {},
@@ -146,6 +192,7 @@ test("edge capture menu displays topology names but invokes runtime container na
     isDeployed: true,
     isLocked: false,
     onInterfaceCapture: (nodeName, interfaceName) => captures.push({ nodeName, interfaceName }),
+    ...ALL_EDGE_RUNTIME_CAPABILITIES,
     closeContextMenu: () => {},
     editEdge: () => {},
     handleDeleteEdge: () => {}
@@ -166,6 +213,59 @@ test("edge capture menu displays topology names but invokes runtime container na
   ]);
 });
 
+test("edge context menu omits unsupported capture and impairment actions without stray dividers", () => {
+  const items = buildEdgeContextMenu({
+    targetId: "edge-1",
+    sourceNode: "srl1",
+    targetNode: "srl2",
+    sourceEndpoint: "e1-1",
+    targetEndpoint: "e1-1",
+    isEditMode: false,
+    isDeployed: true,
+    isLocked: true,
+    interfaceCaptureSupported: false,
+    linkImpairmentSupported: false,
+    onInterfaceCapture: () => {},
+    closeContextMenu: () => {},
+    editEdge: () => {},
+    handleDeleteEdge: () => {},
+    showLinkInfo: () => {}
+  });
+
+  assert.deepEqual(
+    items.map((item) => item.id),
+    ["info-edge"]
+  );
+});
+
+test("edge context menu omits the capture divider when only impairments are unsupported", () => {
+  const items = buildEdgeContextMenu({
+    targetId: "edge-1",
+    sourceNode: "srl1",
+    targetNode: "srl2",
+    sourceEndpoint: "e1-1",
+    targetEndpoint: "e1-1",
+    isEditMode: false,
+    isDeployed: true,
+    isLocked: true,
+    interfaceCaptureSupported: true,
+    linkImpairmentSupported: false,
+    onInterfaceCapture: () => {},
+    closeContextMenu: () => {},
+    editEdge: () => {},
+    handleDeleteEdge: () => {},
+    showLinkInfo: () => {}
+  });
+
+  assert.ok(items.some((item) => item.id.startsWith("capture-")));
+  assert.equal(items.some((item) => item.id === "impair-edge"), false);
+  assert.equal(items.some((item) => item.id === "divider-capture"), false);
+  assert.equal(
+    items.some((item, index) => item.divider && items[index + 1]?.divider),
+    false
+  );
+});
+
 test("free text Edit Text prefers the drawer+inline handler and falls back to drawer-only", () => {
   const edited: string[] = [];
   const editedWithInline: string[] = [];
@@ -176,6 +276,7 @@ test("free text Edit Text prefers the drawer+inline handler and falls back to dr
     isDeployed: false,
     isLocked: false,
     onNodeAction: () => {},
+    supportedNodeActions: ALL_NODE_ACTIONS,
     closeContextMenu: () => {},
     editNode: () => {},
     editNetwork: () => {},
@@ -211,6 +312,7 @@ test("free text context menu offers Duplicate Text that duplicates the target an
     isDeployed: false,
     isLocked: false,
     onNodeAction: () => {},
+    supportedNodeActions: ALL_NODE_ACTIONS,
     closeContextMenu: () => {
       closes += 1;
     },
@@ -238,6 +340,7 @@ test("free text context menu hides Duplicate Text when locked", () => {
     isDeployed: false,
     isLocked: true,
     onNodeAction: () => {},
+    supportedNodeActions: ALL_NODE_ACTIONS,
     closeContextMenu: () => {},
     editNode: () => {},
     editNetwork: () => {},

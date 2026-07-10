@@ -1,6 +1,6 @@
 # 13. VS Code Bridge Contract
 
-This page describes how `vscode-containerlab` hosts `clab-ui` webviews and turns UI messages into extension-host behavior.
+This page describes how `vscode-containerlab` hosts `clab-ui` webviews and turns UI messages into extension-host behavior. The extension host may combine its local containerlab integration with multiple authenticated `clab-api-server` connections; those transports remain invisible to the webview.
 
 ## One-sentence model
 
@@ -13,8 +13,11 @@ flowchart LR
     WV["clab-ui webview"] --> Msg["postMessage"]
     Msg --> Router["MessageRouter or feature provider"]
     Router --> Service["Extension service or command handler"]
-    Service --> Runtime["Filesystem, VS Code APIs, runtime, CLI"]
-    Runtime --> Service
+    Service --> Backend["resource-owner backend port"]
+    Backend --> Local["local filesystem, runtime, CLI"]
+    Backend --> API["clab-api-server"]
+    Local --> Service
+    API --> Service
     Service --> Push["postMessage back to webview"]
     Push --> WV
 ```
@@ -38,6 +41,27 @@ flowchart LR
 | topology-host protocol | webview -> extension and extension -> webview | `topology-host:get-snapshot`, `topology-host:command`, `topology-host:ack`, `topology-host:reject` |
 | semantic UI commands | webview -> extension | lifecycle commands, `clab-node-connect-ssh`, `clab-interface-capture`, icon and export commands |
 | push events | extension -> webview | `topo-mode-changed`, `custom-nodes-updated`, `icon-list-response`, `lab-lifecycle-status`, `lab-lifecycle-log`, `svg-export-result` |
+
+JWTs, passwords, CA paths, and backend URLs remain in the extension host. They must not be placed in webview bootstrap data or forwarded as bridge messages.
+
+## Backend routing and capabilities
+
+Backends initialize independently and coexist in a workspace registry:
+
+| Backend | Activation prerequisites | Resource identity |
+|---|---|---|
+| local | Linux, local containerlab binary, runtime access and configured groups | local URI plus backend id |
+| API | reachable compatible API, trusted TLS policy and authenticated session | endpoint/backend id plus lab name and remote resource id |
+
+Commands and bridge handlers call backend operation ports instead of branching on transport. A `LabRef`-style identity is carried through tree items, viewer sessions and runtime matching so mutations route to the owner. A first deployment with several available backends asks the user for a destination. A server path must never be interpreted as a local path.
+
+`ClabUiHost.capabilities` is the UI-level contract. It tells the shared package which lifecycle, node and optional feature affordances the current topology resource's backend supports. The API's authenticated capability document is the server compatibility contract. The extension maps the latter to the former and defaults unavailable operations closed.
+
+API credentials belong in VS Code `SecretStorage`. TLS verification policy is machine-scoped; a deliberate unverified connection still requires confirmation and must never mutate process-global TLS behavior.
+
+## Remote topology bundles
+
+A topology is more than its YAML file: relative startup configs, certificates, binds, icons and scripts are part of the deployment input. Initial remote deployment therefore transfers a bounded topology bundle under an explicit source root. Apply/redeploy must synchronize the same bundle; until the API offers an atomic bundle-update contract, the extension blocks those actions for bundle-backed labs instead of silently updating only YAML. Files outside the root, symlinks, and generated or secret-heavy directories require a deliberate policy rather than being copied implicitly.
 
 ## Explorer flow
 

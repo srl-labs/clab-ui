@@ -16,7 +16,7 @@ That means:
 
 | Layer | Responsibility |
 |---|---|
-| `src/extension.ts` | command registration and activation |
+| `src/extension.ts` | backend registry initialization, command registration, and activation |
 | `ReactTopoViewerProvider` | open or reuse topology viewers by lab path |
 | `TopologyHostCore` | authoritative topology document state for the panel |
 | `MessageRouter` | handles topology-host protocol messages and semantic UI commands |
@@ -41,6 +41,7 @@ That means:
 | Welcome | `src/welcomePage.ts`, `src/webviews/welcome/*` |
 | Node impairments | `src/commands/nodeImpairments.ts`, `src/webviews/nodeImpairments/*` |
 | Capture and Wireshark VNC | `src/commands/capture.ts`, `src/webviews/wiresharkVnc/*` |
+| API endpoint profiles | `src/apiEndpoints/*`, `src/webviews/apiEndpoints/*` |
 
 ## Local `clab-ui` mode
 
@@ -56,17 +57,39 @@ npm run build:local-ui
 npm run package:local-ui
 ```
 
-## How this differs from the browser host
+## Local and API backends
+
+The extension host can execute through its local containerlab/runtime adapter
+and multiple direct clab-api-server adapters in parallel. The workspace router
+aggregates read snapshots but sends every mutation to the backend id carried by
+the selected resource. In every case the webview keeps the same
+`window.postMessage` host contract. API URLs, TLS policy, login prompts,
+and JWT storage stay in the extension host and are never sent to the webview.
+For the API server's default self-signed certificate, the host performs a
+credential-free probe, presents the SHA-256 fingerprint for explicit approval,
+and pins that exact leaf certificate to the endpoint. This does not modify the
+operating-system trust store, and a later certificate change must be approved
+before a password or stored JWT is sent.
 
 !!! info "Do not mentally model this as the web app inside VS Code"
-    The VS Code path does not require the `containerlab-app` gateway. It uses extension APIs, VS Code commands, and local services instead of browser cookies, HTTP proxy routes, and server-managed endpoint sessions.
+    API mode does not embed `containerlab-app` or reuse its browser sessions.
+    The VS Code extension owns its endpoint and secret-storage lifecycle, then
+    maps backend results into the same transport-neutral `clab-ui` messages.
+
+The endpoint manager therefore shares the `clab-ui` VS Code theme but remains a
+VS Code host feature. Both hosts support concurrent endpoints, but the web app
+uses BFF sessions while the extension owns direct SecretStorage sessions and
+combines them with local runtime state.
 
 ## Operational prerequisites
 
-The extension expects a local environment that can actually reach the runtime.
+Local integration expects an environment that can reach the runtime. Each API
+integration independently requires a reachable, compatible clab-api-server and
+a valid authenticated session. Failure of one does not disable the others.
 
 Typical blockers are:
 
 - the user is not in the required local groups such as `clab_admins` and `docker`
 - the Docker socket is unavailable
+- the API endpoint certificate is not trusted or the API token expired
 - the extension command router and webview messages drift out of sync

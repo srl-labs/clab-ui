@@ -46,6 +46,7 @@ import {
 } from "../../stores/topoViewerStore";
 import { useDeploymentCommands } from "../../hooks/ui";
 import type { LayoutOption } from "../../hooks/ui";
+import { resolveClabUiHostCapabilities, useClabUiHost } from "../../host";
 
 import { ContainerlabLogo } from "./ContainerlabLogo";
 
@@ -145,6 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isDirty = useIsDirty();
   const { toggleLock, setProcessing } = useTopoViewerActions();
   const deploymentCommands = useDeploymentCommands();
+  const hostCapabilities = resolveClabUiHostCapabilities(useClabUiHost());
 
   const isEditMode = mode === "edit" && !isProcessing;
   const isViewerMode = mode === "view";
@@ -156,7 +158,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isDeployed = deploymentState === "deployed";
   const isInSync = isDeployed && isDirty === false;
   const showDirtyBadge = isDeployed && isDirty === true;
-  const isApplyDisabled = isProcessing || !isTopologyActive || isInSync;
+  const isApplyDisabled =
+    isProcessing ||
+    !isTopologyActive ||
+    isInSync ||
+    !hostCapabilities.lifecycleActions.applyLab;
   // Lifecycle actions that need a running lab stay listed but disabled when
   // the lab is confirmed undeployed.
   const isRunningActionDisabled =
@@ -213,6 +219,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     isViewerMode,
     closeMenu: handleDeployMenuClose
   });
+  const hasLifecycleAction = Object.values(hostCapabilities.lifecycleActions).some(Boolean);
+  const hasDeployMenuAction = hasLifecycleAction || Boolean(extraDeployMenuItems);
 
   const handleApply = React.useCallback(() => {
     setDeployMenuPosition(null);
@@ -374,7 +382,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <IconButton
           size="small"
           onClick={handleDeployMenuOpen}
-          disabled={isProcessing || !isTopologyActive}
+          disabled={isProcessing || !isTopologyActive || !hasDeployMenuAction}
           aria-controls={deployMenuOpen ? "deploy-split-menu" : undefined}
           aria-haspopup="true"
           aria-expanded={deployMenuOpen ? "true" : undefined}
@@ -403,7 +411,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           </MenuItem>
           <MenuItem
             onClick={handleDeployCleanup}
-            disabled={isProcessing || !isTopologyActive || isDeployed}
+            disabled={
+              isProcessing ||
+              !isTopologyActive ||
+              isDeployed ||
+              !hostCapabilities.lifecycleActions.deployLabCleanup
+            }
             data-testid="navbar-deploy-item-deploy-cleanup"
           >
             <ListItemIcon>
@@ -414,7 +427,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Divider sx={{ my: 0.5 }} />
           <MenuItem
             onClick={handleRedeploy}
-            disabled={isRunningActionDisabled}
+            disabled={
+              isRunningActionDisabled || !hostCapabilities.lifecycleActions.redeployLab
+            }
             data-testid="navbar-deploy-item-redeploy"
           >
             <ListItemIcon>
@@ -424,7 +439,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           </MenuItem>
           <MenuItem
             onClick={handleRedeployCleanup}
-            disabled={isRunningActionDisabled}
+            disabled={
+              isRunningActionDisabled || !hostCapabilities.lifecycleActions.redeployLabCleanup
+            }
             data-testid="navbar-deploy-item-redeploy-cleanup"
           >
             <ListItemIcon>
@@ -435,7 +452,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Divider sx={{ my: 0.5 }} />
           <MenuItem
             onClick={handleDestroy}
-            disabled={isRunningActionDisabled}
+            disabled={isRunningActionDisabled || !hostCapabilities.lifecycleActions.destroyLab}
             data-testid="navbar-deploy-item-destroy"
           >
             <ListItemIcon>
@@ -445,7 +462,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           </MenuItem>
           <MenuItem
             onClick={handleDestroyCleanup}
-            disabled={isRunningActionDisabled}
+            disabled={
+              isRunningActionDisabled || !hostCapabilities.lifecycleActions.destroyLabCleanup
+            }
             data-testid="navbar-deploy-item-destroy-cleanup"
           >
             <ListItemIcon>
@@ -456,7 +475,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Divider sx={{ my: 0.5 }} />
           <MenuItem
             onClick={handleStartLab}
-            disabled={isRunningActionDisabled}
+            disabled={isRunningActionDisabled || !hostCapabilities.lifecycleActions.startLab}
             data-testid="navbar-deploy-item-start-lab"
           >
             <ListItemIcon>
@@ -466,7 +485,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </MenuItem>
           <MenuItem
             onClick={handleStopLab}
-            disabled={isRunningActionDisabled}
+            disabled={isRunningActionDisabled || !hostCapabilities.lifecycleActions.stopLab}
             data-testid="navbar-deploy-item-stop-lab"
           >
             <ListItemIcon>
@@ -476,7 +495,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </MenuItem>
           <MenuItem
             onClick={handleRestartLab}
-            disabled={isRunningActionDisabled}
+            disabled={isRunningActionDisabled || !hostCapabilities.lifecycleActions.restartLab}
             data-testid="navbar-deploy-item-restart-lab"
           >
             <ListItemIcon>
@@ -589,7 +608,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <IconButton
               size="small"
               onClick={onToggleSplit}
-              disabled={!isTopologyActive}
+              disabled={!isTopologyActive || !hostCapabilities.features.splitView}
               data-testid="navbar-split-view"
             >
               <ViewColumnIcon fontSize="small" />
@@ -720,7 +739,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <IconButton
               size="small"
               onClick={onCaptureViewport}
-              disabled={!isTopologyActive}
+              disabled={!isTopologyActive || !hostCapabilities.features.grafanaExport}
               data-testid="navbar-capture"
             >
               <PhotoCameraBackIcon fontSize="small" />

@@ -17,6 +17,7 @@ import type {
   ImageRemoveRequest,
   KindImageReference
 } from "../image-manager/types";
+import type { ClabUiHostCapabilities } from "./capabilities";
 
 export type TopoViewerLifecycleAction =
   | "deployLab"
@@ -184,6 +185,14 @@ export interface ClabUiImageHost {
 }
 
 export interface ClabUiHost {
+  /**
+   * Operations implemented by the current host/backend.
+   *
+   * Omitted by legacy hosts, which are treated as supporting the historical
+   * complete surface. New multi-backend hosts should explicitly advertise
+   * their available operations; the capability factory defaults omissions off.
+   */
+  capabilities?: ClabUiHostCapabilities;
   postMessage(message: unknown): void;
   subscribe(handler: (event: MessageEvent<unknown>) => void): () => void;
   meta?: {

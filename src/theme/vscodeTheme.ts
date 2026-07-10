@@ -16,6 +16,7 @@ const EXPLORER_SCOPE_SELECTORS = [
   "body[data-webview-kind='containerlab-explorer']",
   ".containerlab-explorer-root"
 ] as const;
+const EMBEDDED_WEBVIEW_SELECTOR = "body[data-webview-kind]";
 
 const explorerScopedSelector = (suffix: string) =>
   EXPLORER_SCOPE_SELECTORS.map((selector) => `${selector}${suffix}`).join(", ");
@@ -93,6 +94,22 @@ export const structuralOverrides: NonNullable<ThemeOptions["components"]> = {
         "--topoviewer-edge-label-foreground": vscodePalette.text.primary,
         "--topoviewer-edge-label-outline": vscodePalette.background.default,
         "--topoviewer-network-node-background": vscodePalette.background.paper
+      },
+      [EMBEDDED_WEBVIEW_SELECTOR]: {
+        color: vscodePalette.text.primary,
+        backgroundColor: vscodePalette.background.default,
+        fontFamily: EXPLORER_FONT_FAMILY,
+        fontSize: EXPLORER_FONT_SIZE
+      },
+      [`${EMBEDDED_WEBVIEW_SELECTOR} .MuiTypography-root, ${EMBEDDED_WEBVIEW_SELECTOR} .MuiInputBase-root, ${EMBEDDED_WEBVIEW_SELECTOR} .MuiInputBase-input, ${EMBEDDED_WEBVIEW_SELECTOR} .MuiButton-root`]:
+        {
+          fontFamily: EXPLORER_FONT_FAMILY
+        },
+      [`${EMBEDDED_WEBVIEW_SELECTOR}.vscode-dark, ${EMBEDDED_WEBVIEW_SELECTOR}.vscode-high-contrast`]: {
+        colorScheme: "dark"
+      },
+      [`${EMBEDDED_WEBVIEW_SELECTOR}.vscode-light, ${EMBEDDED_WEBVIEW_SELECTOR}.vscode-high-contrast-light`]: {
+        colorScheme: "light"
       },
       "*::-webkit-scrollbar": { width: 8, height: 8 },
       "*::-webkit-scrollbar-track": { background: "transparent" },

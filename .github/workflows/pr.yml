@@ -26,11 +26,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
+      - name: Lint (includes typecheck)
+        run: npm run lint
 
-      - name: Build package and viewer
-        run: npm run build
+      # pack:preview runs the package's prepack hook, which builds both outputs.
+      - name: Build and verify publishable package contents
+        run: npm run pack:preview
 
       - name: Unit tests
         run: npm run test:unit

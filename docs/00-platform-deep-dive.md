@@ -38,6 +38,7 @@ flowchart LR
     WebHost --> API
     API --> Runtime
     Extension --> Runtime
+    Extension --> API
 ```
 
 Important boundary rules:
@@ -53,8 +54,8 @@ Important boundary rules:
 |---|---|---|
 | Host repo | `containerlab-app` | `vscode-containerlab` |
 | Transport | HTTP, SSE, websocket, browser cookies | VS Code `postMessage`, command dispatch |
-| Runtime owner | `clab-api-server` | extension services and local runtime integration |
-| Auth gate | endpoint session + JWT | extension activation and local environment checks |
+| Runtime owner | `clab-api-server` | selected local adapter or `clab-api-server` |
+| Auth gate | endpoint session + JWT | local environment checks or extension-host JWT session |
 | High-risk drift | route/session/proxy mismatch | command/message router mismatch |
 
 ## Canonical browser path
@@ -83,12 +84,15 @@ sequenceDiagram
   participant WV as clab-ui webview
   participant EX as Extension host
   participant S as Extension services
-  participant R as Runtime
+  participant BE as Resource-owner backend
+  participant R as Runtime/API
 
   WV->>EX: postMessage command or topology-host request
   EX->>S: Route through MessageRouter or command handler
-  S->>R: Run local action, file update, or runtime command
-  R-->>S: Output, state, or error
+  S->>BE: Invoke a capability-specific backend port
+  BE->>R: Run a local action or authenticated API request
+  R-->>BE: Output, state, or error
+  BE-->>S: Normalized domain result
   S-->>EX: Normalized payload
   EX-->>WV: postMessage update or topology-host response
 ```

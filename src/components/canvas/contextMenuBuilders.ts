@@ -49,6 +49,7 @@ interface MenuBuilderContext {
   isDeployed: boolean;
   isLocked: boolean;
   onNodeAction: (action: TopoViewerNodeAction, nodeName: string) => void;
+  supportedNodeActions: Readonly<Record<TopoViewerNodeAction, boolean>>;
   closeContextMenu: () => void;
   editNode: (id: string) => void;
   editNetwork?: (id: string) => void;
@@ -94,6 +95,8 @@ interface EdgeMenuBuilderContext {
   isDeployed: boolean;
   isLocked: boolean;
   onInterfaceCapture: (nodeName: string, interfaceName: string) => void;
+  interfaceCaptureSupported: boolean;
+  linkImpairmentSupported: boolean;
   closeContextMenu: () => void;
   editEdge: (id: string) => void;
   handleDeleteEdge: (id: string) => void;
@@ -325,69 +328,113 @@ function buildTrafficRateContextMenu(ctx: MenuBuilderContext): ContextMenuItem[]
 }
 
 function buildNodeRuntimeItems(ctx: MenuBuilderContext): ContextMenuItem[] {
-  const { targetId, targetRuntimeState, closeContextMenu, onNodeAction } = ctx;
-  return [
+  const {
+    targetId,
+    targetRuntimeState,
+    closeContextMenu,
+    onNodeAction,
+    supportedNodeActions
+  } = ctx;
+  const supports = (action: TopoViewerNodeAction): boolean =>
+    supportedNodeActions?.[action] ?? true;
+  const lifecycleEntries: Array<{
+    action: TopoViewerNodeAction;
+    item: ContextMenuItem;
+  }> = [
     {
-      id: "start-node",
-      label: "Start",
-      icon: React.createElement(PlayArrowIcon, { fontSize: "small" }),
-      onClick: () => {
-        onNodeAction("start", targetId);
-        closeContextMenu();
+      action: "start",
+      item: {
+        id: "start-node",
+        label: "Start",
+        icon: React.createElement(PlayArrowIcon, { fontSize: "small" }),
+        onClick: () => {
+          onNodeAction("start", targetId);
+          closeContextMenu();
+        }
       }
     },
     {
-      id: "stop-node",
-      label: "Stop",
-      icon: React.createElement(StopIcon, { fontSize: "small" }),
-      disabled: isNodeActionDisabled("stop", targetRuntimeState),
-      onClick: () => {
-        onNodeAction("stop", targetId);
-        closeContextMenu();
+      action: "stop",
+      item: {
+        id: "stop-node",
+        label: "Stop",
+        icon: React.createElement(StopIcon, { fontSize: "small" }),
+        disabled: isNodeActionDisabled("stop", targetRuntimeState),
+        onClick: () => {
+          onNodeAction("stop", targetId);
+          closeContextMenu();
+        }
       }
     },
     {
-      id: "restart-node",
-      label: "Restart",
-      icon: React.createElement(ReplayIcon, { fontSize: "small" }),
-      disabled: isNodeActionDisabled("restart", targetRuntimeState),
-      onClick: () => {
-        onNodeAction("restart", targetId);
-        closeContextMenu();
-      }
-    },
-    { id: "divider-node-lifecycle", label: "", divider: true },
-    {
-      id: "ssh-node",
-      label: "SSH",
-      icon: React.createElement(TerminalIcon, { fontSize: "small" }),
-      disabled: isNodeActionDisabled("ssh", targetRuntimeState),
-      onClick: () => {
-        onNodeAction("ssh", targetId);
-        closeContextMenu();
-      }
-    },
-    {
-      id: "shell-node",
-      label: "Shell",
-      icon: React.createElement(TerminalIcon, { fontSize: "small" }),
-      disabled: isNodeActionDisabled("shell", targetRuntimeState),
-      onClick: () => {
-        onNodeAction("shell", targetId);
-        closeContextMenu();
-      }
-    },
-    {
-      id: "logs-node",
-      label: "Logs",
-      icon: React.createElement(ArticleIcon, { fontSize: "small" }),
-      disabled: isNodeActionDisabled("logs", targetRuntimeState),
-      onClick: () => {
-        onNodeAction("logs", targetId);
-        closeContextMenu();
+      action: "restart",
+      item: {
+        id: "restart-node",
+        label: "Restart",
+        icon: React.createElement(ReplayIcon, { fontSize: "small" }),
+        disabled: isNodeActionDisabled("restart", targetRuntimeState),
+        onClick: () => {
+          onNodeAction("restart", targetId);
+          closeContextMenu();
+        }
       }
     }
   ];
+  const accessEntries: Array<{
+    action: TopoViewerNodeAction;
+    item: ContextMenuItem;
+  }> = [
+    {
+      action: "ssh",
+      item: {
+        id: "ssh-node",
+        label: "SSH",
+        icon: React.createElement(TerminalIcon, { fontSize: "small" }),
+        disabled: isNodeActionDisabled("ssh", targetRuntimeState),
+        onClick: () => {
+          onNodeAction("ssh", targetId);
+          closeContextMenu();
+        }
+      }
+    },
+    {
+      action: "shell",
+      item: {
+        id: "shell-node",
+        label: "Shell",
+        icon: React.createElement(TerminalIcon, { fontSize: "small" }),
+        disabled: isNodeActionDisabled("shell", targetRuntimeState),
+        onClick: () => {
+          onNodeAction("shell", targetId);
+          closeContextMenu();
+        }
+      }
+    },
+    {
+      action: "logs",
+      item: {
+        id: "logs-node",
+        label: "Logs",
+        icon: React.createElement(ArticleIcon, { fontSize: "small" }),
+        disabled: isNodeActionDisabled("logs", targetRuntimeState),
+        onClick: () => {
+          onNodeAction("logs", targetId);
+          closeContextMenu();
+        }
+      }
+    }
+  ];
+  const lifecycleItems = lifecycleEntries
+    .filter(({ action }) => supports(action))
+    .map(({ item }) => item);
+  const accessItems = accessEntries
+    .filter(({ action }) => supports(action))
+    .map(({ item }) => item);
+
+  if (lifecycleItems.length > 0 && accessItems.length > 0) {
+    lifecycleItems.push({ id: "divider-node-lifecycle", label: "", divider: true });
+  }
+  return [...lifecycleItems, ...accessItems];
 }
 
 function buildNodeEditItems(ctx: MenuBuilderContext): ContextMenuItem[] {
@@ -537,6 +584,10 @@ function buildEdgeCaptureItems(ctx: EdgeMenuBuilderContext): ContextMenuItem[] {
     closeContextMenu
   } = ctx;
 
+  if (!ctx.interfaceCaptureSupported) {
+    return [];
+  }
+
   const captureItems: ContextMenuItem[] = [];
   const srcCaptureName = getExtraDataString(extraData, "clabSourceLongName") ?? sourceNode;
   const dstCaptureName = getExtraDataString(extraData, "clabTargetLongName") ?? targetNode;
@@ -621,10 +672,12 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
 
   if (showRuntimeActions) {
     items.push(...captureItems);
-    if (captureItems.length > 0) {
+    if (captureItems.length > 0 && ctx.linkImpairmentSupported) {
       items.push({ id: "divider-capture", label: "", divider: true });
     }
-    items.push(impairmentItem);
+    if (ctx.linkImpairmentSupported) {
+      items.push(impairmentItem);
+    }
   }
 
   if (isEditMode) {
@@ -644,7 +697,9 @@ export function buildEdgeContextMenu(ctx: EdgeMenuBuilderContext): ContextMenuIt
   }
 
   if (showRuntimeActions) {
-    items.push({ id: "divider-info", label: "", divider: true });
+    if (items.length > 0) {
+      items.push({ id: "divider-info", label: "", divider: true });
+    }
     items.push(linkInfoItem);
   }
 

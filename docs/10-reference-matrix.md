@@ -32,13 +32,16 @@ This page is the short lookup table set: commands, env vars, and file anchors.
 | Concern | File anchor |
 |---|---|
 | `clab-ui` export map | `clab-ui/package.json` |
-| host factories and contracts | `clab-ui/src/host/index.ts`, `clab-ui/src/host/contracts.ts` |
+| host factories, capabilities, and contracts | `clab-ui/src/host/index.ts`, `clab-ui/src/host/capabilities.ts`, `clab-ui/src/host/contracts.ts` |
 | session client and message exports | `clab-ui/src/session/index.ts`, `clab-ui/src/session/client.ts` |
 | web host bootstrap | `containerlab-app/packages/app-server/src/index.ts` |
 | web route mapping | `containerlab-app/packages/app-server/src/auth.ts`, `labProxy.ts`, `runtimeProxy.ts`, `topologyProxy.ts` |
+| browser/Fastify endpoint DTO and validation contract | `containerlab-app/packages/app-contract/src/index.ts` |
+| browser multi-session endpoint manager | `containerlab-app/packages/standalone-runtime/src/components/EndpointManager.tsx` |
 | API route map | `clab-api-server/internal/api/routes.go` |
 | API auth and ownership helpers | `clab-api-server/internal/api/middleware.go`, `helpers.go` |
 | VS Code activation | `vscode-containerlab/src/extension.ts` |
+| VS Code endpoint profiles, TLS, and backend registry | `vscode-containerlab/src/apiEndpoints/*`, `vscode-containerlab/src/backends/*` |
 | VS Code topology bridge | `vscode-containerlab/src/reactTopoViewer/extension/*` |
 | VS Code local-ui aliasing | `vscode-containerlab/esbuild.config.js` |
 

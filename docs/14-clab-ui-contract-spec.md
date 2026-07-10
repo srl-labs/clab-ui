@@ -45,7 +45,14 @@ A `ClabUiHost` groups three surfaces:
 | `explorer` | explorer-specific commands and subscriptions |
 | `topoViewer` | topology-viewer semantic commands and subscriptions |
 | `topology` | snapshot and command transport for authoritative topology state |
+| optional `capabilities` | backend-independent availability of lifecycle, node, capture, impairment, export, and split-view features |
 | optional `meta` flags | host hints such as `isDevMock` |
+
+When `capabilities` is omitted, the host is treated as a legacy host with the
+complete historical surface. Multi-backend hosts should pass a complete value
+created by `createClabUiHostCapabilities(...)`. Omitted operations default to
+unavailable, and unsupported UI actions are removed or disabled without
+teaching `clab-ui` whether the backend is local, HTTP, or something else.
 
 ## Explorer host contract
 
@@ -124,7 +131,7 @@ Behavior:
 - keeps a pending-request map for snapshot and command calls
 - times out a request after 30 seconds by default
 
-### `createApiClabUiHost(...)`
+### `createHttpTopologyClabUiHost(...)`
 
 Behavior:
 
@@ -137,7 +144,12 @@ Behavior:
 
 Important limitation:
 
+- these are containerlab-app BFF topology routes, not direct `/api/v1` clab-api-server routes
+- authentication, TLS policy, endpoint selection, and privileged API transport stay in the embedding host
 - this helper does not create or dispose topology sessions for you
+
+`createApiClabUiHost(...)` remains as a deprecated compatibility alias. Its old
+name was ambiguous and must not be interpreted as a clab-api-server SDK.
 
 ### `createClabUiRuntime(...)`
 
@@ -175,7 +187,8 @@ Behavior:
 | unexpected response type | snapshot receives command response, or vice versa | message bridge mismatch |
 | stale revision rejection | topology-host reject with newer snapshot | host and UI revision drifted |
 | missing host methods | action silently no-ops or throws | host contract only partially implemented |
-| browser HTTP host works for topology but not semantic commands | topology snapshots succeed but lifecycle or capture actions do nothing | `createApiClabUiHost(...)` only switches the topology transport, not the semantic command handling |
+| browser HTTP host works for topology but not semantic commands | topology snapshots succeed but lifecycle or capture actions do nothing | `createHttpTopologyClabUiHost(...)` only switches the topology transport, not the semantic command handling |
+| backend-specific action is visible but cannot run | the host rejects or ignores a semantic command | the multi-backend host did not publish an explicit capability set |
 
 ## Source anchors
 

@@ -103,3 +103,4 @@ nav:
       - 13. VS Code Bridge Contract: 13-vscode-bridge-contract.md
       - 14. clab-ui Contract Spec: 14-clab-ui-contract-spec.md
       - 15. Failure Mode Atlas: 15-failure-mode-atlas.md
+      - 16. Backend and Deployment Boundaries: 16-backend-boundaries.md

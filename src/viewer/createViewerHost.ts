@@ -1,4 +1,5 @@
 import type { ClabUiHost } from "../host/contracts";
+import { NO_CLAB_UI_HOST_CAPABILITIES } from "../host/capabilities";
 import {
   TOPOLOGY_HOST_PROTOCOL_VERSION,
   TopologySessionCore,
@@ -102,6 +103,7 @@ export function createViewerHost({ yaml, annotations }: ViewerHostInput): ClabUi
   const subscribe = (): (() => void) => () => {};
 
   return {
+    capabilities: NO_CLAB_UI_HOST_CAPABILITIES,
     postMessage: noop,
     subscribe,
     // Not a dev mock: this gates the dev explorer pane and fake traffic stats, which a viewer omits.

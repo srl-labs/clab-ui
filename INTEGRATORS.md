@@ -77,7 +77,10 @@ This is the minimum useful browser integration.
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "@srl-labs/clab-ui";
-import { createApiClabUiHost, createClabUiRuntime } from "@srl-labs/clab-ui/host";
+import {
+  createClabUiRuntime,
+  createHttpTopologyClabUiHost
+} from "@srl-labs/clab-ui/host";
 import type { TopologyRef } from "@srl-labs/clab-ui/session";
 import { MuiThemeProvider, applyThemeVars } from "@srl-labs/clab-ui/theme";
 import "@srl-labs/clab-ui/styles/global.css";
@@ -114,7 +117,7 @@ async function main(): Promise<void> {
   };
 
   const runtime = createClabUiRuntime({
-    host: createApiClabUiHost({
+    host: createHttpTopologyClabUiHost({
       baseUrl: "/api",
       targetWindow: window,
       postMessage(message) {
@@ -218,7 +221,7 @@ Reference consumer:
 
 - [vscode-containerlab/src/webviews/reactTopoViewer/entry.tsx](/home/flschwar/projects/clab/vscode-containerlab/src/webviews/reactTopoViewer/entry.tsx)
 
-### Pattern B: `createApiClabUiHost`
+### Pattern B: `createHttpTopologyClabUiHost`
 
 Use this for:
 
@@ -230,8 +233,36 @@ Reference consumer:
 
 - [containerlab-app/packages/standalone-runtime/src/standaloneApp.tsx](/home/flschwar/projects/clab/containerlab-app/packages/standalone-runtime/src/standaloneApp.tsx)
 
-Important: `createApiClabUiHost` only handles the topology request/command
-transport. Your app still has to create and destroy topology sessions.
+Important: `createHttpTopologyClabUiHost` only handles the topology
+request/command transport to application-owned BFF routes. It is not a direct
+clab-api-server client. Your app still has to own API authentication and TLS,
+create and destroy topology sessions, and handle semantic lifecycle/capture
+commands. `createApiClabUiHost` is retained only as a deprecated compatibility
+alias.
+
+### Multi-backend hosts
+
+If the embedding product can route resources between local and remote
+backends, publish the operations supported by the current resource's backend:
+
+```tsx
+import {
+  createClabUiHostCapabilities,
+  createWindowClabUiHost
+} from "@srl-labs/clab-ui/host";
+
+const host = createWindowClabUiHost({
+  capabilities: createClabUiHostCapabilities({
+    lifecycleActions: { applyLab: true, destroyLab: true },
+    nodeActions: { ssh: true, logs: true },
+    features: { grafanaExport: true, splitView: true }
+  })
+});
+```
+
+Capabilities contain no URLs, credentials, or transport state. Those remain in
+the extension host or application server. The factory defaults every omitted
+operation to unavailable, so a partially negotiated backend fails closed.
 
 ### Pattern C: custom `ClabUiHost`
 
@@ -377,9 +408,10 @@ before rendering `App`.
 
 The UI calls `requestSnapshot()` on mount through its topology session client.
 
-## Minimal API Contract For `createApiClabUiHost`
+## Minimal HTTP Topology Contract For `createHttpTopologyClabUiHost`
 
-If you use `createApiClabUiHost`, the default transport contract is:
+If you use `createHttpTopologyClabUiHost`, the default application-owned BFF
+transport contract is:
 
 ### `POST /api/topology/sessions`
 
@@ -495,7 +527,7 @@ The reference standalone implementation sends browser credentials on its fetches
 Your app can use cookies, bearer tokens, or another auth layer, but the host is
 responsible for it. `clab-ui` does not manage authentication.
 
-### What `createApiClabUiHost` does not do
+### What `createHttpTopologyClabUiHost` does not do
 
 It does not:
 
@@ -503,6 +535,7 @@ It does not:
 - dispose sessions for you
 - decide which topology to open
 - implement lifecycle commands such as deploy/destroy/redeploy
+- connect directly to clab-api-server or manage its bearer tokens
 
 Those remain your product responsibilities.
 

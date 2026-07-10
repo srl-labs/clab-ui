@@ -25,6 +25,7 @@ import type {
 import type { ClabUiExtensions, ClabUiRuntime } from "./runtimeContext";
 import { isRecord } from "../core/utilities/typeHelpers";
 export * from "./controllers";
+export * from "./capabilities";
 export * from "./contracts";
 export * from "./runtimeContext";
 type FetchLike = typeof fetch;
@@ -59,6 +60,7 @@ interface WindowHostOptions {
   images?: ClabUiImageHost;
   topoViewer?: ClabUiTopoViewerHost;
   topology?: ClabUiHost["topology"];
+  capabilities?: ClabUiHost["capabilities"];
   meta?: ClabUiHost["meta"];
 }
 
@@ -599,6 +601,7 @@ export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiH
     })();
 
   return {
+    capabilities: options.capabilities,
     postMessage,
     subscribe,
     meta: {
@@ -614,7 +617,15 @@ export function createWindowClabUiHost(options: WindowHostOptions = {}): ClabUiH
   };
 }
 
-export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
+/**
+ * Creates a host whose topology document requests use an HTTP topology host.
+ *
+ * The default routes belong to the containerlab-app BFF. This is deliberately
+ * not a direct clab-api-server client: authentication, privileged API
+ * transport, and endpoint selection remain responsibilities of the embedding
+ * application or extension host.
+ */
+export function createHttpTopologyClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
   const baseHost = createWindowClabUiHost(options);
   const baseUrl = trimTrailingSlash(options.baseUrl ?? "");
   const fetchImpl = options.fetchImpl ?? fetch.bind(globalThis);
@@ -696,6 +707,12 @@ export function createApiClabUiHost(options: ApiHostOptions = {}): ClabUiHost {
     }
   };
 }
+
+/**
+ * @deprecated Use `createHttpTopologyClabUiHost`. The old name was ambiguous
+ * with a direct clab-api-server transport, which this factory does not create.
+ */
+export const createApiClabUiHost = createHttpTopologyClabUiHost;
 
 export interface CreateClabUiRuntimeOptions extends ClabUiExtensions {
   host: ClabUiHost;

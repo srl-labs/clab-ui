@@ -8,7 +8,12 @@
  */
 import { useCallback, useState } from "react";
 
-import { useClabUiHost } from "../../host";
+import {
+  resolveClabUiHostCapabilities,
+  useClabUiHost,
+  type ClabUiHost,
+  type TopoViewerLifecycleAction
+} from "../../host";
 
 export interface DeploymentCommands {
   onApply: () => void;
@@ -23,27 +28,36 @@ export interface DeploymentCommands {
   onRestartLab: () => void;
 }
 
-// Keep deployment commands - they need extension to run containerlab CLI
+function runLifecycleIfSupported(host: ClabUiHost, action: TopoViewerLifecycleAction): void {
+  if (resolveClabUiHostCapabilities(host).lifecycleActions[action]) {
+    host.topoViewer.runLifecycle(action);
+  }
+}
+
+// Keep deployment commands - they need the host backend to run containerlab operations.
 export function useDeploymentCommands(): DeploymentCommands {
-  const { topoViewer } = useClabUiHost();
+  const host = useClabUiHost();
 
   return {
-    onApply: useCallback(() => topoViewer.runLifecycle("applyLab"), [topoViewer]),
-    onDeploy: useCallback(() => topoViewer.runLifecycle("deployLab"), [topoViewer]),
-    onDeployCleanup: useCallback(() => topoViewer.runLifecycle("deployLabCleanup"), [topoViewer]),
-    onDestroy: useCallback(() => topoViewer.runLifecycle("destroyLab"), [topoViewer]),
+    onApply: useCallback(() => runLifecycleIfSupported(host, "applyLab"), [host]),
+    onDeploy: useCallback(() => runLifecycleIfSupported(host, "deployLab"), [host]),
+    onDeployCleanup: useCallback(
+      () => runLifecycleIfSupported(host, "deployLabCleanup"),
+      [host]
+    ),
+    onDestroy: useCallback(() => runLifecycleIfSupported(host, "destroyLab"), [host]),
     onDestroyCleanup: useCallback(
-      () => topoViewer.runLifecycle("destroyLabCleanup"),
-      [topoViewer]
+      () => runLifecycleIfSupported(host, "destroyLabCleanup"),
+      [host]
     ),
-    onRedeploy: useCallback(() => topoViewer.runLifecycle("redeployLab"), [topoViewer]),
+    onRedeploy: useCallback(() => runLifecycleIfSupported(host, "redeployLab"), [host]),
     onRedeployCleanup: useCallback(
-      () => topoViewer.runLifecycle("redeployLabCleanup"),
-      [topoViewer]
+      () => runLifecycleIfSupported(host, "redeployLabCleanup"),
+      [host]
     ),
-    onStartLab: useCallback(() => topoViewer.runLifecycle("startLab"), [topoViewer]),
-    onStopLab: useCallback(() => topoViewer.runLifecycle("stopLab"), [topoViewer]),
-    onRestartLab: useCallback(() => topoViewer.runLifecycle("restartLab"), [topoViewer])
+    onStartLab: useCallback(() => runLifecycleIfSupported(host, "startLab"), [host]),
+    onStopLab: useCallback(() => runLifecycleIfSupported(host, "stopLab"), [host]),
+    onRestartLab: useCallback(() => runLifecycleIfSupported(host, "restartLab"), [host])
   };
 }
 

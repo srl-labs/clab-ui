@@ -14,10 +14,18 @@ export default defineConfig({
   retries: isCI ? 2 : 0,
   workers: isCI ? 2 : 4,
   timeout: 90000,
-  reporter: [
-    ["list"],
-    ["html", { open: "never", outputFolder: path.resolve(__dirname, "../../playwright-report/ui-harness") }]
-  ],
+  reporter: isCI
+    ? [["list"], ["blob"]]
+    : [
+        ["list"],
+        [
+          "html",
+          {
+            open: "never",
+            outputFolder: path.resolve(__dirname, "../../playwright-report/ui-harness")
+          }
+        ]
+      ],
   use: {
     baseURL: "http://127.0.0.1:5184",
     trace: "on-first-retry",

@@ -42,7 +42,7 @@ import {
   useIconReconciliation,
   useUndoRedoControls
 } from "./hooks/app";
-import { useFilteredGraphElements, useSelectionData } from "./hooks/app/useAppContentHelpers";
+import { useDummyVisibility, useSelectionData } from "./hooks/app/useAppContentHelpers";
 import {
   DEV_EXPLORER_MIN_WIDTH,
   getDevExplorerMaxWidth,
@@ -428,7 +428,7 @@ const GraphCanvasMain: React.FC<GraphCanvasMainProps> = React.memo(
     const graphEdges = React.useMemo(() => edges.filter(isTopoEdge), [edges]);
     useIconReconciliation();
 
-    const { filteredNodes, filteredEdges } = useFilteredGraphElements(
+    const { filteredNodes, filteredEdges } = useDummyVisibility(
       graphNodes,
       graphEdges,
       showDummyLinks
@@ -1407,6 +1407,12 @@ export const AppContent: React.FC<AppContentProps> = ({
     [sessionClient, topoActions]
   );
 
+  const handleToggleDummyLinks = React.useCallback(() => {
+    const next = !useTopoViewerStore.getState().showDummyLinks;
+    topoActions.setShowDummyLinks(next);
+    void saveViewerSettings(sessionClient, { showDummyLinks: next });
+  }, [sessionClient, topoActions]);
+
   let aboutModal: React.ReactNode = null;
   if (panelVisibility.showAboutPanel) {
     if (renderAboutModal) {
@@ -1456,6 +1462,8 @@ export const AppContent: React.FC<AppContentProps> = ({
             onShowBulkLink={panelVisibility.handleShowBulkLink}
             linkLabelMode={state.linkLabelMode}
             onLinkLabelModeChange={handleLinkLabelModeChange}
+            showDummyLinks={state.showDummyLinks}
+            onToggleDummyLinks={handleToggleDummyLinks}
             shortcutDisplayEnabled={shortcutDisplay.isEnabled}
             onToggleShortcutDisplay={shortcutDisplay.toggle}
             canUndo={undoRedo.canUndo}

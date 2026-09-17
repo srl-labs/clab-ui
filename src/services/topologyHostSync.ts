@@ -38,6 +38,11 @@ import { useCanvasStore } from "../stores/canvasStore";
 import { applyForceLayout, hasPresetPositions } from "../components/canvas/layout";
 import { snapToGrid } from "../utils/grid";
 import {
+  collectDummyNodeIds,
+  markDummyEdgesHidden,
+  markDummyNodesHidden
+} from "../utils/graphQueryUtils";
+import {
   clampTelemetryInterfaceSizePercent,
   clampTelemetryNodeSizePx
 } from "../utils/telemetryInterfaceLabels";
@@ -686,6 +691,7 @@ function buildInitialTopoViewerData(
     ...(telemetryNodeSizePx !== null ? { telemetryNodeSizePx } : {}),
     ...(telemetryInterfaceSizePercent !== null ? { telemetryInterfaceSizePercent } : {}),
     showRateLabels,
+    showDummyLinks: viewerSettings.showDummyLinks !== false,
     ...(resolvedLinkLabelMode !== null ? { linkLabelMode: resolvedLinkLabelMode } : {}),
     ...(resolvedLastNonTelemetryLinkLabelMode !== null
       ? { lastNonTelemetryLinkLabelMode: resolvedLastNonTelemetryLinkLabelMode }
@@ -716,10 +722,17 @@ export function applySnapshotToStores(
     annotations.trafficRateAnnotations
   );
 
+  // Stamp dummy visibility before layout runs, so hidden dummies do not reserve space in
+  // the auto-layout of a lab that has no stored positions yet.
+  const showDummyLinks = annotations.viewerSettings.showDummyLinks !== false;
+  const dummyNodeIds = collectDummyNodeIds(mergedNodes);
+  mergedNodes = markDummyNodesHidden(mergedNodes, dummyNodeIds, showDummyLinks);
+  const markedEdges = markDummyEdgesHidden(edges, dummyNodeIds, showDummyLinks);
+
   // Apply force layout when no preset positions exist and geo coordinates are not driving layout.
   // This handles the case when annotation.json doesn't exist or positions were cleared (e.g. undo).
   if (!hasPresetPositions(mergedNodes) && !hasGeoCoordinates(annotations)) {
-    const layoutNodes = applyForceLayout(mergedNodes, edges);
+    const layoutNodes = applyForceLayout(mergedNodes, markedEdges);
     const { nodes: snappedNodes, positions } = snapLayoutPositions(layoutNodes);
     mergedNodes = snappedNodes;
     void persistLayoutPositions(positions, client);
@@ -728,7 +741,7 @@ export function applySnapshotToStores(
   const cleanedEdgeAnnotations = pruneEdgeAnnotations(annotations.edgeAnnotations, edges);
 
   const graphStore = useGraphStore.getState();
-  graphStore.setGraph(mergedNodes, edges);
+  graphStore.setGraph(mergedNodes, markedEdges);
 
   const initialData = buildInitialTopoViewerData(
     snapshot,

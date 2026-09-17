@@ -14,7 +14,7 @@
  */
 import type { Node, Edge } from "@xyflow/react";
 import ELK from "elkjs/lib/elk.bundled.js";
-import { isLayoutableNode, applyPositionMap } from "./types";
+import { isLayoutableNode, isLayoutParticipant, applyPositionMap } from "./types";
 import type { LayoutOptions } from "./types";
 import {
   classifyComponent,
@@ -33,7 +33,7 @@ export async function applyAutoLayout(
 ): Promise<{ nodes: Node[]; edges: Edge[] }> {
   const { padding = 80, nodeSpacing = 100 } = options;
 
-  const layoutNodes = nodes.filter(isLayoutableNode);
+  const layoutNodes = nodes.filter(isLayoutParticipant);
   if (layoutNodes.length === 0) return { nodes, edges };
 
   const nodeIds = new Set(layoutNodes.map((n) => n.id));

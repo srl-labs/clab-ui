@@ -16,6 +16,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import CleaningServicesIcon from "@mui/icons-material/CleaningServices";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FitScreenIcon from "@mui/icons-material/FitScreen";
+import HideSourceIcon from "@mui/icons-material/HideSource";
 import InfoIcon from "@mui/icons-material/Info";
 import KeyboardIcon from "@mui/icons-material/Keyboard";
 import LabelIcon from "@mui/icons-material/Label";
@@ -24,6 +25,7 @@ import LockIcon from "@mui/icons-material/Lock";
 import LockOpenIcon from "@mui/icons-material/LockOpen";
 import PhotoCameraBackIcon from "@mui/icons-material/PhotoCameraBack";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
 import RedoIcon from "@mui/icons-material/Redo";
 import ReplayIcon from "@mui/icons-material/Replay";
 import SearchIcon from "@mui/icons-material/Search";
@@ -103,6 +105,9 @@ export interface NavbarProps {
   onLogoClick?: () => void;
   linkLabelMode: LinkLabelMode;
   onLinkLabelModeChange: (mode: LinkLabelMode) => void;
+  /** Whether dummy endpoint nodes and their links are rendered */
+  showDummyLinks?: boolean;
+  onToggleDummyLinks?: () => void;
   renderDeployMenuItems?: (context: {
     isViewerMode: boolean;
     closeMenu: () => void;
@@ -134,6 +139,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   isPartyMode = false,
   linkLabelMode,
   onLinkLabelModeChange,
+  showDummyLinks = true,
+  onToggleDummyLinks,
   renderDeployMenuItems
 }) => {
   const isTopologyActive = hasActiveTopology;
@@ -713,6 +720,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             <ListItemText>Hide</ListItemText>
           </MenuItem>
         </Menu>
+
+        {/* Toggle Dummy Links */}
+        <Tooltip title={showDummyLinks ? "Hide Dummy Links" : "Show Dummy Links"}>
+          <span>
+            <IconButton
+              size="small"
+              onClick={onToggleDummyLinks}
+              disabled={!isTopologyActive}
+              aria-pressed={!showDummyLinks}
+              data-testid="navbar-show-dummy-links"
+            >
+              {/* The plain ring is HideSource without its slash, so the pair reads as one control. */}
+              {showDummyLinks ? (
+                <RadioButtonUncheckedIcon fontSize="small" />
+              ) : (
+                <HideSourceIcon fontSize="small" />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
 
         {/* Capture Viewport */}
         <Tooltip title="Capture Viewport as SVG">

@@ -55,6 +55,16 @@ export function isLayoutableNode(node: Node): boolean {
 }
 
 /**
+ * Check if a node should feed into a layout algorithm.
+ *
+ * Hidden nodes (e.g. dummy endpoints while they are toggled off) keep their stored
+ * positions but must not reserve space in the generated layout.
+ */
+export function isLayoutParticipant(node: Node): boolean {
+  return isLayoutableNode(node) && node.hidden !== true;
+}
+
+/**
  * Apply a position map to nodes, returning updated nodes.
  */
 export function applyPositionMap(
@@ -96,7 +106,7 @@ export function normalizeLayoutableNodePositions(
  * Check if layoutable nodes have preset positions (non-zero coordinates)
  */
 export function hasPresetPositions(nodes: Node[]): boolean {
-  const layoutNodes = nodes.filter(isLayoutableNode);
+  const layoutNodes = nodes.filter(isLayoutParticipant);
   if (layoutNodes.length === 0) return false;
   return layoutNodes.some((node) => node.position.x !== 0 || node.position.y !== 0);
 }

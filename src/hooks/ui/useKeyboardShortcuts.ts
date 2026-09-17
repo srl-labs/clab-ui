@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 
 import { log } from "../../utils/logger";
 import { useGraphStore } from "../../stores/graphStore";
+import { useTopoViewerStore } from "../../stores/topoViewerStore";
+import { isDummyNode } from "../../utils/graphQueryUtils";
 import {
   FREE_TEXT_NODE_TYPE,
   FREE_SHAPE_NODE_TYPE,
@@ -467,8 +469,18 @@ function handleSelectAll(event: KeyboardEvent): boolean {
   }
 
   const { nodes, edges, setNodes, setEdges } = useGraphStore.getState();
-  setNodes(nodes.map((n) => ({ ...n, selected: true })));
-  setEdges(edges.map((e) => ({ ...e, selected: true })));
+  // Never select what the canvas is not showing. Dummy visibility is applied at render
+  // time, so the store nodes carry no `hidden` flag - derive it the same way here.
+  const dummiesShown = useTopoViewerStore.getState().showDummyLinks;
+  const hiddenNodeIds = new Set<string>();
+  for (const node of nodes) {
+    if (node.hidden === true || (!dummiesShown && isDummyNode(node))) hiddenNodeIds.add(node.id);
+  }
+  const isHiddenEdge = (edge: { hidden?: boolean; source: string; target: string }): boolean =>
+    edge.hidden === true || hiddenNodeIds.has(edge.source) || hiddenNodeIds.has(edge.target);
+
+  setNodes(nodes.map((n) => ({ ...n, selected: !hiddenNodeIds.has(n.id) })));
+  setEdges(edges.map((e) => ({ ...e, selected: !isHiddenEdge(e) })));
 
   log.info("[Keyboard] Select all nodes and edges");
   event.preventDefault();

@@ -150,3 +150,49 @@ test("annotation-only commands do not dirty deployed apply state", async () => {
   });
   assert.equal(yamlResponse.snapshot.dirty, true);
 });
+
+test("setViewerSettings merges showDummyLinks without clobbering sibling settings", async () => {
+  const fs = new MemoryFileSystemAdapter();
+  const yamlPath = "/labs/demo.clab.yml";
+  await fs.writeFile(yamlPath, BASE_YAML);
+  const host = new TopologyHostCore({
+    fs,
+    yamlFilePath: yamlPath,
+    mode: "edit",
+    deploymentState: "undeployed",
+    dirty: false
+  });
+
+  const initial = await host.getSnapshot();
+  // Absent from the sidecar, dummy links stay visible.
+  assert.equal(initial.annotations.viewerSettings?.showDummyLinks, undefined);
+
+  const seeded = await apply(host, initial.revision, {
+    command: "setViewerSettings",
+    payload: { linkLabelMode: "on-select", showRateLabels: true }
+  });
+
+  const hidden = await apply(host, seeded.revision, {
+    command: "setViewerSettings",
+    payload: { showDummyLinks: false }
+  });
+
+  const viewerSettings = hidden.snapshot.annotations.viewerSettings;
+  assert.equal(viewerSettings?.showDummyLinks, false);
+  // The per-field merge must leave the other view options alone.
+  assert.equal(viewerSettings?.linkLabelMode, "on-select");
+  assert.equal(viewerSettings?.showRateLabels, true);
+
+  // And it must survive a round-trip through the annotations file on disk.
+  const annotationsOnDisk: unknown = JSON.parse(await fs.readFile(`${yamlPath}.annotations.json`));
+  const persisted = (annotationsOnDisk as { viewerSettings?: Record<string, unknown> })
+    .viewerSettings;
+  assert.equal(persisted?.showDummyLinks, false);
+  assert.equal(persisted?.linkLabelMode, "on-select");
+
+  const shown = await apply(host, hidden.revision, {
+    command: "setViewerSettings",
+    payload: { showDummyLinks: true }
+  });
+  assert.equal(shown.snapshot.annotations.viewerSettings?.showDummyLinks, true);
+});

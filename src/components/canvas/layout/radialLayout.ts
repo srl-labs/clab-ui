@@ -15,7 +15,7 @@
  * can use both interchangeably.
  */
 import type { Node, Edge } from "@xyflow/react";
-import { isLayoutableNode, applyPositionMap } from "./types";
+import { isLayoutableNode, isLayoutParticipant, applyPositionMap } from "./types";
 import type { LayoutOptions } from "./types";
 import {
   classifyComponent,
@@ -33,7 +33,7 @@ export function applyRadialLayout(
   const { padding = 80, nodeSpacing = 110 } = options;
   const ringSpacing = nodeSpacing * 1.4; // radial distance between depth rings
 
-  const layoutNodes = nodes.filter(isLayoutableNode);
+  const layoutNodes = nodes.filter(isLayoutParticipant);
   if (layoutNodes.length === 0) return { nodes, edges };
 
   const nodeIds = new Set(layoutNodes.map((n) => n.id));
